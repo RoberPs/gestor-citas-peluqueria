@@ -1,0 +1,666 @@
+openapi: 3.1.0
+
+info:
+  title: API de reserva de citas — cara al cliente
+  version: 1.0.0
+  description: |
+    Interfaz HTTP de la feature `001-client-appointment-booking`.
+
+    Notas transversales, válidas para toda la API:
+
+    - **Un solo salón por instancia** (asunción 11). No hay identificador de salón
+      en ninguna ruta, parámetro ni cuerpo.
+    - **Sin sesión y sin cuentas.** La única credencial es el token de la cita, que
+      viaja en la ruta y autoriza esa cita y ninguna otra (FR-017, FR-018, BR-009).
+    - **Todas las horas se devuelven ya formateadas en la hora local del salón**,
+      además del instante ISO-8601 con desfase. El cliente nunca hace aritmética de
+      fechas: el reloj del dispositivo no decide nada (FR-032, FR-033, BR-015).
+    - **Toda entrada se revalida en servidor**, incluida la que la interfaz ya
+      validó (FR-034, Principio V).
+    - **Todo error incluye `nextAction`**: qué debe hacer el cliente a continuación
+      (FR-037, SC-012).
+    - Los datos personales nunca aparecen en logs ni trazas (FR-036).
+
+servers:
+  - url: /api
+    description: Misma instancia que sirve la interfaz
+
+tags:
+  - name: Catálogo
+  - name: Disponibilidad
+  - name: Reserva
+  - name: Gestión de la cita
+
+paths:
+
+  /services:
+    get:
+      tags: [Catálogo]
+      summary: Catálogo de servicios del salón
+      description: |
+        Devuelve los servicios activos con nombre, duración y precio (FR-001).
+        El precio es informativo: v1 no cobra nada (asunción 12).
+      responses:
+        '200':
+          description: Catálogo
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [salon, services]
+                properties:
+                  salon:
+                    $ref: '#/components/schemas/SalonInfo'
+                  services:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Service'
+
+  /availability:
+    get:
+      tags: [Disponibilidad]
+      summary: Estado de un rango de 14 días y huecos del día seleccionado
+      description: |
+        Resuelve en **una sola respuesta** —alimentada por **una sola consulta**
+        (FR-005b, SC-005)— las tres cosas que la pantalla de reserva necesita:
+
+        1. El estado de cada uno de los 14 días del rango para el servicio elegido:
+           `CLOSED`, `FULL` o `AVAILABLE` (FR-005).
+        2. Los huecos del día seleccionado (FR-005a).
+        3. El siguiente día con disponibilidad, aunque caiga en un rango posterior
+           (FR-006).
+
+        Todo hueco devuelto es reservable en el instante en que se devuelve: cumple
+        las cuatro condiciones de FR-003 (SC-003, Principio VI).
+      parameters:
+        - name: serviceId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+        - name: rangeStart
+          in: query
+          required: false
+          description: |
+            Primer día del rango de 14, en fecha local del salón. Si se omite, el
+            rango empieza hoy. No puede ser anterior a hoy ni posterior al
+            horizonte de 60 días (FR-005b, BR-011b).
+          schema: { type: string, format: date }
+        - name: selectedDate
+          in: query
+          required: false
+          description: |
+            Día cuyos huecos se devuelven. Debe caer dentro del rango. Si se omite,
+            se toma el primer día del rango con disponibilidad.
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Disponibilidad calculada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AvailabilityResponse'
+        '400':
+          description: |
+            Servicio inexistente o inactivo, o rango fuera de los límites
+            permitidos: antes de hoy o más allá del horizonte de 60 días.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /appointments:
+    post:
+      tags: [Reserva]
+      summary: Confirmar una reserva
+      description: |
+        Crea la cita. Antes de escribir nada, el servidor **revalida** que el hueco
+        sigue cumpliendo las cuatro condiciones de FR-003 en este instante (FR-011)
+        y que el contacto no supera el límite de 3 citas confirmadas futuras
+        (FR-013, BR-014).
+
+        La no-superposición está además garantizada por una restricción de
+        exclusión en la base de datos: de dos confirmaciones simultáneas sobre
+        huecos que se solapan, exactamente una prospera (FR-012, BR-001).
+
+        **Respuesta 303, no 201.** Se redirige a la pantalla de la cita para que
+        recargar la confirmación no cree una segunda cita (Historia 3, escenario 3;
+        D-010). La cabecera `Location` lleva el único ejemplar del token en claro
+        que el cliente va a recibir (FR-015).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookingRequest'
+      responses:
+        '303':
+          description: |
+            Cita creada. El cliente debe seguir la redirección a la pantalla de
+            confirmación.
+          headers:
+            Location:
+              description: |
+                `/cita/{token}?nueva=1`. **Único lugar donde se entrega el token**:
+                v1 no envía ningún mensaje (asunción 5), y la pantalla de destino
+                muestra el aviso destacado de guardarlo (FR-015).
+              schema: { type: string }
+        '400':
+          description: |
+            Datos de contacto con formato inválido. El cuerpo señala el campo
+            concreto a corregir y cómo (FR-009).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ValidationError' }
+        '409':
+          description: |
+            El hueco ya no es reservable. Cubre tres situaciones distinguibles por
+            `code`, y **siempre devuelve la disponibilidad actualizada del día**
+            para que el cliente pueda elegir otro sin volver atrás (Historia 2,
+            escenario 5).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SlotConflictError' }
+        '422':
+          description: |
+            El contacto ya tiene 3 citas confirmadas futuras. El mensaje explica el
+            límite e invita a cancelar una existente o a llamar al salón
+            (FR-013, BR-014).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '429':
+          description: |
+            Superado el límite de confirmaciones por IP: 5/hora o 15/24 h (FR-039,
+            D-007). A diferencia del límite de apertura de enlaces, **este sí se
+            explica**, porque quien lo recibe es casi siempre un cliente legítimo
+            tras una IP compartida. El mensaje incluye el teléfono del salón.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /appointments/{token}:
+    get:
+      tags: [Gestión de la cita]
+      summary: Consultar una cita por su enlace
+      description: |
+        Devuelve **únicamente** los datos de esa cita. Nunca otras citas, otros
+        clientes ni la agenda del salón (FR-018, BR-009).
+
+        El campo `view` distingue `CONFIRMED`, `CANCELLED` y `COMPLETED`, este
+        último derivado del reloj sin ningún proceso en segundo plano (FR-031).
+        `canCancel` y `canReschedule` indican si las acciones proceden, y
+        `unavailableReason` explica por qué no cuando no proceden (FR-028).
+      parameters:
+        - $ref: '#/components/parameters/AppointmentToken'
+      responses:
+        '200':
+          description: La cita
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AppointmentDetail' }
+        '404':
+          $ref: '#/components/responses/NeutralNotFound'
+
+  /appointments/{token}/availability:
+    get:
+      tags: [Gestión de la cita]
+      summary: Huecos para reprogramar esta cita
+      description: |
+        Misma forma que `/availability`, con dos diferencias impuestas por la
+        Historia 6:
+
+        - El servicio **no se puede cambiar**: se usa siempre el de la cita, con la
+          duración congelada en su snapshot (FR-024, D-011).
+        - El hueco que ocupa la propia cita se devuelve con
+          `isCurrentAppointment: true` y **no cuenta como ocupado** (FR-027).
+      parameters:
+        - $ref: '#/components/parameters/AppointmentToken'
+        - name: rangeStart
+          in: query
+          required: false
+          schema: { type: string, format: date }
+        - name: selectedDate
+          in: query
+          required: false
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Disponibilidad para reprogramar
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AvailabilityResponse' }
+        '404':
+          $ref: '#/components/responses/NeutralNotFound'
+        '409':
+          description: |
+            La cita no se puede reprogramar: faltan menos de 24 h, ya está
+            cancelada o ya ha pasado (BR-004, BR-007, BR-010).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /appointments/{token}/cancellation:
+    post:
+      tags: [Gestión de la cita]
+      summary: Cancelar la cita
+      description: |
+        La confirmación explícita que exige FR-022 se recoge en la interfaz antes
+        de llamar aquí; el cuerpo la reafirma con `confirmed: true` para que una
+        petición accidental no cancele nada.
+
+        Al cancelar, el hueco vuelve a estar disponible **de inmediato** (FR-023,
+        BR-005): la restricción de exclusión sólo aplica a citas confirmadas, así
+        que la franja queda libre en la misma transacción.
+      parameters:
+        - $ref: '#/components/parameters/AppointmentToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [confirmed]
+              properties:
+                confirmed:
+                  type: boolean
+                  const: true
+                  description: Confirmación explícita del cliente (FR-022).
+      responses:
+        '200':
+          description: Cita cancelada. Se devuelve su estado actualizado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AppointmentDetail' }
+        '404':
+          $ref: '#/components/responses/NeutralNotFound'
+        '409':
+          description: |
+            No se puede cancelar: faltan menos de 24 h (BR-004), la cita ya está
+            cancelada (BR-007, Historia 5 escenario 4) o ya ha pasado (BR-010).
+            El mensaje indica el teléfono del salón como alternativa (FR-028).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /appointments/{token}/reschedule:
+    post:
+      tags: [Gestión de la cita]
+      summary: Reprogramar la cita a otro hueco
+      description: |
+        Mueve la cita a una franja nueva **del mismo servicio**, de forma atómica.
+
+        Si el hueco nuevo ha sido ocupado entre la selección y la confirmación, la
+        transacción revierte entera y **la cita original queda intacta en su hora
+        original** (FR-025, BR-006). El cliente nunca acaba sin cita y sin hueco.
+
+        El token **no cambia**: el mismo enlace sigue sirviendo (FR-026).
+
+        Si el hueco elegido es el que la cita ya ocupa, no se cambia nada y se
+        responde `200` con `unchanged: true` (Historia 6, escenario 5).
+      parameters:
+        - $ref: '#/components/parameters/AppointmentToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [startsAt]
+              properties:
+                startsAt:
+                  type: string
+                  format: date-time
+                  description: Inicio del hueco nuevo, tal como lo devolvió la API.
+      responses:
+        '200':
+          description: |
+            Cita reprogramada, o sin cambios si el hueco elegido era el suyo.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/AppointmentDetail'
+                  - type: object
+                    properties:
+                      unchanged:
+                        type: boolean
+                        description: |
+                          `true` si el cliente eligió su propia hora actual
+                          (Historia 6, escenario 5).
+        '404':
+          $ref: '#/components/responses/NeutralNotFound'
+        '409':
+          description: |
+            El hueco nuevo ya no está libre, o la cita no admite reprogramación
+            (menos de 24 h, cancelada o pasada). **La cita original no se ha
+            tocado.** Se devuelve la disponibilidad actualizada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SlotConflictError' }
+
+components:
+
+  parameters:
+    AppointmentToken:
+      name: token
+      in: path
+      required: true
+      description: |
+        Credencial de acceso de la cita: 32 bytes aleatorios en base64url
+        (256 bits, por encima del mínimo de 128 de FR-017). Es la autenticación y
+        la autorización de esa cita y de ninguna otra (asunción 1, BR-016).
+        La base de datos guarda sólo su hash SHA-256 (D-005).
+      schema:
+        type: string
+        pattern: '^[A-Za-z0-9_-]{43}$'
+
+  responses:
+    NeutralNotFound:
+      description: |
+        **Respuesta neutra e indistinguible** (FR-019, FR-038, D-006).
+
+        Se devuelve, con idéntico cuerpo e idénticas cabeceras, en los cinco casos:
+
+        1. El token no corresponde a ninguna cita.
+        2. El token está malformado.
+        3. La cita fue borrada.
+        4. La cita fue anonimizada por retención a los 12 meses (FR-035, BR-018).
+        5. Se superó el límite de aperturas por IP: 30/10 min (FR-038, D-007).
+
+        No se emite `429` ni ninguna cabecera de límite en el caso 5: eso revelaría
+        que el sistema distingue entre los intentos, que es justo lo que FR-038
+        prohíbe. Tampoco se distingue por el tiempo de respuesta, porque la
+        consulta se ejecuta siempre, incluso con el formato ya inválido.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [code, message, nextAction]
+            properties:
+              code:
+                type: string
+                const: APPOINTMENT_NOT_FOUND
+              message:
+                type: string
+                example: No hemos encontrado ninguna cita con este enlace.
+              nextAction:
+                type: string
+                example: Puedes reservar una cita nueva desde la página de reservas.
+
+  schemas:
+
+    SalonInfo:
+      type: object
+      description: Datos del salón mostrados en la confirmación y en la cita (FR-014).
+      required: [name, address, phone, timezone, timezoneLabel]
+      properties:
+        name: { type: string }
+        address: { type: string }
+        phone:
+          type: string
+          description: |
+            Se muestra siempre que el cliente no pueda resolver algo online
+            (FR-028, FR-039).
+        timezone:
+          type: string
+          example: Europe/Madrid
+        timezoneLabel:
+          type: string
+          description: |
+            Texto que la interfaz muestra para dejar claro que las horas son las
+            del salón (FR-033).
+          example: Horario de Madrid
+
+    Service:
+      type: object
+      required: [id, name, durationMinutes, priceCents]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string, example: Corte }
+        durationMinutes: { type: integer, example: 30 }
+        priceCents:
+          type: integer
+          description: Entero en céntimos, nunca coma flotante. Informativo.
+          example: 1800
+
+    AvailabilityResponse:
+      type: object
+      required: [serviceId, range, days, selectedDate, slots, cancellationPolicyHours]
+      properties:
+        serviceId: { type: string, format: uuid }
+        range:
+          $ref: '#/components/schemas/RangeWindow'
+        days:
+          type: array
+          minItems: 1
+          maxItems: 14
+          description: |
+            Los 14 días del rango, cada uno con su estado para este servicio
+            (FR-005). El último rango se **recorta** al día 60 en lugar de
+            completar los 14 (caso límite de fecha lejana).
+          items:
+            $ref: '#/components/schemas/RangeDay'
+        selectedDate:
+          type: string
+          format: date
+        slots:
+          type: array
+          description: |
+            Huecos del día seleccionado (FR-005a). Vacío si el día es `CLOSED` o
+            `FULL`; en ese caso `nextAvailableDate` dice adónde ir.
+          items:
+            $ref: '#/components/schemas/Slot'
+        nextAvailableDate:
+          type: [string, 'null']
+          format: date
+          description: |
+            Siguiente día con disponibilidad para este servicio, **aunque caiga en
+            un rango posterior** (FR-006). `null` si no queda ninguno dentro del
+            horizonte de 60 días.
+        cancellationPolicyHours:
+          type: integer
+          const: 24
+          description: |
+            Plazo que se mostrará al cliente antes de confirmar (FR-010, BR-004).
+
+    RangeWindow:
+      type: object
+      required: [start, end, canGoBack, canGoForward]
+      properties:
+        start: { type: string, format: date }
+        end: { type: string, format: date }
+        canGoBack:
+          type: boolean
+          description: |
+            `false` en el primer rango: no se reservan días pasados (Historia 1,
+            escenario 10).
+        canGoForward:
+          type: boolean
+          description: |
+            `false` al llegar al horizonte de 60 días (Historia 1, escenario 9).
+
+    RangeDay:
+      type: object
+      required: [date, weekdayLabel, dayLabel, status, slotCount]
+      properties:
+        date: { type: string, format: date }
+        weekdayLabel: { type: string, example: vie }
+        dayLabel: { type: string, example: '18' }
+        status:
+          type: string
+          enum: [CLOSED, FULL, AVAILABLE]
+          description: |
+            `CLOSED`: sin tramos de apertura o con cierre —festivo o ausencia—.
+            `FULL`: abierto, pero ningún inicio admite **este** servicio.
+            `AVAILABLE`: al menos un hueco.
+
+            La distinción entre `CLOSED` y `FULL` es de producto, no de
+            presentación: al cliente le dice si merece la pena volver a mirar.
+        slotCount:
+          type: integer
+          description: |
+            Número de huecos. Alimenta el nombre accesible del día, para que el
+            estado no dependa sólo del color (SC-010, D-014).
+
+    Slot:
+      type: object
+      required: [startsAt, localTime, endsLocalTime]
+      properties:
+        startsAt:
+          type: string
+          format: date-time
+          description: Instante absoluto. Es el valor que se envía al reservar.
+        localTime:
+          type: string
+          pattern: '^[0-2][0-9]:[0-5][0-9]$'
+          description: |
+            Hora del salón, ya formateada. El cliente la muestra tal cual: no hace
+            aritmética de fechas y el reloj del dispositivo no interviene (FR-033).
+          example: '11:30'
+        endsLocalTime:
+          type: string
+          example: '12:00'
+        isCurrentAppointment:
+          type: boolean
+          default: false
+          description: |
+            Sólo en reprogramación: marca el hueco que la cita ya ocupa, que se
+            ofrece y **no cuenta como ocupado** (FR-027).
+
+    BookingRequest:
+      type: object
+      required: [serviceId, startsAt, customer]
+      properties:
+        serviceId: { type: string, format: uuid }
+        startsAt:
+          type: string
+          format: date-time
+          description: Inicio del hueco, tal como lo devolvió `/availability`.
+        customer:
+          $ref: '#/components/schemas/CustomerContact'
+
+    CustomerContact:
+      type: object
+      description: |
+        **Exactamente tres datos, ninguno más** (FR-008, Principio III). Cualquier
+        campo personal adicional exigiría una enmienda de la constitución.
+      required: [name, phone, email]
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        phone:
+          type: string
+          description: |
+            Teléfono español, móvil o fijo, con prefijo internacional opcional
+            (asunción 8). No se verifica como existente: v1 no envía nada.
+          example: '+34 600 11 22 33'
+        email:
+          type: string
+          format: email
+          description: |
+            Validado sintácticamente. Tampoco se verifica como existente.
+
+    AppointmentDetail:
+      type: object
+      required:
+        [view, service, date, startsLocalTime, endsLocalTime, durationMinutes,
+         startsAt, canCancel, canReschedule, salon]
+      properties:
+        view:
+          type: string
+          enum: [CONFIRMED, CANCELLED, COMPLETED]
+          description: |
+            `COMPLETED` es **derivado del reloj**, no un estado persistido: una
+            cita confirmada cuya hora de fin ya pasó (FR-031). No hay ningún
+            proceso en segundo plano que la marque.
+        service:
+          $ref: '#/components/schemas/Service'
+          description: |
+            El **snapshot** guardado al reservar, no el catálogo actual. Si el
+            salón cambia el precio o la duración, la cita conserva lo que se
+            reservó (FR-016, D-011).
+        date: { type: string, format: date }
+        startsLocalTime: { type: string, example: '11:30' }
+        endsLocalTime: { type: string, example: '13:00' }
+        durationMinutes: { type: integer }
+        startsAt: { type: string, format: date-time }
+        canCancel:
+          type: boolean
+          description: |
+            `true` sólo si está confirmada y faltan más de 24 h (BR-004).
+        canReschedule:
+          type: boolean
+          description: Mismas condiciones que `canCancel` (FR-024).
+        unavailableReason:
+          type: [string, 'null']
+          description: |
+            Presente cuando `canCancel` o `canReschedule` son `false`. Explica el
+            motivo e indica llamar al salón (FR-028, Historia 5 escenario 3).
+          example: >-
+            Faltan menos de 24 horas para tu cita, así que ya no puedes cambiarla
+            desde aquí. Llama al salón al 91 123 45 67 y lo resolvemos.
+        cancellationPolicyHours:
+          type: integer
+          const: 24
+        salon:
+          $ref: '#/components/schemas/SalonInfo'
+
+    Error:
+      type: object
+      description: |
+        Forma común de todo error. `nextAction` no es opcional: SC-012 exige que
+        **el 100%** de los mensajes de error indiquen una acción concreta.
+      required: [code, message, nextAction]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        nextAction: { type: string }
+
+    ValidationError:
+      allOf:
+        - $ref: '#/components/schemas/Error'
+        - type: object
+          required: [fields]
+          properties:
+            fields:
+              type: array
+              description: |
+                Un elemento por campo a corregir, señalando **cuál y cómo**
+                (FR-009). El resto de lo introducido no se pierde: la interfaz
+                conserva los valores válidos (caso límite del formulario).
+              items:
+                type: object
+                required: [field, message]
+                properties:
+                  field:
+                    type: string
+                    enum: [customer.name, customer.phone, customer.email]
+                  message:
+                    type: string
+                    example: >-
+                      Escribe un teléfono español de 9 cifras, por ejemplo
+                      600 11 22 33.
+
+    SlotConflictError:
+      allOf:
+        - $ref: '#/components/schemas/Error'
+        - type: object
+          required: [availability]
+          properties:
+            code:
+              type: string
+              enum: [SLOT_TAKEN, TOO_LATE_TO_BOOK, OUTSIDE_OPENING_HOURS]
+              description: |
+                `SLOT_TAKEN`: otro cliente lo tomó mientras se rellenaba el
+                formulario (Historia 2 escenario 5).
+                `TOO_LATE_TO_BOOK`: el inicio ha quedado a menos de 2 h al
+                confirmar (BR-003, caso límite de la antelación).
+                `OUTSIDE_OPENING_HOURS`: la configuración cambió y esa franja ya no
+                es horario de apertura (BR-016b).
+            availability:
+              $ref: '#/components/schemas/AvailabilityResponse'
+              description: |
+                Disponibilidad **actualizada** del mismo día, para que el cliente
+                elija otro hueco sin volver atrás ni repetir el formulario.
