@@ -130,7 +130,7 @@ export default async function AppointmentPage({
           {view === 'COMPLETED' && <p>{messages.appointment.completedNote}</p>}
 
           {reason !== null && (
-            <div className="notice-warning" role="status">
+            <div className="notice-warning" role="status" id="unavailable-reason">
               <p>{reason}</p>
             </div>
           )}
@@ -144,7 +144,12 @@ export default async function AppointmentPage({
                   {messages.appointment.rescheduleAction}
                 </Link>
               ) : (
-                <button type="button" className="button-secondary" disabled>
+                <button
+                  type="button"
+                  className="button-secondary"
+                  aria-disabled="true"
+                  aria-describedby="unavailable-reason"
+                >
                   {messages.appointment.rescheduleAction}
                 </button>
               )}
@@ -152,7 +157,12 @@ export default async function AppointmentPage({
               {detail.canCancel ? (
                 <CancelDialog token={token} confirming={false} />
               ) : (
-                <button type="button" className="button-secondary" disabled>
+                <button
+                  type="button"
+                  className="button-secondary"
+                  aria-disabled="true"
+                  aria-describedby="unavailable-reason"
+                >
                   {messages.appointment.cancelAction}
                 </button>
               )}

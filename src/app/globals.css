@@ -151,7 +151,9 @@ select {
 }
 
 .button[disabled],
-.button-secondary[disabled] {
+.button-secondary[disabled],
+.button[aria-disabled='true'],
+.button-secondary[aria-disabled='true'] {
   opacity: 1;
   background: var(--closed-soft);
   color: var(--closed-ink);
@@ -272,12 +274,17 @@ select {
   font-size: 0.875rem;
 }
 
-/* Day grid: 7 columns x 2 rows fit 360 px with a 44 px target (D-014) -- */
+/* Day grid: 7 columns x 2 rows at 360 px, each cell at least 44 px wide.
+ *
+ * The arithmetic is tight and worth writing down: 360 - 32 of side padding
+ * - 6 gaps leaves what is divided by seven. At a 4 px gap that came to 43.4 px
+ * and WCAG 2.2 AA wants 44, so the gap is 2 px and the cell 45.1 px. The
+ * accessibility suite measures it rather than trusting this comment. */
 
 .day-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
+  gap: 2px;
   list-style: none;
   margin: 0;
   padding: 0;
