@@ -5,6 +5,7 @@ import type { BookingRejection } from '@/domain/booking/confirm';
 import { normalizeEmail, normalizePhone, validateName } from '@/domain/contact/contact';
 import { localDateOf } from '@/domain/shared/time';
 import { resolveClientIp } from '@/infrastructure/config/env';
+import { logger } from '@/infrastructure/logging/logger';
 import { rateLimiter } from '@/infrastructure/security/rate-limiter';
 import { messages, withPhone } from '@/messages/es-ES';
 import { jsonError, jsonErrorWith, type ApiError } from '../_lib/responses';
@@ -137,6 +138,11 @@ export async function POST(request: Request): Promise<Response> {
   });
 
   if (result.ok) {
+    // The trace references the internal id and nothing else. It never appears
+    // in a client URL, and the three personal fields never appear here
+    // (FR-036); the logger redacts them even if a future edit slips one in.
+    logger().info({ appointmentId: result.value.appointment.id }, 'booking confirmed');
+
     // POST-Redirect-GET (D-010): reloading the confirmation repeats an
     // idempotent GET, so it cannot create a second appointment.
     return new Response(null, {
@@ -149,6 +155,14 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const failure = result.error;
+
+  logger().warn(
+    {
+      reason: failure.kind,
+      rejection: failure.kind === 'REJECTED' ? failure.rejection.kind : undefined,
+    },
+    'booking rejected',
+  );
 
   if (failure.kind === 'UNKNOWN_SERVICE' || failure.kind === 'INVALID_START') {
     return validationError([], { code: 'INVALID_REQUEST', ...messages.errors.unknownService });

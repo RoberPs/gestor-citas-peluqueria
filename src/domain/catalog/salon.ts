@@ -59,6 +59,8 @@ export type BookingPolicy = {
   readonly slotGridMinutes: number;
   /** BR-014: confirmed future appointments allowed per phone or per email. */
   readonly maxFutureAppointmentsPerContact: number;
+  /** FR-035: how long personal data is kept, counted from the appointment. */
+  readonly retentionMonths: number;
 };
 
 export const DEFAULT_BOOKING_POLICY: BookingPolicy = {
@@ -68,6 +70,7 @@ export const DEFAULT_BOOKING_POLICY: BookingPolicy = {
   rangeLengthDays: 14,
   slotGridMinutes: 30,
   maxFutureAppointmentsPerContact: 3,
+  retentionMonths: 12,
 };
 
 /** Everything the availability calculation needs about the salon, loaded once. */

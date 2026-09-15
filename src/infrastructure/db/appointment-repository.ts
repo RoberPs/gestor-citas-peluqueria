@@ -185,6 +185,8 @@ export type PersonalDataPurge = {
   anonymizeDueBefore(cutoff: Temporal.Instant): Promise<number>;
   anonymizeOne(id: string): Promise<number>;
   countDueBefore(cutoff: Temporal.Instant): Promise<number>;
+  /** Whether that one appointment still holds personal data. */
+  countOne(id: string): Promise<number>;
 };
 
 const ANONYMIZE_SET = `
@@ -200,6 +202,15 @@ export function createPersonalDataPurge(getPool: () => Pool): PersonalDataPurge 
         `SELECT count(*) AS count FROM appointment
           WHERE starts_at < $1 AND anonymized_at IS NULL`,
         [dateOf(cutoff)],
+      );
+      return Number(rows[0]?.count ?? 0);
+    },
+
+    async countOne(id) {
+      const { rows } = await getPool().query<{ count: string }>(
+        `SELECT count(*) AS count FROM appointment
+          WHERE id = $1 AND anonymized_at IS NULL`,
+        [id],
       );
       return Number(rows[0]?.count ?? 0);
     },
