@@ -223,30 +223,86 @@ La última forma del comando es la que cubre la exigencia del Principio III sobr
 ## Despliegue
 
 ```bash
-docker compose -f docker-compose.prod.yml up -d
+# Las variables que el compose exige, sin valor por defecto a propósito
+export SALON_DOMAIN=citas.tusalon.es
+export POSTGRES_PASSWORD=...
+export RATE_LIMIT_SECRET=...
+
+docker compose -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.prod.yml exec app npm run db:migrate
+docker compose -f docker-compose.prod.yml exec app npm run db:seed
 ```
 
-Tres puntos que no se pueden pasar por alto:
+Tres servicios: `proxy` (Caddy), `app` y `db`. Sólo el proxy publica puertos.
 
-**HTTPS obligatorio** (Principio V). El proxy inverso termina TLS y fija HSTS. La aplicación no escucha en claro fuera de la red interna del compose.
+### HTTPS: dónde termina y por qué importa
 
-**La IP del cliente, sólo desde el proxy.** El límite por IP de FR-038 y FR-039 lee `X-Forwarded-For`, y debe **confiar en esa cabecera únicamente si la petición viene del proxy conocido** (`TRUSTED_PROXY_IPS`). Sin esa comprobación, cualquiera falsea su IP y el límite deja de existir.
+El Principio V exige que todo el tráfico vaya por HTTPS. **Caddy termina TLS**
+en el borde y obtiene el certificado de `SALON_DOMAIN` automáticamente; la
+aplicación escucha en el puerto 3000 de la red interna del compose y **no
+publica ningún puerto**, así que no es alcanzable en claro desde fuera.
 
-**Cron de retención**: una entrada diaria a las 03:30 hora del salón ejecutando `npm run retention:purge` (D-012). Es el único proceso en segundo plano de la feature — el estado "completada" **no** necesita ninguno, se deriva del reloj al leer (FR-031).
+El `Caddyfile` añade las cabeceras que la aplicación no puede ponerse a sí
+misma:
 
-### Variables de entorno
-
-| Variable | Descripción |
+| Cabecera | Para qué |
 |---|---|
-| `DATABASE_URL` | Cadena de conexión a PostgreSQL |
-| `SALON_TIMEZONE` | Por defecto `Europe/Madrid`. Configuración del salón, no constante del sistema (asunción 9) |
-| `RATE_LIMIT_SECRET` | Secreto del HMAC que convierte la IP en clave (FR-040, D-007) |
-| `TRUSTED_PROXY_IPS` | Proxies cuya cabecera `X-Forwarded-For` se acepta |
-| `PUBLIC_BASE_URL` | Base de los enlaces de gestión que se muestran al cliente |
+| `Strict-Transport-Security` | Tras la primera visita el navegador se niega a hablar HTTP en claro |
+| `X-Content-Type-Options: nosniff` | El navegador no adivina el tipo de una respuesta |
+| `Referrer-Policy: strict-origin-when-cross-origin` | El enlace de gestión es una credencial en una URL: no debe viajar en un `Referer` a terceros |
+| `X-Frame-Options: DENY` y `frame-ancestors 'none'` | Nadie enmarca la pantalla de la cita |
+| `Content-Security-Policy` | Sin recursos de terceros, sin envío de formularios fuera del sitio |
 
-Ninguna lleva valor en `.env.example`, y `.env` está en `.gitignore`: los secretos nunca entran al repositorio (Principio V).
+La CSP permite `'unsafe-inline'` en `script-src` porque Next arranca su
+hidratación con un script en línea. Apretarla más exige *nonces* por petición,
+que es un cambio en la aplicación y no en el proxy. Queda dicho para que sea una
+decisión y no un descuido.
 
----
+### La IP del cliente, sólo desde el proxy
+
+Los límites de FR-038 y FR-039 leen `X-Forwarded-For`, y **sólo se fían de esa
+cabecera si la petición viene del proxy conocido** (`TRUSTED_PROXY_IPS`, que en
+este compose vale `proxy`). Sin esa comprobación cualquiera falsea su IP y el
+límite deja de existir.
+
+Lo leen las cinco entradas: los Route Handlers, las dos Server Actions y las dos
+pantallas que resuelven un enlace. Si alguna dejara de hacerlo, el límite «por
+IP» se convertiría en un límite global compartido por todos los clientes.
+
+### Un solo worker por salón
+
+El limitador vive en la memoria del proceso (D-007), así que un segundo worker
+tendría sus propios contadores y partiría el límite en dos sin beneficio para
+nadie. El compose arranca **una** instancia de `app` a propósito. Escalar a
+varias exige antes mover el contador a PostgreSQL, sustituyendo el adaptador del
+puerto `RateLimiter` sin tocar dominio ni casos de uso.
+
+El secreto del HMAC es **fijo durante la vida del proceso**: se rota
+reiniciándolo. Rotarlo en caliente reasignaría las claves y reiniciaría en
+silencio todas las ventanas vivas, que es justo lo que querría quien abusa.
+
+### Cron del borrado por retención
+
+Una entrada diaria a las **03:30 hora del salón** (D-012). En el `crontab` del
+host:
+
+```cron
+# Borrado de datos personales a los 12 meses (FR-035). TZ fija la hora del salón.
+CRON_TZ=Europe/Madrid
+30 3 * * * cd /srv/gestor-citas && docker compose -f docker-compose.prod.yml exec -T app npm run retention:purge >> /var/log/salon-retention.log 2>&1
+```
+
+`CRON_TZ` no es opcional: sin él la entrada corre en la hora del sistema y la
+purga se desplaza una hora dos veces al año.
+
+Es el **único** proceso en segundo plano de la feature. El estado «completada»
+no necesita ninguno: se deriva del reloj al leer la cita (FR-031).
+
+Conviene estrenar la entrada en seco antes de dejarla suelta:
+
+```bash
+docker compose -f docker-compose.prod.yml exec app npm run retention:purge -- --dry-run
+```
 
 ## Problemas frecuentes
 
