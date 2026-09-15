@@ -1,0 +1,88 @@
+import { sql } from 'drizzle-orm';
+import {
+  boolean,
+  customType,
+  date,
+  integer,
+  pgEnum,
+  pgTable,
+  smallint,
+  text,
+  time,
+  timestamp,
+  uuid,
+} from 'drizzle-orm/pg-core';
+
+/**
+ * Drizzle's view of the schema. The migrations in `migrations/` are the source
+ * of truth (D-008); this file types the queries against them.
+ */
+
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType() {
+    return 'bytea';
+  },
+});
+
+export const appointmentStatus = pgEnum('appointment_status', ['CONFIRMED', 'CANCELLED']);
+
+export const salon = pgTable('salon', {
+  id: uuid('id').primaryKey(),
+  name: text('name').notNull(),
+  address: text('address').notNull(),
+  phone: text('phone').notNull(),
+  timezone: text('timezone').notNull(),
+});
+
+export const openingInterval = pgTable('opening_interval', {
+  id: uuid('id').primaryKey(),
+  weekday: smallint('weekday').notNull(),
+  startsAt: time('starts_at').notNull(),
+  endsAt: time('ends_at').notNull(),
+});
+
+export const closure = pgTable('closure', {
+  id: uuid('id').primaryKey(),
+  date: date('date', { mode: 'string' }).notNull(),
+  /** Internal. Never leaves the database: the client sees "closed", never why. */
+  reason: text('reason').notNull(),
+});
+
+export const service = pgTable('service', {
+  id: uuid('id').primaryKey(),
+  name: text('name').notNull(),
+  durationMinutes: integer('duration_minutes').notNull(),
+  priceCents: integer('price_cents').notNull(),
+  isActive: boolean('is_active').notNull().default(true),
+  displayOrder: integer('display_order').notNull(),
+});
+
+export const appointment = pgTable('appointment', {
+  id: uuid('id').primaryKey(),
+  status: appointmentStatus('status').notNull(),
+  startsAt: timestamp('starts_at', { withTimezone: true, mode: 'date' }).notNull(),
+  endsAt: timestamp('ends_at', { withTimezone: true, mode: 'date' }).notNull(),
+
+  serviceId: uuid('service_id')
+    .notNull()
+    .references(() => service.id),
+  serviceName: text('service_name').notNull(),
+  serviceDurationMinutes: integer('service_duration_minutes').notNull(),
+  servicePriceCents: integer('service_price_cents').notNull(),
+
+  customerName: text('customer_name'),
+  customerPhone: text('customer_phone'),
+  customerEmail: text('customer_email'),
+  customerPhoneNormalized: text('customer_phone_normalized'),
+  customerEmailNormalized: text('customer_email_normalized'),
+
+  tokenHash: bytea('token_hash'),
+
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+    .notNull()
+    .default(sql`now()`),
+  cancelledAt: timestamp('cancelled_at', { withTimezone: true, mode: 'date' }),
+  anonymizedAt: timestamp('anonymized_at', { withTimezone: true, mode: 'date' }),
+});
+
+export const schema = { salon, openingInterval, closure, service, appointment };
