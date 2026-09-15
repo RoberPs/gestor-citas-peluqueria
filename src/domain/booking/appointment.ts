@@ -1,0 +1,83 @@
+import type { Temporal } from '@js-temporal/polyfill';
+import type { Weekday } from '../catalog/salon';
+import type { ServiceSnapshot } from '../catalog/service';
+
+export type AppointmentId = string;
+
+/** The two persisted states, and only these two (FR-030). */
+export type AppointmentStatus = 'CONFIRMED' | 'CANCELLED';
+
+/**
+ * What the client is shown. `COMPLETED` is **derived from the clock** and never
+ * persisted (FR-031): no background process assigns it.
+ */
+export type AppointmentView = 'CONFIRMED' | 'CANCELLED' | 'COMPLETED';
+
+/** The three personal fields, and no others (FR-008, Principio III). */
+export type CustomerContact = {
+  /** As the client typed it: it is what the owner reads out when calling. */
+  readonly name: string;
+  readonly phone: string;
+  readonly email: string;
+};
+
+export type Appointment = {
+  readonly id: AppointmentId;
+  readonly status: AppointmentStatus;
+  readonly startsAt: Temporal.Instant;
+  /** Derived from the snapshot duration when the appointment was confirmed. */
+  readonly endsAt: Temporal.Instant;
+  readonly service: ServiceSnapshot;
+  /** `null` once anonymised (BR-018): the type forces every reader to cope. */
+  readonly customer: CustomerContact | null;
+  readonly createdAt: Temporal.Instant;
+  readonly cancelledAt: Temporal.Instant | null;
+  readonly anonymizedAt: Temporal.Instant | null;
+};
+
+/** A stretch of the single chair already taken by a confirmed appointment. */
+export type BusyInterval = {
+  readonly startsAt: Temporal.Instant;
+  readonly endsAt: Temporal.Instant;
+};
+
+export function busyIntervalOf(appointment: Appointment): BusyInterval {
+  return { startsAt: appointment.startsAt, endsAt: appointment.endsAt };
+}
+
+/**
+ * A candidate start. Derived, never stored, never held while the form is filled
+ * in: if it were a row, changing a service duration would invalidate the table.
+ */
+export type Slot = {
+  readonly startsAt: Temporal.Instant;
+  readonly endsAt: Temporal.Instant;
+  /** `11:30`, salon wall time, already formatted (FR-033). */
+  readonly localTime: string;
+  readonly endsLocalTime: string;
+  /** Only while rescheduling: the slot this appointment already holds (FR-027). */
+  readonly isCurrentAppointment: boolean;
+};
+
+/**
+ * `CLOSED` is never reported as `FULL`. It is a product distinction, not a
+ * presentational one: it tells the client whether to look at another day or
+ * whether that day simply does not exist for this salon.
+ */
+export type DayStatus = 'CLOSED' | 'FULL' | 'AVAILABLE';
+
+/**
+ * One day of the 14 day range.
+ *
+ * The Spanish labels the screen shows (`vie`, `18`) are built at the
+ * presentation boundary from `date` and `weekday`, because all interface copy
+ * lives in `src/messages/es-ES.ts` and none of it in the domain.
+ */
+export type RangeDay = {
+  /** ISO date in the salon's calendar, e.g. `2026-09-18`. */
+  readonly date: string;
+  readonly weekday: Weekday;
+  readonly status: DayStatus;
+  /** Zero when `CLOSED` or `FULL`. Feeds the accessible name (D-014). */
+  readonly slotCount: number;
+};
