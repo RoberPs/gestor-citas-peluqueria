@@ -40,6 +40,12 @@ Esta feature le da un acceso privado y las pantallas para llevar el salón día 
 - Q: ¿Hasta dónde llega la agenda en v1? → A: Vista de un solo día, navegable a cualquier fecha pasada o futura. Sin vista de semana ni de mes.
 - Q: ¿Qué significa eliminar un servicio y puede el catálogo quedarse vacío? → A: Eliminar significa **retirar**: deja de ofrecerse, las citas existentes quedan intactas y se puede volver a activar. El sistema impide retirar el último servicio activo.
 
+### Session 2026-09-16
+
+- Q: Al superar el límite de intentos fallidos, ¿el bloqueo se aplica a la cuenta o al origen del intento (IP)? → A: A la cuenta entera. Cualquier origen que falle repetidamente bloquea el acceso para todos los orígenes durante el periodo definido; no se almacena ninguna dirección IP.
+- Q: Un periodo no disponible que se solapa sólo parcialmente con una cita confirmada, ¿exige el mismo aviso de conflicto que un solape total? → A: Sí. Cualquier solape, por mínimo que sea, dispara el aviso de conflicto y exige confirmación explícita antes de guardar el bloqueo.
+- Q: Una cita ya empezada pero no terminada, ¿es "pasada" (sólo lectura) o sigue siendo movible/cancelable? → A: Editable hasta que termina. El corte de "pasado" es la hora de fin de la cita; mientras está en curso, la dueña puede moverla o cancelarla igual que cualquier cita futura.
+
 ---
 
 ## User Scenarios & Testing *(mandatory)*
@@ -237,7 +243,7 @@ La dueña sube la antelación mínima a cuatro horas porque se cansó de las res
 - **FR-006**: La dueña DEBE poder cerrar sesión explícitamente, y tras hacerlo ninguna pantalla de gestión DEBE seguir siendo accesible.
 - **FR-007**: La sesión DEBE caducar por inactividad. Al caducar, la acción en curso NO DEBE aplicarse.
 - **FR-008**: La respuesta a un acceso fallido DEBE ser idéntica para usuario inexistente y para contraseña incorrecta.
-- **FR-009**: El sistema DEBE limitar los intentos de acceso fallidos y bloquear temporalmente el acceso al superarse el límite, con una respuesta indistinguible de un fallo corriente.
+- **FR-009**: El sistema DEBE limitar los intentos de acceso fallidos y bloquear temporalmente el acceso al superarse el límite, con una respuesta indistinguible de un fallo corriente. El bloqueo se aplica a la cuenta, no al origen del intento: el sistema NO DEBE almacenar ni distinguir por dirección IP u otro identificador de origen.
 - **FR-010**: La contraseña NO DEBE almacenarse de forma recuperable ni aparecer en logs, trazas ni analítica, ni siquiera parcialmente.
 
 #### Agenda
@@ -247,7 +253,7 @@ La dueña sube la antelación mínima a cuatro horas porque se cansó de las res
 - **FR-013**: Cada cita DEBE indicar si procede de una reserva online o de una creación manual, mediante texto e icono, nunca sólo mediante color.
 - **FR-014**: Cada cita de la agenda DEBE mostrar hora de inicio y fin, servicio, nombre y teléfono del cliente, y su estado.
 - **FR-015**: Las citas canceladas NO DEBEN aparecer en la línea temporal por defecto; la dueña DEBE poder mostrarlas mediante un control explícito.
-- **FR-016**: Las citas de franjas ya pasadas DEBEN ser de sólo lectura: no se crean, ni se mueven, ni se cancelan.
+- **FR-016**: Las citas de franjas ya pasadas DEBEN ser de sólo lectura: no se crean, ni se mueven, ni se cancelan. Una franja se considera pasada cuando su **hora de fin** ya transcurrió; mientras una cita está en curso (empezada, no terminada) sigue siendo movible y cancelable.
 - **FR-017**: Un día sin citas DEBE mostrar un estado vacío que distinga "sin citas" de "cerrado".
 
 #### Periodos no disponibles
@@ -256,7 +262,7 @@ La dueña sube la antelación mínima a cuatro horas porque se cansó de las res
 - **FR-019**: La dueña DEBE poder eliminar o acortar un periodo no disponible existente.
 - **FR-020**: Un periodo no disponible DEBE comportarse ante el cliente exactamente como tiempo cerrado: ningún hueco que se solape con él se ofrece.
 - **FR-021**: El motivo de un periodo no disponible NO DEBE exponerse nunca al cliente.
-- **FR-022**: Crear un periodo no disponible que cubra citas confirmadas DEBE listarlas y exigir confirmación explícita, y NO DEBE cancelar ninguna.
+- **FR-022**: Crear un periodo no disponible que se solape, total o parcialmente, con una o más citas confirmadas DEBE listarlas y exigir confirmación explícita, y NO DEBE cancelar ninguna.
 - **FR-023**: El sistema DEBE rechazar periodos cuyo inicio no preceda a su fin.
 
 #### Citas manuales
@@ -326,7 +332,7 @@ La dueña sube la antelación mínima a cuatro horas porque se cansó de las res
 - **BR-006**: Los parámetros de reserva se evalúan con el valor vigente en el instante de la acción. Ni se aplican retroactivamente ni se reabren plazos pasados.
 - **BR-007**: La dueña está exenta de la antelación mínima, del horizonte de reserva, del plazo de cancelación y del horario de apertura. No está exenta del límite de citas futuras por contacto.
 - **BR-008**: La cancelación es terminal para cualquier cita, la haya cancelado el cliente o la dueña.
-- **BR-009**: El pasado es de sólo lectura. Ninguna acción de la dueña crea, mueve ni cancela nada en una franja ya transcurrida.
+- **BR-009**: El pasado es de sólo lectura. Ninguna acción de la dueña crea, mueve ni cancela nada en una franja cuya hora de fin ya transcurrió. Una cita en curso (empezada, no terminada) no es pasado: sigue siendo movible y cancelable.
 - **BR-010**: El catálogo tiene siempre al menos un servicio activo.
 - **BR-011**: Toda cita, creada por quien sea, tiene nombre y teléfono de cliente mientras no se anonimice por retención.
 
@@ -366,7 +372,7 @@ La dueña sube la antelación mínima a cuatro horas porque se cansó de las res
 - **Una instancia por salón**: sigue vigente. Una cuenta, un salón, una línea temporal. No hay identificador de salón en ninguna pantalla.
 - **Aprovisionamiento de la credencial**: se hace en el arranque de la instancia, por el mismo medio que hoy carga la configuración inicial. Si la dueña olvida la contraseña, se reaprovisiona por ese medio; la app no participa.
 - **Caducidad de sesión**: 12 horas de inactividad. Suficiente para una jornada completa sin volver a entrar, y corto para una tablet que vive en el salón.
-- **Límite de intentos de acceso**: 5 fallos en 15 minutos bloquean el acceso durante 15 minutos.
+- **Límite de intentos de acceso**: 5 fallos en 15 minutos bloquean el acceso durante 15 minutos. El bloqueo es por cuenta, no por origen: no se registra ni distingue IP ni dispositivo.
 - **Citas manuales y notificación**: v1 no envía nada a nadie, tampoco cuando la dueña cancela o mueve una cita reservada online. La dueña llama por teléfono; la pantalla se lo recuerda y le da el número.
 - **Email opcional en citas manuales**: una cita sin email es plenamente válida. Nombre y teléfono siguen siendo obligatorios porque son la vía de contacto real del salón.
 - **Retención de datos personales**: las citas manuales siguen exactamente la misma política de anonimización a 12 meses que las online.

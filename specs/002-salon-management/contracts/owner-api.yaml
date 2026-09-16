@@ -1,0 +1,1115 @@
+openapi: 3.1.0
+
+info:
+  title: API de gestión del salón — cara a la dueña
+  version: 1.0.0
+  description: |
+    Interfaz HTTP de la feature `002-salon-management`.
+
+    Notas transversales, válidas para toda la API:
+
+    - **Toda ruta de esta API exige sesión válida** (FR-002). Sin sesión, la respuesta es
+      `401` con el cuerpo neutro de `Unauthorized` y **ningún dato** de agenda, horario,
+      catálogo ni cliente. La comprobación vive en cada handler, no en el middleware
+      (D-018): el middleware sólo redirige la navegación de pantallas.
+    - **Un solo salón por instancia**. No hay identificador de salón en ninguna ruta.
+    - **Una sola cuenta de personal** (FR-001). No hay identificador de usuario en
+      ninguna ruta: la sesión ya lo determina.
+    - **Todas las horas se devuelven como instante ISO-8601 con desfase y, además, ya
+      formateadas en la hora local del salón.** Ninguna pantalla hace aritmética de
+      fechas con el reloj del dispositivo (BR-015 de la 001).
+    - **Toda entrada se revalida en servidor**, incluida la que la interfaz ya validó
+      (Principio V).
+    - **Todo error incluye `nextAction`**: qué debe hacer la dueña a continuación
+      (FR-059).
+    - Los datos personales de clientes viajan en estas respuestas —la dueña los
+      necesita— pero **nunca aparecen en logs, trazas ni analítica** (FR-057).
+    - **El motivo de un periodo no disponible aparece en esta API y nunca en la de
+      cliente** (FR-021).
+
+servers:
+  - url: /api
+    description: Misma instancia que sirve la interfaz
+
+tags:
+  - name: Acceso
+  - name: Agenda
+  - name: Citas
+  - name: Periodos no disponibles
+  - name: Horario
+  - name: Catálogo
+  - name: Parámetros
+
+paths:
+
+  /gestion/sesion:
+    post:
+      tags: [Acceso]
+      summary: Iniciar sesión
+      description: |
+        Única ruta de esta API que **no** exige sesión previa.
+
+        La respuesta a un fallo es **idéntica** para usuario inexistente, contraseña
+        incorrecta y cuenta bloqueada (FR-008, FR-009): mismo código, mismo cuerpo,
+        mismas cabeceras. No hay `Retry-After`, ni cabecera de intentos restantes, ni
+        nada que permita distinguir los tres casos ni deducir que existe un límite.
+        El servidor deriva un hash en los tres casos para que tampoco el tiempo de
+        respuesta los distinga (D-017).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              additionalProperties: false
+              properties:
+                username:
+                  type: string
+                  minLength: 1
+                  maxLength: 120
+                password:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                  description: Nunca se registra en ningún log ni traza (FR-010).
+      responses:
+        '204':
+          description: |
+            Sesión iniciada. La cookie `__Host-owner_session` lleva el token opaco
+            de 32 bytes, con `HttpOnly`, `Secure`, `SameSite=Strict` y `Path=/`.
+            Sin `Max-Age`: la caducidad de 12 horas de inactividad la impone el
+            servidor (D-015).
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+              example: >-
+                __Host-owner_session=<token>; Path=/; HttpOnly; Secure; SameSite=Strict
+        '401':
+          $ref: '#/components/responses/SignInRejected'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+    delete:
+      tags: [Acceso]
+      summary: Cerrar sesión
+      description: |
+        Borra la fila de sesión y vence la cookie (FR-006). Volver atrás en el
+        navegador no vuelve a mostrar ninguna pantalla de gestión, porque toda
+        respuesta de gestión se sirve con `Cache-Control: no-store`.
+      responses:
+        '204':
+          description: Sesión cerrada. Es idempotente.
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /gestion/cuenta/contrasena:
+    put:
+      tags: [Acceso]
+      summary: Cambiar la contraseña
+      description: |
+        Exige acreditar la contraseña actual (FR-004). No existe ninguna ruta de
+        recuperación: si se olvida, se reaprovisiona fuera de la aplicación (FR-005).
+
+        Un cambio correcto **cierra todas las demás sesiones** y conserva la actual.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currentPassword, newPassword]
+              additionalProperties: false
+              properties:
+                currentPassword: { type: string, minLength: 1, maxLength: 200 }
+                newPassword:
+                  type: string
+                  minLength: 12
+                  maxLength: 200
+                  description: |
+                    Mínimo 12 caracteres, sin reglas de composición (D-016).
+      responses:
+        '204': { description: Contraseña cambiada. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422':
+          description: |
+            La contraseña actual no es correcta, o la nueva no cumple el mínimo.
+            Ambos casos se distinguen aquí: quien llega ya tiene sesión válida, de
+            modo que la indistinguibilidad de FR-008 no está en juego y un mensaje
+            vago sólo confundiría.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /gestion/agenda:
+    get:
+      tags: [Agenda]
+      summary: La línea temporal de un día
+      description: |
+        Devuelve el día completo como una secuencia ordenada de tramos: citas,
+        periodos no disponibles y tiempo libre dentro del horario de apertura
+        (FR-011). Se resuelve con un número **fijo** de consultas, sin ningún bucle
+        por franjas que toque la base (D-027, SC-010).
+
+        `isClosed` distingue "cerrado" de "sin citas" (FR-017), y es `true` también
+        cuando un periodo cubre toda la apertura del día (D-020).
+      parameters:
+        - name: fecha
+          in: query
+          required: true
+          schema: { type: string, format: date }
+          description: |
+            Fecha del calendario del salón. Cualquier fecha, pasada o futura
+            (FR-012). No hay límite por ninguno de los dos lados.
+        - name: incluirCanceladas
+          in: query
+          required: false
+          schema: { type: boolean, default: false }
+          description: |
+            Por defecto las canceladas no aparecen (FR-015). Mostrarlas es un
+            control explícito y una consulta adicional que sólo se paga al pedirla.
+      responses:
+        '200':
+          description: La agenda del día.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgendaDay' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /gestion/citas:
+    post:
+      tags: [Citas]
+      summary: Apuntar una cita a mano
+      description: |
+        Protocolo de dos pasos. La primera llamada va sin `stateToken` y sin
+        `resolution`: si hay algo que estorba, responde `409` nombrándolo (FR-033).
+        La segunda repite la petición con el `stateToken` recibido y la resolución
+        elegida, y se aplica **entera o nada** (FR-037, D-023).
+
+        Si el estado cambió entre las dos llamadas, la segunda responde otra vez
+        `409` con el conflicto **recalculado** sobre el estado nuevo, nunca un
+        solape guardado (FR-038, escenario 5 de la Historia 6).
+
+        La dueña está exenta de la antelación mínima, del horizonte y del horario de
+        apertura (BR-007). El horario fuera de apertura no bloquea: llega como
+        `warnings` y se acusa con `acknowledgedWarnings`. Lo que **sí** bloquea es el
+        pasado (FR-030), el límite de 3 citas futuras por contacto (FR-029) y el
+        formato de los datos de cliente (FR-031).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateAppointmentRequest' }
+      responses:
+        '201':
+          description: Cita creada, confirmada y marcada como creada por la dueña.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OwnerAppointment' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Blocked' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /gestion/citas/{id}/reprogramacion:
+    post:
+      tags: [Citas]
+      summary: Mover una cita
+      description: |
+        Mismo protocolo de dos pasos que la creación. Conserva servicio, datos de
+        cliente, origen y —si la cita se reservó online— **su enlace de gestión en
+        funcionamiento** (FR-039, FR-041, FR-025).
+
+        La respuesta lleva `notifyCustomer` cuando la cita era online: la pantalla
+        debe recordar que el cliente no recibe ningún aviso y mostrar su teléfono
+        (FR-043).
+      parameters:
+        - $ref: '#/components/parameters/AppointmentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RescheduleRequest' }
+      responses:
+        '200':
+          description: Cita movida.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OwnerAppointment' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422':
+          description: |
+            Bloqueado. Además de los bloqueos de la creación: la cita ya está
+            cancelada y la cancelación es terminal (FR-042), o el destino está en
+            el pasado (FR-030).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /gestion/citas/{id}/cancelacion:
+    post:
+      tags: [Citas]
+      summary: Cancelar una cita
+      description: |
+        La dueña puede cancelar cualquier cita confirmada, online o manual, **sin
+        sujeción al plazo de cancelación** (BR-007, FR-040). La confirmación
+        explícita que pide FR-040 es de la interfaz: esta llamada ya es la
+        confirmación, y por eso el cuerpo exige `confirmed: true` en vez de aceptar
+        un cuerpo vacío.
+
+        Es terminal: no hay ruta para reactivar (FR-042, BR-008).
+      parameters:
+        - $ref: '#/components/parameters/AppointmentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [confirmed]
+              additionalProperties: false
+              properties:
+                confirmed:
+                  type: boolean
+                  const: true
+      responses:
+        '200':
+          description: |
+            Cita cancelada. `notifyCustomer` está presente si era online: el cliente
+            no recibe nada y hay que llamarle (FR-043).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OwnerAppointment' }
+        '422':
+          description: |
+            La cita ya estaba cancelada, o su hora de fin ya pasó (FR-016, BR-009).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /gestion/periodos:
+    get:
+      tags: [Periodos no disponibles]
+      summary: Periodos que tocan una ventana
+      parameters:
+        - name: desde
+          in: query
+          required: true
+          schema: { type: string, format: date-time }
+        - name: hasta
+          in: query
+          required: true
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: Los periodos que se solapan con la ventana pedida.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [periods]
+                properties:
+                  periods:
+                    type: array
+                    items: { $ref: '#/components/schemas/UnavailablePeriod' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+    post:
+      tags: [Periodos no disponibles]
+      summary: Bloquear un rato
+      description: |
+        Un solo concepto para la comida de una hora, el festivo de un día y las
+        vacaciones de tres semanas (FR-018). Inicio y fin en múltiplos de 15
+        minutos.
+
+        Si el periodo se solapa —**total o parcialmente**, da igual cuánto— con una
+        o más citas confirmadas, responde `409` listándolas y exige confirmación
+        explícita (FR-022, clarificación del 2026-09-16). Confirmar **no cancela
+        ninguna cita**: el periodo y las citas conviven, y la dueña decide después
+        cuáles cancela, una a una. Para eso, la resolución de este endpoint admite
+        `acknowledgeAppointments`, que acusa sin tocar nada, además de
+        `cancelAppointments`, que sí cancela lo que se le nombre.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreatePeriodRequest' }
+      responses:
+        '201':
+          description: Periodo creado. Los huecos que pisa dejan de ofrecerse de inmediato.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UnavailablePeriod' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422':
+          description: El inicio no precede al fin (FR-023), o no son múltiplos de 15 minutos.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /gestion/periodos/{id}:
+    patch:
+      tags: [Periodos no disponibles]
+      summary: Acortar un periodo
+      description: Deja sitio sin eliminarlo del todo (FR-019, FR-034).
+      parameters:
+        - $ref: '#/components/parameters/PeriodId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [startsAt, endsAt]
+              additionalProperties: false
+              properties:
+                startsAt: { type: string, format: date-time }
+                endsAt: { type: string, format: date-time }
+      responses:
+        '200':
+          description: Periodo acortado. Los huecos liberados vuelven a ofrecerse.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UnavailablePeriod' }
+        '422':
+          description: El nuevo intervalo no está contenido en el anterior, o el inicio no precede al fin.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+    delete:
+      tags: [Periodos no disponibles]
+      summary: Liberar el rato
+      description: |
+        Los huecos vuelven a ofrecerse en la siguiente consulta del cliente, sin
+        despliegue ni reinicio (FR-056, SC-003).
+      parameters:
+        - $ref: '#/components/parameters/PeriodId'
+      responses:
+        '204': { description: Periodo eliminado. }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /gestion/horario:
+    get:
+      tags: [Horario]
+      summary: Los tramos de apertura de los siete días
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WeeklySchedule' }
+          description: |
+            Siete entradas, una por día de la semana. Un día sin tramos es un día
+            cerrado, no un día lleno (FR-046).
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /gestion/horario/{weekday}:
+    put:
+      tags: [Horario]
+      summary: Reemplazar los tramos de un día de la semana
+      description: |
+        Reemplaza **todos** los tramos de ese día, en una transacción. Una lista
+        vacía cierra el día (FR-044, FR-046).
+
+        Reducir el horario **no cancela ni modifica ninguna cita** (FR-047, BR-004).
+        Lo que hace el sistema es listarlas antes de guardar: la primera llamada, con
+        `acknowledged` ausente o `false`, responde `409` con las citas confirmadas que
+        quedarían fuera del horario nuevo; repetir con `acknowledged: true` guarda y
+        las deja intactas.
+      parameters:
+        - name: weekday
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1, maximum: 7 }
+          description: ISO-8601. 1 = lunes … 7 = domingo.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [stretches]
+              additionalProperties: false
+              properties:
+                stretches:
+                  type: array
+                  items: { $ref: '#/components/schemas/OpeningStretch' }
+                acknowledged:
+                  type: boolean
+                  default: false
+      responses:
+        '200':
+          description: Horario guardado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WeeklySchedule' }
+        '409':
+          description: |
+            Hay citas confirmadas que quedarían fuera del horario nuevo. No es un
+            impedimento: es la lista que FR-047 exige enseñar antes de guardar.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code, message, nextAction, appointmentsOutside]
+                properties:
+                  code: { const: SCHEDULE_LEAVES_APPOINTMENTS_OUT }
+                  message: { type: string }
+                  nextAction: { type: string }
+                  appointmentsOutside:
+                    type: array
+                    items: { $ref: '#/components/schemas/OwnerAppointment' }
+        '422':
+          description: |
+            Un tramo cuyo inicio no precede a su fin, uno que cruzaría la medianoche,
+            o dos del mismo día que se solapan. El mensaje dice cuál es el problema
+            (FR-045).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /gestion/servicios:
+    get:
+      tags: [Catálogo]
+      summary: El catálogo completo, activos y retirados
+      description: |
+        A diferencia de `GET /services` de la API de cliente, esta ruta devuelve
+        también los retirados: la dueña necesita verlos para volver a activarlos
+        (FR-050).
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [services]
+                properties:
+                  services:
+                    type: array
+                    items: { $ref: '#/components/schemas/OwnerService' }
+          description: Ordenado por `displayOrder`.
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+    post:
+      tags: [Catálogo]
+      summary: Añadir un servicio
+      description: |
+        Un servicio nuevo es seleccionable por el cliente en la **siguiente**
+        consulta, y sus huecos se calculan con la duración indicada (FR-048, SC-007).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ServiceInput' }
+      responses:
+        '201':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OwnerService' }
+          description: Servicio creado y activo.
+        '422':
+          description: Duración no positiva o precio negativo (FR-053).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /gestion/servicios/{id}:
+    patch:
+      tags: [Catálogo]
+      summary: Editar nombre, duración, precio u orden
+      description: |
+        **No altera ninguna cita ya confirmada** (FR-052, BR-003, SC-008). Las citas
+        conservan el nombre, la duración y el precio congelados al reservarse; sólo
+        las nuevas usan los valores nuevos.
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ServiceInput' }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OwnerService' }
+          description: Servicio actualizado.
+        '422':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+          description: Duración no positiva o precio negativo (FR-053).
+        '404': { $ref: '#/components/responses/NotFound' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /gestion/servicios/{id}/activo:
+    put:
+      tags: [Catálogo]
+      summary: Retirar o volver a activar
+      description: |
+        Retirar es **retirar, no borrar**: el servicio deja de ofrecerse, las citas
+        que lo referencian quedan intactas y se puede volver a activar sin haber
+        perdido nada (FR-050).
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [isActive]
+              additionalProperties: false
+              properties:
+                isActive: { type: boolean }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OwnerService' }
+          description: Estado cambiado.
+        '409':
+          description: |
+            Es el último servicio activo y el catálogo no puede quedarse vacío
+            (FR-051, BR-010). `code` es `LAST_ACTIVE_SERVICE`.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /gestion/parametros:
+    get:
+      tags: [Parámetros]
+      summary: Antelación mínima y plazo de cancelación, con sus rangos
+      description: |
+        Devuelve también los límites admitidos, para que la pantalla los explique sin
+        reimplementarlos (FR-054, Principio I).
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BookingParameters' }
+          description: Los dos parámetros editables y sus rangos.
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+    put:
+      tags: [Parámetros]
+      summary: Cambiar los parámetros de reserva
+      description: |
+        Rige desde el instante siguiente, sin despliegue ni reinicio (FR-055, FR-056,
+        SC-009). Se evalúa **en el momento en que el cliente actúa**, con el valor
+        vigente entonces: no se aplica hacia atrás ni reabre plazos ya consumidos
+        (BR-006).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [minimumLeadTimeHours, cancellationDeadlineHours]
+              additionalProperties: false
+              properties:
+                minimumLeadTimeHours: { type: integer, minimum: 0, maximum: 48 }
+                cancellationDeadlineHours: { type: integer, minimum: 0, maximum: 72 }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BookingParameters' }
+          description: Parámetros guardados.
+        '422':
+          description: Valor fuera del rango admitido. El mensaje indica los límites (FR-054).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+components:
+
+  securitySchemes:
+    ownerSession:
+      type: apiKey
+      in: cookie
+      name: __Host-owner_session
+      description: |
+        Token opaco de 32 bytes. La base guarda sólo su SHA-256 (D-015). Caduca a
+        las 12 horas de inactividad y se borra al cerrar sesión.
+
+  parameters:
+    AppointmentId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    PeriodId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ServiceId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+
+  responses:
+
+    Unauthorized:
+      description: |
+        Sin sesión válida, o caducada. **No se filtra ningún dato** (FR-002, SC-001).
+        La acción en curso no se ha aplicado (FR-007).
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [code, message, nextAction]
+            additionalProperties: false
+            properties:
+              code: { const: UNAUTHENTICATED }
+              message: { type: string }
+              nextAction: { type: string }
+
+    SignInRejected:
+      description: |
+        Acceso rechazado. **Idéntica** para usuario inexistente, contraseña incorrecta
+        y cuenta bloqueada (FR-008, FR-009). El cuerpo no revela cuál de los dos
+        campos falló ni que exista un límite de intentos.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [code, message, nextAction]
+            additionalProperties: false
+            properties:
+              code: { const: SIGN_IN_REJECTED }
+              message: { type: string }
+              nextAction: { type: string }
+
+    NotFound:
+      description: El recurso no existe.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+    BadRequest:
+      description: El cuerpo o los parámetros no tienen la forma esperada.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+    Blocked:
+      description: |
+        La operación está **bloqueada por una regla de la que la dueña no está
+        exenta** (BR-007): una franja ya pasada (FR-030), el límite de 3 citas
+        futuras por contacto (FR-029) o un dato de cliente mal formado (FR-031).
+        A diferencia de un conflicto, no hay resolución que ofrecer.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+    Conflict:
+      description: |
+        Algo estorba y hay que decidir antes de guardar (FR-032, FR-033).
+
+        El cuerpo **nombra** cada elemento en conflicto: para una cita, el nombre del
+        cliente, el servicio y su franja; para un periodo, su franja y su motivo.
+        Nada se ha modificado: rechazar el aviso deja el sistema exactamente como
+        estaba (FR-036, SC-006).
+
+        Para continuar, se repite la petición con el `stateToken` de esta respuesta y
+        una `resolution`. Si el estado cambió mientras tanto, la respuesta vuelve a
+        ser `409` con el conflicto **recalculado** (FR-038).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ConflictReport' }
+
+  schemas:
+
+    Error:
+      type: object
+      required: [code, message, nextAction]
+      additionalProperties: false
+      properties:
+        code: { type: string }
+        message: { type: string }
+        nextAction:
+          type: string
+          description: Qué hacer a continuación. Presente en el 100 % de los errores (FR-059).
+
+    LocalTime:
+      type: object
+      description: Un instante, y el mismo instante ya formateado en la hora del salón.
+      required: [instant, localTime]
+      additionalProperties: false
+      properties:
+        instant:
+          type: string
+          format: date-time
+          description: ISO-8601 con desfase, p. ej. `2026-09-18T16:00:00+02:00`.
+        localTime:
+          type: string
+          description: Hora de pared del salón, ya formateada, p. ej. `16:00`.
+        localDate:
+          type: string
+          format: date
+          description: Fecha del calendario del salón.
+
+    Customer:
+      type: object
+      description: |
+        Los tres únicos datos personales (Principio III). `email` puede faltar en una
+        cita creada a mano (FR-024). Nulo entero si la cita ya se anonimizó.
+      required: [name, phone]
+      additionalProperties: false
+      properties:
+        name: { type: string }
+        phone: { type: string }
+        email: { type: [string, 'null'] }
+
+    OwnerAppointment:
+      type: object
+      required: [id, status, origin, startsAt, endsAt, service, customer, isPast]
+      additionalProperties: false
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [CONFIRMED, CANCELLED] }
+        origin:
+          type: string
+          enum: [ONLINE, OWNER]
+          description: |
+            Permanente: sobrevive a las reprogramaciones (FR-025). La interfaz lo
+            comunica con **texto e icono**, nunca sólo con color (FR-013, FR-058).
+        startsAt: { $ref: '#/components/schemas/LocalTime' }
+        endsAt: { $ref: '#/components/schemas/LocalTime' }
+        service:
+          type: object
+          description: El snapshot congelado al reservar, no el catálogo de hoy (BR-003).
+          required: [name, durationMinutes, priceCents]
+          additionalProperties: false
+          properties:
+            name: { type: string }
+            durationMinutes: { type: integer }
+            priceCents: { type: integer }
+        customer:
+          oneOf:
+            - $ref: '#/components/schemas/Customer'
+            - type: 'null'
+        isPast:
+          type: boolean
+          description: |
+            `true` cuando la **hora de fin** ya transcurrió (FR-016, BR-009). Una
+            cita empezada y no terminada es `false`: sigue siendo movible y
+            cancelable.
+        hasManagementLink:
+          type: boolean
+          description: |
+            `true` sólo en las de origen `ONLINE` (FR-026). El token **nunca** se
+            devuelve por esta API: es la credencial del cliente, no de la dueña.
+        notifyCustomer:
+          type: object
+          description: |
+            Presente tras cancelar o mover una cita `ONLINE`. v1 no envía nada:
+            la dueña tiene que llamar (FR-043).
+          required: [phone]
+          additionalProperties: false
+          properties:
+            phone: { type: string }
+
+    UnavailablePeriod:
+      type: object
+      required: [id, startsAt, endsAt, reason]
+      additionalProperties: false
+      properties:
+        id: { type: string, format: uuid }
+        startsAt: { $ref: '#/components/schemas/LocalTime' }
+        endsAt: { $ref: '#/components/schemas/LocalTime' }
+        reason:
+          type: [string, 'null']
+          description: |
+            Interno. Aparece en esta API y **nunca** en la de cliente, que ve
+            "cerrado" y no por qué (FR-021, BR-002).
+
+    TimelineEntry:
+      oneOf:
+        - type: object
+          required: [kind, appointment]
+          additionalProperties: false
+          properties:
+            kind: { const: APPOINTMENT }
+            appointment: { $ref: '#/components/schemas/OwnerAppointment' }
+        - type: object
+          required: [kind, period]
+          additionalProperties: false
+          properties:
+            kind: { const: UNAVAILABLE }
+            period: { $ref: '#/components/schemas/UnavailablePeriod' }
+        - type: object
+          required: [kind, startsAt, endsAt]
+          additionalProperties: false
+          properties:
+            kind: { const: FREE }
+            startsAt: { $ref: '#/components/schemas/LocalTime' }
+            endsAt: { $ref: '#/components/schemas/LocalTime' }
+
+    AgendaDay:
+      type: object
+      required: [date, isClosed, isReadOnly, entries]
+      additionalProperties: false
+      properties:
+        date: { type: string, format: date }
+        isClosed:
+          type: boolean
+          description: |
+            Sin tramos de apertura, o con toda la apertura cubierta por periodos
+            (D-020). Distingue "cerrado" de "sin citas" (FR-017).
+        isReadOnly:
+          type: boolean
+          description: |
+            El día entero ya pasó: no se crea, ni se mueve, ni se cancela nada en él
+            (FR-016, BR-009).
+        entries:
+          type: array
+          items: { $ref: '#/components/schemas/TimelineEntry' }
+          description: Ordenadas cronológicamente y sin solapes entre sí.
+
+    Conflict:
+      oneOf:
+        - type: object
+          required: [kind, id, customerName, serviceName, startsAt, endsAt]
+          additionalProperties: false
+          properties:
+            kind: { const: APPOINTMENT }
+            id: { type: string, format: uuid }
+            customerName: { type: string }
+            serviceName: { type: string }
+            startsAt: { $ref: '#/components/schemas/LocalTime' }
+            endsAt: { $ref: '#/components/schemas/LocalTime' }
+        - type: object
+          required: [kind, id, reason, startsAt, endsAt]
+          additionalProperties: false
+          properties:
+            kind: { const: UNAVAILABLE_PERIOD }
+            id: { type: string, format: uuid }
+            reason: { type: [string, 'null'] }
+            startsAt: { $ref: '#/components/schemas/LocalTime' }
+            endsAt: { $ref: '#/components/schemas/LocalTime' }
+
+    ConflictReport:
+      type: object
+      required: [code, message, nextAction, conflicts, stateToken]
+      additionalProperties: false
+      properties:
+        code: { const: CONFLICT }
+        message: { type: string }
+        nextAction: { type: string }
+        conflicts:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/Conflict' }
+        stateToken:
+          type: string
+          description: |
+            Huella del estado de lo que estorba. Se devuelve al confirmar; si no
+            coincide, la operación se rechaza y el conflicto se recalcula (FR-038).
+            No es un secreto y no autoriza nada.
+        warnings:
+          type: array
+          items: { $ref: '#/components/schemas/Warning' }
+
+    Warning:
+      type: object
+      description: |
+        No impide nada: exige acuse (D-025). Hoy sólo existe uno, el de fuera de
+        horario, del que la dueña está exenta pero sobre el que se le avisa
+        (escenario 4 de la Historia 4).
+      required: [code, message]
+      additionalProperties: false
+      properties:
+        code: { type: string, enum: [OUTSIDE_OPENING_HOURS] }
+        message: { type: string }
+
+    Resolution:
+      type: object
+      description: |
+        Las únicas salidas que FR-034 permite, además de abandonar: cancelar la cita
+        que estorba, o eliminar o acortar el periodo. **No existe "mantener ambas"**
+        para dos citas: BR-001 no admite excepción ni por decisión explícita de la
+        dueña (FR-035).
+      additionalProperties: false
+      properties:
+        cancelAppointments:
+          type: array
+          items: { type: string, format: uuid }
+        deletePeriods:
+          type: array
+          items: { type: string, format: uuid }
+        shortenPeriods:
+          type: array
+          items:
+            type: object
+            required: [id, startsAt, endsAt]
+            additionalProperties: false
+            properties:
+              id: { type: string, format: uuid }
+              startsAt: { type: string, format: date-time }
+              endsAt: { type: string, format: date-time }
+        acknowledgeAppointments:
+          type: array
+          description: |
+            Sólo al crear un periodo: acusa las citas que quedan dentro **sin
+            cancelarlas** (FR-022). Un bloqueo no cancela a nadie.
+          items: { type: string, format: uuid }
+
+    CreateAppointmentRequest:
+      type: object
+      required: [serviceId, startsAt, customer]
+      additionalProperties: false
+      properties:
+        serviceId:
+          type: string
+          format: uuid
+          description: Del catálogo **activo** (FR-024).
+        startsAt:
+          type: string
+          format: date-time
+          description: |
+            Múltiplo de 15 minutos en la hora del salón (D-025). La duración se
+            deriva del servicio, nunca se envía (FR-027).
+        customer:
+          type: object
+          required: [name, phone]
+          additionalProperties: false
+          properties:
+            name: { type: string, minLength: 1 }
+            phone: { type: string, minLength: 1 }
+            email:
+              type: [string, 'null']
+              description: Opcional. Una cita sin email es plenamente válida (FR-024).
+        stateToken: { type: string }
+        resolution: { $ref: '#/components/schemas/Resolution' }
+        acknowledgedWarnings:
+          type: array
+          items: { type: string }
+
+    RescheduleRequest:
+      type: object
+      required: [startsAt]
+      additionalProperties: false
+      properties:
+        startsAt: { type: string, format: date-time }
+        stateToken: { type: string }
+        resolution: { $ref: '#/components/schemas/Resolution' }
+        acknowledgedWarnings:
+          type: array
+          items: { type: string }
+
+    CreatePeriodRequest:
+      type: object
+      required: [startsAt, endsAt]
+      additionalProperties: false
+      properties:
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+        reason:
+          type: [string, 'null']
+          maxLength: 200
+          description: Interno y opcional. Nunca se expone al cliente (FR-021).
+        stateToken: { type: string }
+        resolution: { $ref: '#/components/schemas/Resolution' }
+
+    OpeningStretch:
+      type: object
+      required: [startsAt, endsAt]
+      additionalProperties: false
+      properties:
+        startsAt: { type: string, pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$' }
+        endsAt: { type: string, pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$' }
+
+    WeeklySchedule:
+      type: object
+      required: [days]
+      additionalProperties: false
+      properties:
+        days:
+          type: array
+          minItems: 7
+          maxItems: 7
+          items:
+            type: object
+            required: [weekday, stretches]
+            additionalProperties: false
+            properties:
+              weekday: { type: integer, minimum: 1, maximum: 7 }
+              stretches:
+                type: array
+                items: { $ref: '#/components/schemas/OpeningStretch' }
+
+    OwnerService:
+      type: object
+      required: [id, name, durationMinutes, priceCents, isActive, displayOrder]
+      additionalProperties: false
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        durationMinutes: { type: integer, minimum: 1 }
+        priceCents: { type: integer, minimum: 0 }
+        isActive: { type: boolean }
+        displayOrder: { type: integer }
+
+    ServiceInput:
+      type: object
+      required: [name, durationMinutes, priceCents, displayOrder]
+      additionalProperties: false
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        durationMinutes: { type: integer, minimum: 1 }
+        priceCents: { type: integer, minimum: 0 }
+        displayOrder:
+          type: integer
+          description: La dueña controla el orden; no hay ordenación automática.
+
+    BookingParameters:
+      type: object
+      required: [minimumLeadTimeHours, cancellationDeadlineHours, limits]
+      additionalProperties: false
+      properties:
+        minimumLeadTimeHours: { type: integer }
+        cancellationDeadlineHours: { type: integer }
+        limits:
+          type: object
+          description: Los rangos que la pantalla explica sin reimplementarlos.
+          required: [minimumLeadTimeHours, cancellationDeadlineHours]
+          additionalProperties: false
+          properties:
+            minimumLeadTimeHours:
+              type: object
+              properties:
+                min: { type: integer, const: 0 }
+                max: { type: integer, const: 48 }
+            cancellationDeadlineHours:
+              type: object
+              properties:
+                min: { type: integer, const: 0 }
+                max: { type: integer, const: 72 }
+
+security:
+  - ownerSession: []
