@@ -16,7 +16,7 @@
 - [x] No [NEEDS CLARIFICATION] markers remain
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
-- [x] Success criteria are technology-agnostic (no implementation details)
+- [ ] Success criteria are technology-agnostic (no implementation details) — _SC-005 mezcla un resultado observable ("no se degrada con el histórico") con una decisión de implementación ("en una sola consulta"), que es exactamente el detalle que este criterio pide excluir_
 - [x] All acceptance scenarios are defined
 - [x] Edge cases are identified
 - [x] Scope is clearly bounded
@@ -27,7 +27,7 @@
 - [x] All functional requirements have clear acceptance criteria
 - [x] User scenarios cover primary flows
 - [x] Feature meets measurable outcomes defined in Success Criteria
-- [x] No implementation details leak into specification
+- [ ] No implementation details leak into specification — _misma causa que el punto anterior: SC-005 nombra explícitamente "una sola consulta" (detalle de implementación) en un criterio de éxito de cara al negocio_
 
 ## Constitution Compliance (v1.0.0)
 
