@@ -192,8 +192,10 @@ src/
 │       ├── password.ts                +   scrypt, con parámetros en el hash
 │       └── session-token.ts           +   32 B de CSPRNG, SHA-256, como D-005
 │
+├── middleware.ts                        +   SÓLO redirige. No autoriza nada; vive junto
+│                                            a `app/`, no dentro — es la única ruta que
+│                                            Next.js reconoce como middleware (D-018)
 ├── app/
-│   ├── middleware.ts                  +   SÓLO redirige. No autoriza nada (D-018)
 │   ├── gestion/                       +   acceso, agenda, horario, servicios,
 │   │                                      parámetros, cuenta
 │   └── api/gestion/                   +   los Route Handlers de owner-api.yaml
@@ -226,6 +228,8 @@ Una sola desviación que justificar.
 | Violación | Por qué es necesaria | Alternativa más simple, y por qué se rechaza |
 |---|---|---|
 | **Principio VI**: "las acciones destructivas … SON reversibles cuando sea posible". La cancelación de una cita es **terminal** (FR-042, BR-008) | La reversibilidad es imposible aquí, no indeseable: cancelar libera la franja **de inmediato** en la disponibilidad pública, y otro cliente puede reservarla en el mismo segundo. Un botón de deshacer prometería algo que la mitad de las veces fallaría, y fallaría precisamente en el caso en que la dueña más lo necesita | Se consideró una ventana de deshacer que retuviera la franja unos minutos. Se rechaza porque convertiría una franja libre en un hueco fantasma —lo que el mismo Principio VI prohíbe en su segunda regla— y porque el estado "cancelada pero aún reservando sitio" contradice BR-005 de la 001, donde una cita cancelada deja de ocupar su franja en el acto. Se mitiga con lo que el principio sí permite: **confirmación explícita que nombra la cita concreta** antes de aplicar (FR-040), y el teléfono del cliente a mano para rehacerla a mano si hizo falta (FR-043) |
+
+Esta desviación se ampara en la regla de Governance "Desviaciones por imposibilidad técnica" (constitución v1.1.0): la irreversibilidad no es evitable —no es una preferencia de diseño—, así que queda documentada aquí sin requerir el procedimiento completo de enmienda.
 
 Las cuatro capas y los seis puertos nuevos no son complejidad que justificar: son la forma mínima de cumplir el Principio I sobre un dominio que ahora también escribe configuración. Un diseño con menos capas obligaría a que la regla de "no queda ningún servicio activo" conociera Drizzle.
 

@@ -258,7 +258,7 @@ La dueña sube la antelación mínima a cuatro horas porque se cansó de las res
 
 #### Periodos no disponibles
 
-- **FR-018**: La dueña DEBE poder crear un periodo no disponible indicando instante de inicio e instante de fin, con un motivo interno opcional. Un mismo periodo DEBE poder abarcar desde una fracción de un día hasta varias semanas.
+- **FR-018**: La dueña DEBE poder crear un periodo no disponible indicando instante de inicio e instante de fin, en múltiplos de 15 minutos, con un motivo interno opcional. Un mismo periodo DEBE poder abarcar desde una fracción de un día hasta varias semanas.
 - **FR-019**: La dueña DEBE poder eliminar o acortar un periodo no disponible existente.
 - **FR-020**: Un periodo no disponible DEBE comportarse ante el cliente exactamente como tiempo cerrado: ningún hueco que se solape con él se ofrece.
 - **FR-021**: El motivo de un periodo no disponible NO DEBE exponerse nunca al cliente.
@@ -377,7 +377,7 @@ La dueña sube la antelación mínima a cuatro horas porque se cansó de las res
 - **Email opcional en citas manuales**: una cita sin email es plenamente válida. Nombre y teléfono siguen siendo obligatorios porque son la vía de contacto real del salón.
 - **Retención de datos personales**: las citas manuales siguen exactamente la misma política de anonimización a 12 meses que las online.
 - **Rangos admitidos de los parámetros**: antelación mínima entre 0 y 48 horas; plazo de cancelación entre 0 y 72 horas. Ambos en horas completas.
-- **Granularidad de los periodos no disponibles**: se expresan en múltiplos de 15 minutos, suficientes para cualquier interrupción real del salón.
+- **Granularidad de los periodos no disponibles**: formalizada en FR-018 — múltiplos de 15 minutos, suficientes para cualquier interrupción real del salón.
 - **Orden del catálogo**: la dueña controla el orden de presentación de los servicios; no hay ordenación automática por precio ni por popularidad.
 - **Sin auditoría**: no se registra quién cambió qué. Hay una sola persona con acceso, y la constitución no exige trazabilidad de personal.
 - **Idioma**: todos los textos de la interfaz de gestión están en español, en el mismo catálogo de mensajes que el resto del producto.

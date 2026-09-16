@@ -46,7 +46,7 @@ Proyecto único con arquitectura hexagonal, heredado de `001-client-appointment-
 - [ ] T007 [P] Test de restricciones nuevas en `tests/integration/db/constraints.test.ts` (ampliar): `CHECK (ends_at > starts_at)` de `unavailable_period`, `EXCLUDE` de `opening_interval`, `CHECK` de rangos de `salon`, `CHECK` de `service`
 - [ ] T008 [P] Test de la restricción `appointment_anonymization_is_atomic` reescrita en `tests/integration/db/constraints.test.ts`: cita manual sin email válida, cita manual con `token_hash` rechazada, cita online sin `token_hash` rechazada, anonimizada a medias rechazada (D-026)
 - [ ] T009 [P] Test unitario de resta de intervalos en `tests/unit/domain/availability/interval-math.test.ts`: apertura menos ocupados, media abierta `[)`, resultado vacío, solapes parciales y anidados
-- [ ] T010 [P] Test unitario en `tests/unit/domain/availability/compute-day.test.ts` (ampliar): los periodos no disponibles entran como ocupados y ningún inicio los pisa (FR-003b, BR-002)
+- [ ] T010 [P] Test unitario en `tests/unit/domain/availability/compute-day.test.ts` (ampliar): los periodos no disponibles entran como ocupados y ningún inicio los pisa (FR-020, BR-002)
 - [ ] T011 [P] Test unitario en `tests/unit/domain/availability/compute-range.test.ts` (ampliar): `CLOSED` cuando los periodos cubren toda la apertura, `FULL` cuando queda apertura sin cubrir (D-020)
 - [ ] T012 [P] Test unitario en `tests/unit/domain/contact/contact.test.ts` (ampliar): email ausente (`null` o cadena vacía) es contacto válido; nombre y teléfono siguen siendo obligatorios (FR-024, FR-031)
 - [ ] T013 [P] Test de integración `tests/integration/use-cases/config-propagation.test.ts`: cambiar un parámetro y comprobar que la siguiente consulta de disponibilidad ya lo usa, sin reiniciar el proceso, contando consultas para que un caché reintroducido lo ponga en rojo (D-021, FR-056)
@@ -190,9 +190,9 @@ Proyecto único con arquitectura hexagonal, heredado de `001-client-appointment-
 ### Tests de la Historia 4 ⚠️
 
 - [ ] T083 [P] [US4] Test unitario en `tests/unit/domain/owner/manual-booking.test.ts`, caso por caso de la tabla de D-025: bloquea el pasado, bloquea el cuarto contacto, bloquea la granularidad; **no** objeta antelación, horizonte ni plazo; **avisa** fuera de horario
-- [ ] T084 [P] [US4] Test unitario en `tests/unit/domain/owner/conflict.test.ts`: `detectConflicts` con la media abierta `[)`, un minuto de intersección es conflicto, y cada `Conflict` lleva lo necesario para nombrarlo (FR-033)
+- [ ] T084 [P] [US4] Test unitario en `tests/unit/domain/owner/conflict.test.ts`: `detectConflicts` con la media abierta `[)`, un minuto de intersección es conflicto, y cada `Conflict` lleva lo necesario para nombrarlo (FR-033, SC-005)
 - [ ] T085 [P] [US4] Test de contrato en `tests/contract/owner/citas.test.ts` para `POST /gestion/citas`, incluida la respuesta de conflicto
-- [ ] T086 [P] [US4] Test de integración en `tests/integration/use-cases/create-manual-appointment.test.ts`: cita sin email válida, sin nombre o sin teléfono rechazada, cuarta cita del contacto rechazada, sin `token_hash` y con `origin = 'OWNER'` (FR-024, FR-026, FR-029)
+- [ ] T086 [P] [US4] Test de integración en `tests/integration/use-cases/create-manual-appointment.test.ts`: cita sin email válida, sin nombre o sin teléfono rechazada, cuarta cita del contacto rechazada, sin `token_hash` y con `origin = 'OWNER'`, duración tomada del servicio elegido en el instante de guardar aunque la petición llegue con otra (FR-024, FR-026, FR-027, FR-029)
 - [ ] T087 [P] [US4] Test de regresión del origen permanente en `tests/integration/use-cases/create-manual-appointment.test.ts`: reprogramar una cita manual la deja manual (FR-025)
 - [ ] T088 [P] [US4] E2E en `tests/e2e/us4-manual-booking.spec.ts`: los seis escenarios de la historia, incluido el aviso de fuera de horario, más axe y la medición de SC-002
 
@@ -304,12 +304,12 @@ Proyecto único con arquitectura hexagonal, heredado de `001-client-appointment-
 ### Tests de la Historia 8 ⚠️
 
 - [ ] T131 [P] [US8] Test unitario en `tests/unit/domain/catalog/service-edit.test.ts`: `EMPTY_NAME`, `NON_POSITIVE_DURATION`, `NEGATIVE_PRICE` y `canRetireService` con `LAST_ACTIVE_SERVICE` (FR-051, FR-053)
-- [ ] T132 [P] [US8] Test de contrato en `tests/contract/owner/servicios.test.ts` para `GET`/`POST /gestion/servicios`, `PATCH /gestion/servicios/{id}` y `PUT /gestion/servicios/{id}/activo`
+- [ ] T132 [P] [US8] Test de contrato en `tests/contract/owner/servicios.test.ts` para `GET`/`POST /gestion/servicios`, `PATCH /gestion/servicios/{id}` (incluido que acepta y persiste un `displayOrder` nuevo, FR-049) y `PUT /gestion/servicios/{id}/activo`
 - [ ] T133 [P] [US8] Test de regresión en `tests/integration/use-cases/config-change-preserves-appointments.test.ts` (ampliar): retirar un servicio deja el 100 % de sus citas futuras intactas en fecha, hora, duración, precio y estado (SC-008, BR-003)
 - [ ] T134 [P] [US8] Test de regresión del snapshot congelado: cambiar la duración de 45 a 60 min no toca las citas ya confirmadas (FR-052, US8-5)
 - [ ] T135 [P] [US8] Test de integración de la retirada concurrente en `tests/integration/use-cases/manage-services.test.ts`: dos retiradas simultáneas no dejan el catálogo vacío, porque el recuento va **dentro** de la transacción (FR-051)
 - [ ] T136 [P] [US8] Test unitario en `tests/unit/domain/booking/confirm.test.ts` (ampliar): `SERVICE_UNAVAILABLE` cuando el servicio se retiró mientras el cliente rellenaba, sin dejar la cita a medias (US8-6)
-- [ ] T137 [P] [US8] E2E en `tests/e2e/us8-services.spec.ts`: los seis escenarios, más axe
+- [ ] T137 [P] [US8] E2E en `tests/e2e/us8-services.spec.ts`: los seis escenarios —incluido SC-007, servicio nuevo seleccionable de inmediato—, más axe
 
 ### Implementación de la Historia 8
 
@@ -337,7 +337,7 @@ Proyecto único con arquitectura hexagonal, heredado de `001-client-appointment-
 
 - [ ] T147 [P] [US9] Test unitario en `tests/unit/domain/catalog/booking-params.test.ts`: `BOOKING_PARAMETER_LIMITS` como único origen, y el error **lleva los límites dentro** (FR-054)
 - [ ] T148 [P] [US9] Test de contrato en `tests/contract/owner/parametros.test.ts` para `GET` y `PUT /gestion/parametros`, comprobando que la respuesta expone los límites del dominio
-- [ ] T149 [P] [US9] Test de integración en `tests/integration/use-cases/update-booking-parameters.test.ts`: subir la antelación rige en la consulta siguiente; endurecer el plazo saca de plazo a una cita que estaba dentro, sin deshacer ninguna cancelación ya hecha (FR-055, BR-006, US9-2, US9-3)
+- [ ] T149 [P] [US9] Test de integración en `tests/integration/use-cases/update-booking-parameters.test.ts`: subir la antelación rige en la consulta siguiente; endurecer el plazo saca de plazo a una cita que estaba dentro, sin deshacer ninguna cancelación ya hecha (FR-055, BR-006, SC-009, US9-2, US9-3)
 - [ ] T150 [P] [US9] E2E en `tests/e2e/us9-parameters.spec.ts`: los cuatro escenarios, con el mensaje de rango que no reescribe los límites, más axe
 
 ### Implementación de la Historia 9
@@ -373,9 +373,17 @@ Proyecto único con arquitectura hexagonal, heredado de `001-client-appointment-
 - **Setup (Fase 1)**: sin dependencias.
 - **Foundational (Fase 2)**: depende de la Fase 1. **Bloquea todas las historias.**
 - **US1 (Fase 3)**: depende de la Fase 2. **Bloquea US2 … US9**, porque entrega `requireOwnerSession()`, sin el cual ninguna pantalla ni handler de gestión puede existir sin filtrar datos (FR-002).
-- **US2, US3, US7, US8, US9**: dependen de US1 y son independientes entre sí.
-- **US4**: depende de US1; se integra mejor con US2 ya hecha, porque el formulario se abre desde la agenda.
-- **US5**: depende de US1 y de US2 (las acciones viven en la línea temporal).
+- **US2**: depende de US1. Es la historia que crea `src/app/gestion/agenda/page.tsx` (T068). US3, US4 y US5
+  se integran **dentro** de esa página, así que no pueden cerrarse hasta que T068 exista.
+- **US3**: depende de US1. Su dominio, casos de uso, rutas y componente (T077-T080) son independientes de
+  US2, pero **T081 requiere que T068 (US2) exista**: integra la creación y el borrado de periodos en la
+  propia línea temporal.
+- **US7, US8, US9**: dependen de US1 y son independientes entre sí y de US2 — tienen pantalla propia
+  (`horario/page.tsx`, `servicios/page.tsx`, `parametros/page.tsx`) y no tocan `agenda/page.tsx`.
+- **US4**: depende de US1. Su dominio, casos de uso y ruta (T089-T092) son independientes de US2, pero
+  **T094 requiere que T068 (US2) exista**: engancha el formulario a los huecos de la línea temporal.
+- **US5**: depende de US1 y de US2 (T068), por la misma razón: **T105 requiere que T068 exista**, porque
+  añade las acciones de mover y cancelar a la propia línea temporal.
 - **US6**: depende de US4 (`detectConflicts`) y de US5 (las mutaciones sobre las que monta el protocolo de dos pasos). Es la única dependencia entre historias que no se puede evitar: el protocolo de conflicto no tiene sentido sin una mutación que proteger.
 - **Polish (Fase 12)**: depende de todas las historias que se quieran entregar.
 
@@ -390,7 +398,10 @@ Proyecto único con arquitectura hexagonal, heredado de `001-client-appointment-
 - Fase 1: T002, T003, T004 y T005 en paralelo.
 - Fase 2: los ocho tests T006–T013 en paralelo; después las cuatro migraciones **en serie**, por orden.
 - En cada historia, todos los tests marcados `[P]` se escriben a la vez.
-- Con equipo: una vez cerrada US1, US2, US3, US7, US8 y US9 pueden repartirse entre personas distintas.
+- Con equipo: una vez cerrada US1, US7, US8 y US9 pueden repartirse entre personas distintas de inmediato.
+  El dominio, los casos de uso, las rutas y los componentes de US3, US4 y US5 también pueden avanzar en
+  paralelo desde el principio, pero T081, T094 y T105 —las tareas que tocan `agenda/page.tsx`— quedan
+  bloqueadas hasta que T068 (US2) esté hecho.
 
 ---
 
