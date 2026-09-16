@@ -25,6 +25,19 @@ Secciones eliminadas: ninguna.
 Follow-up TODOs:
 - Todos los puntos de la sección "Ámbito No Cubierto [TBD]" quedan deferidos a las
   fases de especificación y plan. Ninguno bloquea la ratificación.
+
+--------------------------------------------------------------------------------
+Amendment 2026-09-16 (1.0.0 → 1.1.0)
+Sección modificada: Governance.
+Cambio: se añade la regla "Desviaciones por imposibilidad técnica", que permite
+documentar en la tabla "Complexity Tracking" del plan —sin el procedimiento completo
+de enmienda— una desviación de principio cuando revertir la acción es técnicamente
+imposible, no sólo costoso o inconveniente.
+Motivado por: 002-salon-management, plan.md — la cancelación de una cita es terminal
+(FR-042, BR-008) frente a la exigencia de reversibilidad del Principio VI. Hallazgo D1
+de /speckit-analyze sobre esa feature.
+Ningún principio existente cambia de contenido.
+--------------------------------------------------------------------------------
 -->
 
 # Constitución del Gestor de Citas de Peluquería
@@ -208,8 +221,15 @@ decisión de estas afecte a un principio, requerirá enmienda.
   principios. Un cambio que los infrinja no se fusiona. Toda desviación necesita o bien
   corrección, o bien una enmienda aprobada previamente; no se admiten excepciones
   tácitas ni "se arregla después".
+- **Desviaciones por imposibilidad técnica**: cuando una desviación de un principio no
+  es una preferencia de diseño sino una imposibilidad técnica genuina —por ejemplo,
+  revertir una acción que libera de inmediato un recurso que un tercero puede tomar en
+  el mismo instante—, basta con documentarla en la tabla "Complexity Tracking" del plan
+  correspondiente, nombrando la alternativa considerada y por qué se rechaza. Esto NO
+  exige el procedimiento de enmienda. Una desviación que sea evitable, aunque cueste
+  más, sigue exigiendo enmienda.
 - **Elementos [TBD]**: un punto marcado [TBD] no es una laguna que cada implementación
   resuelva a su criterio; es una decisión pendiente que debe tomarse y documentarse en
   la fase de especificación o plan correspondiente.
 
-**Version**: 1.0.0 | **Ratified**: 2026-09-15 | **Last Amended**: 2026-09-15
+**Version**: 1.1.0 | **Ratified**: 2026-09-15 | **Last Amended**: 2026-09-16
