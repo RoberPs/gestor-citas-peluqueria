@@ -371,7 +371,7 @@ cancelar una y reprogramar otra.
   - `CLAUDE.md`, en "Convenciones": una línea que diga que los anchos responsive (640 y
     1024 px) y las clases `.page--split`, `.col-main`, `.col-side` y `.wide-only` viven
     en `src/app/globals.css` y son las que usan las pantallas nuevas.
-- [ ] T031 Ejecutar la validación manual de [quickstart.md](./quickstart.md) (pasos 1–11)
+- [X] T031 Ejecutar la validación manual de [quickstart.md](./quickstart.md) (pasos 1–11)
   y después `npm run test:all`, `npm run lint` y `npm run check:layers` en verde.
 
 ---
