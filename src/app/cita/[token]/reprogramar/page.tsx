@@ -100,46 +100,48 @@ export default async function ReschedulePage({
 
   return (
     <>
-      <header className="site-header">
+      <header className="site-header site-header--split">
         <p>
           {salon.name} · {salon.address}
         </p>
       </header>
 
-      <main>
+      {/* On desktop, the days on the left and the hours and the confirmation on
+          the right, as when booking (003, FR-012). Once an hour is chosen the
+          grid and the list stay in view there only: the phone keeps showing
+          just the confirmation, as in 001. */}
+      <main className="page--split">
         <h1>{messages.reschedule.title}</h1>
 
         <p>{messages.reschedule.sameServiceNotice(appointment.service.name)}</p>
 
-        <div className="card">
-          <p className="muted">
-            {messages.reschedule.currentSlot}:{' '}
-            <strong>
-              {longDateLabel(localDateOf(appointment.startsAt, timezone).toString())},{' '}
-              {formatLocalTime(appointment.startsAt, timezone)}
-            </strong>
-          </p>
-          <p className="muted">{messages.reschedule.linkUnchanged}</p>
-        </div>
-
-        {query['sinCambios'] === '1' && (
-          <div className="notice" role="status">
-            <p>{messages.reschedule.unchanged.message}</p>
-            <p>{messages.reschedule.unchanged.nextAction}</p>
+        <div className="col-main">
+          <div className="card">
+            <p className="muted">
+              {messages.reschedule.currentSlot}:{' '}
+              <strong>
+                {longDateLabel(localDateOf(appointment.startsAt, timezone).toString())},{' '}
+                {formatLocalTime(appointment.startsAt, timezone)}
+              </strong>
+            </p>
+            <p className="muted">{messages.reschedule.linkUnchanged}</p>
           </div>
-        )}
 
-        {query['ocupada'] === '1' && (
-          <div className="notice-error" role="alert">
-            <p>{messages.reschedule.slotTaken.message}</p>
-            <p>{messages.reschedule.slotTaken.nextAction}</p>
-          </div>
-        )}
+          {query['sinCambios'] === '1' && (
+            <div className="notice" role="status">
+              <p>{messages.reschedule.unchanged.message}</p>
+              <p>{messages.reschedule.unchanged.nextAction}</p>
+            </div>
+          )}
 
-        {chosen !== undefined ? (
-          <ConfirmPanel token={token} startsAt={chosen} timezone={timezone} back={here} />
-        ) : (
-          <>
+          {query['ocupada'] === '1' && (
+            <div className="notice-error" role="alert">
+              <p>{messages.reschedule.slotTaken.message}</p>
+              <p>{messages.reschedule.slotTaken.nextAction}</p>
+            </div>
+          )}
+
+          <div className={chosen === undefined ? undefined : 'wide-only'}>
             <DayRangePicker
               availability={availability}
               serviceId={appointment.service.serviceId}
@@ -147,21 +149,30 @@ export default async function ReschedulePage({
               nextRangeStart={shiftRange(availability.range.end, 1)}
               action={here}
             />
+          </div>
+        </div>
 
+        <div className="col-side">
+          <div className={chosen === undefined ? undefined : 'wide-only'}>
             <SlotList
               availability={availability}
               serviceId={appointment.service.serviceId}
               action={here}
               browseAction={here}
+              {...(chosen === undefined ? {} : { selectedStartsAt: chosen })}
             />
-          </>
-        )}
+          </div>
 
-        <p>
-          <Link className="button-secondary" href={`/cita/${token}`}>
-            {messages.common.back}
-          </Link>
-        </p>
+          {chosen !== undefined && (
+            <ConfirmPanel token={token} startsAt={chosen} timezone={timezone} back={here} />
+          )}
+
+          <p>
+            <Link className="button-secondary" href={`/cita/${token}`}>
+              {messages.common.back}
+            </Link>
+          </p>
+        </div>
       </main>
     </>
   );

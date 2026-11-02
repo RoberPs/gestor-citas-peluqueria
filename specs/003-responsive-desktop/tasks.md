@@ -293,7 +293,7 @@ cancelar una y reprogramar otra.
 
 ### Implementation for User Story 2
 
-- [ ] T023 [US2] En `src/app/cita/[token]/page.tsx`, dar a `main` la clase `page--split`:
+- [X] T023 [US2] En `src/app/cita/[token]/page.tsx`, dar a `main` la clase `page--split`:
   - `h1` como hijo directo;
   - `<div className="col-main">` con la sección `card` de la cita y, si existe, la
     sección `save-link-heading`;
@@ -301,7 +301,7 @@ cancelar una y reprogramar otra.
     no las hay) y la de datos del salón.
 
   No cambiar el contenido de ninguna sección.
-- [ ] T024 [US2] En `src/app/cita/[token]/reprogramar/page.tsx`, dar a `main` la clase
+- [X] T024 [US2] En `src/app/cita/[token]/reprogramar/page.tsx`, dar a `main` la clase
   `page--split`:
   - hijos directos: `h1` y el aviso de mismo servicio;
   - `<div className="col-main">` con la tarjeta de hora actual, los avisos `sinCambios`
@@ -311,7 +311,7 @@ cancelar una y reprogramar otra.
   `DayRangePicker` y `SlotList` se pintan siempre. Cuando hay hora elegida (`chosen`),
   van envueltos en `<div className="wide-only">` y `SlotList` recibe
   `selectedStartsAt={chosen}`. En móvil se ve igual que hoy.
-- [ ] T025 [US2] Si T021.1 falla por altura, compactar en `globals.css`, sólo dentro de
+- [X] T025 [US2] Si T021.1 falla por altura, compactar en `globals.css`, sólo dentro de
   `@media (min-width: 1024px)`, los márgenes de la columna izquierda de la cita hasta que
   pase, sin bajar de las áreas táctiles de 44 px. Ejecutar T021–T022 y la suite de
   `desktop-1280` hasta verde.
