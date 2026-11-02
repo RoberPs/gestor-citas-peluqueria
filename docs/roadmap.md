@@ -34,6 +34,11 @@ verde, y es un punto donde se puede parar.
     formulario a la derecha).
   - Tests e2e y de accesibilidad también a 1280 px.
   - Va antes de la 002 para que las pantallas de la dueña nazcan responsive.
+- [ ] **1b · `005-multiple-services`:** varios servicios por cita y precio opcional.
+  - Spec con `/speckit-specify`, después plan, tareas y `/speckit-analyze`. Ver
+    "Decisiones tomadas" del 2026-11-02 sobre la 005.
+  - Va antes de la 002, como la 003: las pantallas de la dueña nacen mostrando varios
+    servicios por cita y sin que haya que migrar datos después.
 - [ ] **2 · Actualizar la 002 con la US10 "Listado de reservas"**
   - Spec, plan, tareas y `/speckit-analyze`. Ver el apartado "US10" más abajo.
   - ~~Rebasar `002-salon-management` sobre `main`~~ — en su lugar se fusionó `main` en
@@ -106,6 +111,18 @@ un proveedor de pago cuando se decida el presupuesto.
 Ninguna por ahora.
 
 ## Decisiones tomadas
+
+- 2026-11-02 · **005 · Varios servicios por cita:** el cliente puede elegir varios. La
+  cita dura la **suma** de sus servicios. Sin máximo y sin combinaciones prohibidas.
+  Al reprogramar sólo cambia la hora; para cambiar servicios se cancela y se reserva
+  de nuevo.
+- 2026-11-02 · **005 · Precio opcional:** un servicio puede no tener precio; la
+  pantalla dice "Precio a consultar en el salón" en lugar de "0,00 €".
+- 2026-11-02 · **Duración de los servicios:** 30 minutos cada uno hasta que el
+  peluquero diga lo que tarda; la reserva sigue siendo cada media hora.
+- 2026-11-02 · **Demo:** datos reales de la Peluquería de Caballeros Niza en
+  `db/seed/demo.ts` (`npm run db:seed:demo`), separados del fixture de los tests. El
+  nombre se dedujo del email de la empresa; confirmarlo con el cliente.
 
 - 2026-11-02 · **Avisos de la 004:** sólo la **confirmación al reservar**, enviada al
   cliente con los datos de la cita y su enlace de gestión. Recordatorio, aviso de
