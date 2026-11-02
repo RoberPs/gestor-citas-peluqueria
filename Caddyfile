@@ -1,0 +1,30 @@
+# The reverse proxy terminates TLS and adds the headers the application cannot
+# add for itself (Principio V).
+#
+# Set SALON_DOMAIN in the environment; Caddy obtains and renews the certificate
+# for it automatically. The application never listens in the clear outside this
+# compose network.
+{$SALON_DOMAIN} {
+	encode zstd gzip
+
+	header {
+		# HSTS: after the first visit the browser refuses to speak plain HTTP.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		X-Frame-Options "DENY"
+
+		# The management link is a credential in a URL, so it must not leak
+		# anywhere: no framing, no form posts off-site, no third-party anything.
+		#
+		# `script-src` allows inline because Next bootstraps its hydration with
+		# an inline script. Tightening it further needs per-request nonces,
+		# which is a change to the application and not to this file.
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'"
+
+		# The server does not need to announce what it is.
+		-Server
+	}
+
+	reverse_proxy app:3000
+}
