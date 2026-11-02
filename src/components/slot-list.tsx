@@ -85,11 +85,11 @@ export function SlotList({
                         {slot.isCurrentAppointment && (
                           <span className="slot-badge">{messages.reschedule.currentSlot}</span>
                         )}
-                        {/* Chosen is said in words and a mark, never by colour alone. */}
+                        {/* Chosen is shown in words and a mark, never by colour alone.
+                            A screen reader already hears it in the hidden text above. */}
                         {isSelected && (
-                          <span className="slot-badge">
-                            <span aria-hidden="true">✓ </span>
-                            {messages.availability.selectedSlot}
+                          <span className="slot-badge" aria-hidden="true">
+                            ✓ {messages.availability.selectedSlot}
                           </span>
                         )}
                       </button>
