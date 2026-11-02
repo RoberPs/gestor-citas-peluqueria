@@ -484,3 +484,54 @@ test.describe('US2 — el móvil no cambia', () => {
     await expect(page.locator(CONFIRM_CHANGE)).toBeVisible();
   });
 });
+
+test.describe('US3 — tablet', () => {
+  test.use({ viewport: { width: 768, height: 1024 } });
+
+  test('escenario 1 — una sola columna, más ancha que en móvil', async ({ page }) => {
+    await page.goto('/');
+
+    const width = (await box(page.locator('main'))).width;
+    expect(width).toBeGreaterThanOrEqual(640);
+    expect(width).toBeLessThanOrEqual(720);
+
+    const services = await box(page.locator(SERVICES));
+    const days = await box(page.locator(DAYS));
+    const slots = await box(page.locator(SLOTS));
+    expect(days.x).toBe(services.x);
+    expect(slots.x).toBe(services.x);
+    expect(days.y).toBeGreaterThan(services.y);
+    expect(slots.y).toBeGreaterThan(days.y);
+  });
+
+  test('escenario 2 — días y horas con un área táctil holgada', async ({ page }) => {
+    await page.goto('/');
+
+    const cells = page.locator(`${DAYS} .day-cell`);
+    for (const cell of await cells.all()) {
+      const rect = await box(cell);
+      expect(rect.width).toBeGreaterThanOrEqual(44);
+      expect(rect.height).toBeGreaterThanOrEqual(56);
+      await expect(cell.locator('.visually-hidden')).toHaveText(/con huecos|sin huecos|cerrado/);
+    }
+
+    for (const hour of await page.locator(`${SLOTS} button[name="startsAt"]`).all()) {
+      expect((await box(hour)).width).toBeGreaterThanOrEqual(96);
+    }
+  });
+
+  test('anchos límite — 639, 640, 1023 y 1024 px', async ({ page }) => {
+    await page.setViewportSize({ width: 639, height: 800 });
+    await page.goto('/');
+    expect((await box(page.locator('main'))).width).toBeLessThanOrEqual(480);
+
+    await page.setViewportSize({ width: 640, height: 800 });
+    expect((await box(page.locator('main'))).width).toBeGreaterThan(480);
+
+    await page.goto(freeSlotUrl());
+    await page.setViewportSize({ width: 1023, height: 800 });
+    await expect(page.locator(DAYS)).toBeHidden();
+    await page.setViewportSize({ width: 1024, height: 800 });
+    await expect(page.locator(DAYS)).toBeVisible();
+  });
+});

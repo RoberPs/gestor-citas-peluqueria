@@ -328,7 +328,7 @@ cancelar una y reprogramar otra.
 
 ### Tests for User Story 3 ⚠️
 
-- [ ] T026 [US3] En `tests/e2e/responsive.spec.ts`, añadir `describe('US3 — tablet')` a 768 × 1024:
+- [X] T026 [US3] En `tests/e2e/responsive.spec.ts`, añadir `describe('US3 — tablet')` a 768 × 1024:
   1. En `/`, el ancho de `main` está entre 640 y 720 px y las secciones de servicio, días
      y horas están una debajo de otra, con `x` igual.
   2. Cada celda del rango mide al menos 44 px de ancho y **56 px de alto** y muestra su
