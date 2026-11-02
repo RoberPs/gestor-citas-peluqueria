@@ -185,6 +185,8 @@ test.describe('US1 — reserva en ordenador', () => {
     await expect(chosen).toHaveCount(1);
     await expect(chosen).toHaveAttribute('value', startsAt);
     await expect(chosen).toContainText('Elegida');
+    // Said once: the visible badge repeats what the hidden text already says.
+    await expect(chosen).toHaveAccessibleName(/^\d\d:\d\d a \d\d:\d\d\. Elegida$/);
 
     const days = await box(page.locator(DAYS));
     expect((await box(page.locator(SUMMARY))).x).toBeGreaterThan(days.x);
