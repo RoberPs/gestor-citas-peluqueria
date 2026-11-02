@@ -39,14 +39,15 @@ salón la ve sin consultarla a mano.
 | Feature | Estado | Tareas | Rama | En `main` |
 |---|---|---|---|---|
 | [001 · Reserva del cliente](specs/001-client-appointment-booking/spec.md) | Implementada | 118 / 118 | `001-client-appointment-booking` | Sí (PR #1) |
-| 002 · Gestión del salón (`specs/002-salon-management/` en su rama) | Spec, plan y tareas; sin código | 0 / 164 | `002-salon-management` | No |
-| [003 · Versión responsive para tablet y ordenador](specs/003-responsive-desktop/spec.md) | Implementada | 35 / 35 | `003-responsive-desktop` | No (pendiente de PR) |
+| [002 · Gestión del salón](specs/002-salon-management/spec.md) | Spec, plan y tareas; sin código | 0 / 164 | `002-salon-management` | Sólo la documentación (PR #4) |
+| [003 · Versión responsive para tablet y ordenador](specs/003-responsive-desktop/spec.md) | Implementada | 35 / 35 | `003-responsive-desktop` | Sí (PR #3) |
 | 004 · Avisos por email y SMS | Planificada, sin spec | — | — | — |
 
-`main` contiene la 001 completa, con la corrección de su documentación y la enmienda
-1.1.0 de la constitución. Cada feature se fusiona a `main` al cerrarla, con la CI en
-verde. La rama `002-salon-management` salió de la 001 antes de esa fusión y hay que
-rebasarla sobre `main` (paso 2 del [roadmap](docs/roadmap.md)).
+`main` contiene la 001 y la 003 completas, la enmienda 1.1.0 de la constitución y la
+documentación de la 002 (spec, plan y tareas), con la 003 ya incorporada a su rama para
+que sus pantallas nazcan responsive. El código de cada feature se fusiona a `main` al cerrarla,
+con la CI en verde. La 002 se implementa en su rama `002-salon-management` a partir del
+paso 2 del [roadmap](docs/roadmap.md).
 
 ### Qué puede hacer hoy la app (001)
 
@@ -63,7 +64,7 @@ Probado a mano el 2026-11-02:
 - Enlace inexistente o malformado: mensaje neutro.
 - Borrado de datos personales a los 12 meses (`npm run retention:purge`).
 
-Con la 003 (en su rama), todo lo anterior se adapta a tres tamaños:
+Con la 003, todo lo anterior se adapta a tres tamaños:
 
 - **Móvil** (< 640 px): igual que en la 001.
 - **Tablet** (640–1023 px): una columna de 720 px, con días y horas más holgados.
@@ -75,7 +76,7 @@ Con la 003 (en su rama), todo lo anterior se adapta a tres tamaños:
 
 ### Estado de los checks
 
-En la rama `003-responsive-desktop`, el 2026-11-02. Playwright tiene tres proyectos,
+En `main` tras la 003, el 2026-11-02 (CI del PR #3 en verde). Playwright tiene tres proyectos,
 uno por tamaño (ver `playwright.config.ts`).
 
 | Check | Resultado |
