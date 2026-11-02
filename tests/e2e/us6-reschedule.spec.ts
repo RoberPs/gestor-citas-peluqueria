@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { closeAppointmentsPool, resetAppointments } from './helpers/appointments';
 import { expectNoAccessibilityViolations, expectNoHorizontalScroll } from './helpers/axe';
-import { bookAppointment, DAY_GRID, SLOT_LIST } from './helpers/booking';
+import { bookAppointment, DAY_GRID, SLOT_LIST, clickAndNavigate } from './helpers/booking';
 import { useOwnClientIp } from './helpers/client-ip';
 
 /** The appointment summary, as opposed to the salon one further down. */
@@ -80,7 +80,7 @@ test('escenario 2 — the old hour is free again straight away', async ({ page }
 
   // Back on the booking screen, the hour just vacated is on offer again.
   await page.goto('/');
-  await page.locator(`${DAY_GRID} button.is-available`).last().click();
+  await clickAndNavigate(page.locator(`${DAY_GRID} button.is-available`).last());
 
   const offered = (await page.locator(`${SLOT_LIST} button`).allTextContents()).map((text) =>
     text.trim().slice(0, 5),

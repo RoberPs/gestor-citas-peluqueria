@@ -22,7 +22,7 @@ Cuatro decisiones la sostienen ([research.md](./research.md)):
 2. **Se mantienen `/` y `/reservar`.** En ordenador, `/reservar` pinta también servicio,
    días y horas, ocultos por debajo de 1024 px. El móvil conserva sus URL y su aspecto
    (D-002).
-3. **Navegación suave con `next/form`**, que sigue funcionando sin JavaScript (D-003).
+3. **Navegación suave con `NavForm`**, un formulario GET que navega con el router de Next y sigue funcionando sin JavaScript (D-003).
 4. **Los datos escritos viven sólo en memoria**, en un layout del grupo de rutas
    `(booking)`, y nunca en el navegador (D-004).
 
@@ -30,7 +30,7 @@ Cuatro decisiones la sostienen ([research.md](./research.md)):
 
 **Language/Version**: TypeScript 5.7 (`strict`, `noUncheckedIndexedAccess`), Node.js 22 LTS
 
-**Primary Dependencies**: Next.js 15 (App Router, `next/form`) + React 19. Sin dependencias nuevas.
+**Primary Dependencies**: Next.js 15 (App Router) + React 19. Sin dependencias nuevas.
 
 **Storage**: N/A. Sin cambios en PostgreSQL ni migraciones.
 
@@ -104,9 +104,9 @@ src/
 ├── components/
 │   ├── booking-draft.tsx              # Nuevo: BookingDraftProvider + useBookingDraft
 │   ├── booking-form.tsx               # Lee y escribe el borrador
-│   ├── day-range-picker.tsx           # next/form
-│   ├── service-picker.tsx             # next/form
-│   └── slot-list.tsx                  # next/form; marca de hora elegida
+│   ├── day-range-picker.tsx           # NavForm
+│   ├── service-picker.tsx             # NavForm
+│   └── slot-list.tsx                  # NavForm; marca de hora elegida
 └── messages/es-ES.ts                  # Indicación de FR-010, "Elegida", título de /reservar
 
 tests/
@@ -126,7 +126,7 @@ pantallas de reserva. El resto son cambios dentro de archivos existentes.
 
 | Riesgo | Mitigación |
 |---|---|
-| `next/form` no incluye en la URL el `name`/`value` del botón pulsado. | Es lo primero que se prueba (D-003). Plan B: enlaces con la URL completa. |
+| `next/form` no incluye en la URL el `name`/`value` del botón pulsado. | Se confirmó en T009: se sustituye por `NavForm` (D-003). |
 | El test de rendimiento a 360 px supera los 2 s por la consulta extra en `/reservar`. | Lecturas en paralelo (D-008). Medir antes y después en la misma máquina. |
 | Tests de la 001 con localizadores ambiguos a 1280 px. | Acotar el localizador a su sección, sin cambiar lo que se comprueba (D-009). |
 | Mover `page.tsx` y `reservar/` al grupo rompe imports. | El movimiento es una tarea aparte, con `lint` y la suite en verde antes de seguir. |

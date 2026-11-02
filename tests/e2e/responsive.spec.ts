@@ -7,6 +7,7 @@ import {
   slotDaysFromNow,
 } from './helpers/appointments';
 import { expectNoHorizontalScroll } from './helpers/axe';
+import { bookAppointment } from './helpers/booking';
 import { useOwnClientIp } from './helpers/client-ip';
 
 /**
@@ -24,6 +25,11 @@ const DAYS = 'section[aria-labelledby="day-heading"]';
 const SLOTS = 'section[aria-labelledby="slot-heading"]';
 const SUMMARY = 'section[aria-labelledby="summary-heading"]';
 const FORM = 'section[aria-labelledby="form-heading"]';
+const APPOINTMENT = 'section[aria-labelledby="appointment-heading"]';
+const SAVE_LINK = 'section[aria-labelledby="save-link-heading"]';
+const ACTIONS = 'section[aria-labelledby="actions-heading"]';
+const SALON = 'section[aria-labelledby="salon-heading"]';
+const CONFIRM_CHANGE = 'section[aria-labelledby="confirm-heading"]';
 
 const CHOOSE_HOUR_HINT =
   'Elige una hora y aquí verás el resumen de tu cita y el formulario para tus datos.';
@@ -388,5 +394,93 @@ test.describe('US1 — el móvil no cambia', () => {
     await expect(page.locator(SLOTS)).toBeHidden();
     await expect(page.locator(SUMMARY)).toBeVisible();
     await expect(page.locator(FORM)).toBeVisible();
+  });
+});
+
+test.describe('US2 — la cita en ordenador', () => {
+  test.use({ viewport: DESKTOP });
+
+  test('escenario 1 — la confirmación cabe en 1280 × 800 sin desplazarse', async ({ page }) => {
+    await bookAppointment(page);
+
+    for (const selector of [APPOINTMENT, SAVE_LINK]) {
+      const rect = await box(page.locator(selector));
+      expect(rect.y + rect.height, selector).toBeLessThanOrEqual(DESKTOP.height);
+    }
+  });
+
+  test('escenario 2 — la cita a la izquierda; acciones y salón a la derecha', async ({ page }) => {
+    const { token } = await seedAppointment({ startsAt: slotDaysFromNow(6) });
+    await page.goto(`/cita/${token}`);
+
+    const appointment = await box(page.locator(APPOINTMENT));
+    expect((await box(page.locator(ACTIONS))).x).toBeGreaterThan(appointment.x);
+    expect((await box(page.locator(SALON))).x).toBeGreaterThan(appointment.x);
+  });
+
+  test('escenario 3 — reprogramar: días a la izquierda, horas y cambio a la derecha', async ({
+    page,
+  }) => {
+    const { token } = await seedAppointment({ startsAt: slotDaysFromNow(6) });
+    await page.goto(`/cita/${token}/reprogramar`);
+
+    const days = await box(page.locator(DAYS));
+    expect((await box(page.locator(SLOTS))).x).toBeGreaterThan(days.x);
+    await expect(page.locator(`${SLOTS} button.is-current-appointment`)).toBeVisible();
+
+    const hour = page.locator(`${SLOTS} button[name="startsAt"]:not(.is-current-appointment)`).first();
+    const startsAt = (await hour.getAttribute('value')) ?? '';
+    await hour.click();
+    await page.waitForURL((url) => url.searchParams.get('startsAt') === startsAt);
+
+    expect((await box(page.locator(CONFIRM_CHANGE))).x).toBeGreaterThan(days.x);
+    await expect(page.locator(DAYS)).toBeVisible();
+    await expect(page.locator(`${SLOTS} button[aria-pressed="true"]`)).toHaveAttribute(
+      'value',
+      startsAt,
+    );
+    await expect(page.locator(`${SLOTS} button.is-current-appointment`)).toBeVisible();
+  });
+
+  test('escenario 4 — cancelar se maneja entero con teclado', async ({ page }) => {
+    const { token } = await seedAppointment({ startsAt: slotDaysFromNow(6) });
+    await page.goto(`/cita/${token}`);
+
+    await page.getByRole('link', { name: 'Cancelar la cita' }).focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('heading', { name: '¿Seguro que quieres cancelar?' })).toBeVisible();
+
+    const confirm = page.getByRole('button', { name: 'Sí, cancelar la cita' });
+    for (let step = 0; step < 40; step += 1) {
+      if (await confirm.evaluate((element) => element === document.activeElement)) break;
+      await page.keyboard.press('Tab');
+    }
+    await expect(confirm).toBeFocused();
+    await page.keyboard.press('Enter');
+
+    await expect(page.locator(APPOINTMENT)).toContainText('Cancelada');
+  });
+
+  test('escenario 5 — el mensaje neutro, con ancho de lectura', async ({ page }) => {
+    await page.goto(`/cita/${'a'.repeat(43)}`);
+
+    const width = (await box(page.locator('main'))).width;
+    expect(width).toBeGreaterThanOrEqual(640);
+    expect(width).toBeLessThanOrEqual(720);
+  });
+});
+
+test.describe('US2 — el móvil no cambia', () => {
+  test.use({ viewport: PHONE });
+
+  test('FR-002 — con hora elegida, reprogramar sólo muestra la confirmación', async ({
+    page,
+  }) => {
+    const { token } = await seedAppointment({ startsAt: slotDaysFromNow(6) });
+    await page.goto(`/cita/${token}/reprogramar?startsAt=${slotDaysFromNow(5).toISOString()}`);
+
+    await expect(page.locator(DAYS)).toBeHidden();
+    await expect(page.locator(SLOTS)).toBeHidden();
+    await expect(page.locator(CONFIRM_CHANGE)).toBeVisible();
   });
 });

@@ -438,6 +438,12 @@ select {
   background: var(--surface-sunken);
 }
 
+/* The chosen hour also carries a ✓ and the word "Elegida" (003). */
+.slot.is-selected {
+  border-width: 3px;
+  background: var(--surface-sunken);
+}
+
 .slot-badge {
   font-size: 0.6875rem;
   font-weight: 400;

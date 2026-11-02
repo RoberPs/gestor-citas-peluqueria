@@ -61,7 +61,7 @@ por defecto, sin página de error.
 ## Navegación
 
 - Elegir servicio, día, rango u hora es una navegación GET con su propia URL. Con
-  JavaScript, la navegación ocurre dentro de la página (`next/form`); sin JavaScript,
+  JavaScript, la navegación ocurre dentro de la página (`NavForm`); sin JavaScript,
   recarga la página entera.
 - Nunca se mueve el foco por programa al navegar. Avisan la región `aria-live` de horas
   y el título de la página.

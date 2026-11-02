@@ -82,6 +82,15 @@ configuración. Ver D-008.
 falla si `<Form>` no incluye ese valor en la URL. Plan B: sustituir esos botones por
 enlaces (`<Link>`) con la URL completa, que se comportan igual con y sin JavaScript.
 
+**Resultado (T009, Next 15.5)**: el riesgo se confirmó. `next/form` construye la URL
+con `new FormData(form)`, sin el botón pulsado, así que se pierden `selectedDate`,
+`startsAt`, `serviceId` y `rangeStart`. Tampoco se adopta el plan B: convertir los
+botones en enlaces cambia su rol, y los tests de la 001 los buscan como `button`, lo que
+obligaría a reescribirlos (SC-004). En su lugar, `src/components/nav-form.tsx`
+(`NavForm`) hace lo mismo que `next/form` (`router.push` con la URL del formulario),
+pero con `new FormData(form, submitter)`. Sin JavaScript es un `<form method="get">`
+normal.
+
 ## D-004 — Datos escritos sólo en memoria
 
 **Decision**: un proveedor de cliente, `BookingDraftProvider`, guarda nombre, teléfono y

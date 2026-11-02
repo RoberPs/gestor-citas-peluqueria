@@ -131,7 +131,7 @@ visibles a la izquierda (SC-001, SC-002).
 
 > Escribir estos tests primero y comprobar que fallan antes de implementar.
 
-- [ ] T008 [US1] En `tests/e2e/responsive.spec.ts`, añadir `describe('US1 — reserva en ordenador')`
+- [X] T008 [US1] En `tests/e2e/responsive.spec.ts`, añadir `describe('US1 — reserva en ordenador')`
   con `test.use({ viewport: { width: 1280, height: 800 } })` y un test por escenario
   de la historia 1 de [spec.md](./spec.md):
   1. En `/`: la sección de servicio y la de días tienen su `boundingBox().x` a la
@@ -151,20 +151,20 @@ visibles a la izquierda (SC-001, SC-002).
   7. Con hora elegida, `page.goBack()` vuelve a `/` sin `startsAt`. Elegir hora otra vez
      y `page.reload()`: se conservan servicio, día y hora, y las casillas quedan vacías
      (aclaración Q2).
-- [ ] T009 [US1] En el mismo `describe`, un test de navegación suave (D-003):
+- [X] T009 [US1] En el mismo `describe`, un test de navegación suave (D-003):
   - antes de elegir una hora, ejecutar `page.evaluate(() => { window.__softNav = true; })`;
   - después, comprobar que `window.__softNav` sigue siendo `true` y que la URL contiene
     `startsAt`.
 
   Sirve para verificar que `next/form` envía el `name`/`value` del botón pulsado.
-- [ ] T010 [US1] En el mismo `describe`, un test de privacidad (FR-009):
+- [X] T010 [US1] En el mismo `describe`, un test de privacidad (FR-009):
   - escribir nombre, teléfono y email reconocibles y cambiar de hora;
   - comprobar que `localStorage`, `sessionStorage`, `document.cookie` y `page.url()`
     no contienen ninguno de los tres valores.
-- [ ] T011 [US1] En `tests/e2e/responsive.spec.ts`, añadir `describe('US1 — el móvil no cambia')`
+- [X] T011 [US1] En `tests/e2e/responsive.spec.ts`, añadir `describe('US1 — el móvil no cambia')`
   a 360 × 740: en `/reservar`, la sección de días y la de horas no son visibles
   (`toBeHidden`) y el resumen y el formulario sí (FR-002).
-- [ ] T011a [US1] En `describe('US1 — reserva en ordenador')`, un test de anuncios (FR-016, D-007):
+- [X] T011a [US1] En `describe('US1 — reserva en ordenador')`, un test de anuncios (FR-016, D-007):
   - en `/`, enfocar con teclado una celda de día con huecos y pulsar Enter: tras la
     navegación, `document.activeElement` sigue siendo el botón de ese día (el foco no se
     mueve) y la región `aria-live` de horas muestra la fecha del día elegido;
@@ -172,28 +172,28 @@ visibles a la izquierda (SC-001, SC-002).
   - en `/reservar`, elegir otra hora con Enter: el foco sigue en esa hora, la sección de
     resumen tiene `aria-live="polite"` y su hora ha cambiado, y la lista de horas de la
     columna derecha no es una región `aria-live` (para no anunciar dos veces).
-- [ ] T011b [US1] En `describe('US1 — reserva en ordenador')`, un test de hueco ocupado
+- [X] T011b [US1] En `describe('US1 — reserva en ordenador')`, un test de hueco ocupado
   (caso límite de la spec, Principio VI): igual que el escenario 5 de
   `tests/e2e/us2-booking.spec.ts`, otro contexto reserva la hora elegida mientras el
   cliente escribe; al confirmar, aparece `messages.errors.slotTaken`, los datos escritos
   se conservan y **ningún** botón de hora de la página tiene `value` igual al `startsAt`
   ocupado.
-- [ ] T011c [US1] En `describe('US1 — reserva en ordenador')`, un test de parámetros
+- [X] T011c [US1] En `describe('US1 — reserva en ordenador')`, un test de parámetros
   inválidos (Principio V): `/reservar?serviceId=…&startsAt=<hueco válido>&rangeStart=xx&selectedDate=2999-01-01`
   responde 200, muestra el resumen y el formulario, y la columna izquierda muestra el
   rango que contiene el día de `startsAt`, sin página de error.
 
 ### Implementation for User Story 1
 
-- [ ] T012 [P] [US1] Añadir en `src/messages/es-ES.ts`:
+- [X] T012 [P] [US1] Añadir en `src/messages/es-ES.ts`:
   - `availability.chooseHourHint`: "Elige una hora y aquí verás el resumen de tu cita y
     el formulario para tus datos."
   - `availability.selectedSlot`: "Elegida".
   - `booking.pageTitle`: "Tus datos · Reserva tu cita".
 
   Si `tests/unit/messages/` exige algo de los textos nuevos, cumplirlo.
-- [ ] T013 [P] [US1] En `src/components/slot-list.tsx`:
-  - Cambiar los dos `<form method="get">` por `<Form>` de `next/form`, con los mismos
+- [X] T013 [P] [US1] En `src/components/slot-list.tsx`:
+  - Cambiar los dos `<form method="get">` por `<NavForm>` (ver D-003: `next/form` pierde el botón pulsado), con los mismos
     `action` y campos.
   - Añadir la prop opcional `selectedStartsAt?: string`. La hora que coincide lleva
     `aria-pressed="true"`, la clase `is-selected` y una insignia `slot-badge` con
@@ -205,27 +205,27 @@ visibles a la izquierda (SC-001, SC-002).
     contenedor de horas no lleva `aria-live` ni `aria-atomic` (D-007).
   - Añadir en `globals.css` el estilo `.slot.is-selected`, con borde y fondo de acento,
     válido en todos los tamaños.
-- [ ] T014 [P] [US1] En `src/components/day-range-picker.tsx` y `src/components/service-picker.tsx`,
-  cambiar cada `<form method="get">` por `<Form>` de `next/form`, conservando `action`,
+- [X] T014 [P] [US1] En `src/components/day-range-picker.tsx` y `src/components/service-picker.tsx`,
+  cambiar cada `<form method="get">` por `<NavForm>` (D-003), conservando `action`,
   `className` y campos.
-- [ ] T015 [US1] Crear `src/components/booking-draft.tsx` (`'use client'`):
+- [X] T015 [US1] Crear `src/components/booking-draft.tsx` (`'use client'`):
   - `BookingDraftProvider`, que guarda `{ name, phone, email }` con `useState`, empezando
     vacío.
   - `useBookingDraft()`, que devuelve `{ draft, update(field, value) }`.
   - Un comentario que explique por qué sólo en memoria (D-004, Principio III).
   - Montarlo en `src/app/(booking)/layout.tsx` envolviendo `children`.
-- [ ] T016 [US1] En `src/components/booking-form.tsx`, usar `useBookingDraft()`:
+- [X] T016 [US1] En `src/components/booking-form.tsx`, usar `useBookingDraft()`:
   - El `defaultValue` de cada `Field` es `state.values.<campo>` si no está vacío y, si
     lo está, `draft.<campo>`.
   - Cada `input` llama a `update(campo, valor)` en `onChange`.
   - Añadir `onChange` a las props de `Field`.
-- [ ] T017 [US1] En `src/app/(booking)/page.tsx`, dar a `main` la clase `page--split` y a
+- [X] T017 [US1] En `src/app/(booking)/page.tsx`, dar a `main` la clase `page--split` y a
   la cabecera `site-header site-header--split`, y repartir el contenido de `main`:
   - `h1` y aviso de rango fuera de límites como hijos directos;
   - `<div className="col-main">` con `ServicePicker` y `DayRangePicker`;
   - `<div className="col-side">` con `SlotList` y debajo
     `<p className="muted wide-only">{messages.availability.chooseHourHint}</p>`.
-- [ ] T018 [US1] Reescribir `src/app/(booking)/reservar/page.tsx`:
+- [X] T018 [US1] Reescribir `src/app/(booking)/reservar/page.tsx`:
   - Leer `rangeStart` y `selectedDate` además de `serviceId` y `startsAt`.
   - El día de `startsAt` se calcula **siempre** con `localDateOf(start, salon.timezone)`
     de `@/domain/shared/time` (zona del salón, `SALON_TIMEZONE`, nunca la del servidor ni
@@ -247,13 +247,13 @@ visibles a la izquierda (SC-001, SC-002).
       resumen, formulario y Volver, sin cambios.
   - Añadir `generateMetadata` con `title: messages.booking.pageTitle` (D-007).
   - Mantener el caso "sin hueco" tal como está.
-- [ ] T018a [US1] En `src/app/(booking)/reservar/actions.ts`, cuando la reserva se rechaza
+- [X] T018a [US1] En `src/app/(booking)/reservar/actions.ts`, cuando la reserva se rechaza
   por `SLOT_TAKEN`, `TOO_LATE_TO_BOOK` u `OUTSIDE_OPENING_HOURS`, llamar a
   `revalidatePath('/reservar')` antes de devolver el estado. La respuesta de la action
   trae entonces la página recalculada: las horas y los días de las dos columnas reflejan
   la disponibilidad real, y el formulario y el borrador, que son estado de cliente, se
   conservan (T011b, Principio VI).
-- [ ] T019 [US1] Ejecutar T008–T011c hasta verde. Después
+- [X] T019 [US1] Ejecutar T008–T011c hasta verde. Después
   `npm run test:e2e -- --project=mobile-360` y `--project=desktop-1280` completos en verde.
 - [ ] T020 [US1] Repetir la medición de T003 con
   `npm run test:e2e -- --project=mobile-360 performance.spec.ts` tres veces y anotarla en
@@ -383,7 +383,7 @@ cancelar una y reprogramar otra.
 - **Setup (Fase 1)**: sin dependencias.
 - **Foundational (Fase 2)**: depende de la 1 y bloquea todas las historias.
 - **US1 (Fase 3)**: depende de la 2.
-- **US2 (Fase 4)**: depende de la 2. Usa `selectedStartsAt` de T013 y `next/form` de T014,
+- **US2 (Fase 4)**: depende de la 2. Usa `selectedStartsAt` de T013 y `NavForm` de T014,
   así que va después de T013 y T014.
 - **US3 (Fase 5)**: depende de la 2. Sus comprobaciones de límites sobre `/reservar`
   (T026.3) necesitan T018.
@@ -405,8 +405,8 @@ cancelar una y reprogramar otra.
 ```text
 # Tras escribir T008–T011 en rojo:
 Task: "T012 Añadir textos en src/messages/es-ES.ts"
-Task: "T013 next/form y hora elegida en src/components/slot-list.tsx"
-Task: "T014 next/form en day-range-picker.tsx y service-picker.tsx"
+Task: "T013 NavForm y hora elegida en src/components/slot-list.tsx"
+Task: "T014 NavForm en day-range-picker.tsx y service-picker.tsx"
 ```
 
 ## Implementation Strategy

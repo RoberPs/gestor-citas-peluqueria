@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic';
  *
  * Rendered on the server with the availability already computed, so the first
  * paint on a phone does not wait for a JavaScript bundle (SC-004). Navigation
- * is plain GET forms: choosing a service, a day or a range works with no client
+ * is GET forms: choosing a service, a day or a range works with no client
  * JavaScript at all, and the chosen service survives every step (escenario 7).
  */
 
@@ -81,13 +81,15 @@ export default async function BookingPage({
 
   return (
     <>
-      <header className="site-header">
+      <header className="site-header site-header--split">
         <p>
           {catalogue.salon.name} · {catalogue.salon.address}
         </p>
       </header>
 
-      <main>
+      {/* On desktop, service and days on the left and the hours on the right
+          (003, FR-007); below 1024 px, one column in this same order. */}
+      <main className="page--split">
         <h1>{messages.availability.title}</h1>
 
         {!requested.ok && (
@@ -97,16 +99,21 @@ export default async function BookingPage({
           </div>
         )}
 
-        <ServicePicker services={services} selectedServiceId={serviceId} />
+        <div className="col-main">
+          <ServicePicker services={services} selectedServiceId={serviceId} />
 
-        <DayRangePicker
-          availability={availability}
-          serviceId={serviceId}
-          previousRangeStart={shiftRange(availability.range.start, -rangeLength)}
-          nextRangeStart={shiftRange(availability.range.end, 1)}
-        />
+          <DayRangePicker
+            availability={availability}
+            serviceId={serviceId}
+            previousRangeStart={shiftRange(availability.range.start, -rangeLength)}
+            nextRangeStart={shiftRange(availability.range.end, 1)}
+          />
+        </div>
 
-        <SlotList availability={availability} serviceId={serviceId} />
+        <div className="col-side">
+          <SlotList availability={availability} serviceId={serviceId} />
+          <p className="muted wide-only">{messages.availability.chooseHourHint}</p>
+        </div>
       </main>
     </>
   );
