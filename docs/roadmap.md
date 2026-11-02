@@ -27,7 +27,7 @@ verde, y es un punto donde se puede parar.
   - Arreglar `slotDaysFromNow` para que no caiga en el día de cierre del seed.
   - Primero el commit `test:` que reproduce el fallo, después el arreglo.
   - Abrir PR a `main` y fusionar.
-- [x] **1 · `003-responsive-desktop`** — implementada en su rama; falta el PR a `main`.
+- [x] **1 · `003-responsive-desktop`** — PR #3, 2026-11-02
   - Spec corta con `/speckit-specify`.
   - Tres tamaños: móvil (< 640 px, el actual), tablet (≥ 640 px), ordenador
     (≥ 1024 px, reserva en dos columnas: servicio y días a la izquierda, horas y
@@ -36,7 +36,12 @@ verde, y es un punto donde se puede parar.
   - Va antes de la 002 para que las pantallas de la dueña nazcan responsive.
 - [ ] **2 · Actualizar la 002 con la US10 "Listado de reservas"**
   - Spec, plan, tareas y `/speckit-analyze`. Ver el apartado "US10" más abajo.
-  - Rebasar `002-salon-management` sobre `main`.
+  - ~~Rebasar `002-salon-management` sobre `main`~~ — en su lugar se fusionó `main` en
+    la rama el 2026-11-02, sin reescribir su historia; su documentación está en
+    `main` (PR #4).
+  - Las pantallas de la dueña usan la base responsive de la 003 (clases `.page--split`,
+    `.col-main`, `.col-side`, `.wide-only`, `NavForm`); revisar el plan de la 002 para
+    que lo diga.
 - [ ] **3 · 002, fases 1 y 2: setup y base común**
   - Migraciones: cuenta de la dueña, sesión, periodos no disponibles, origen de la cita.
   - Dominio: la disponibilidad resta intervalos en lugar de descartar días; email y
