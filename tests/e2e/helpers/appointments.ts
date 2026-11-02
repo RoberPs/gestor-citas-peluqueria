@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { Temporal } from '@js-temporal/polyfill';
 import { Pool } from 'pg';
 import { closureDate } from '../../../db/seed/seed';
 
@@ -88,23 +89,34 @@ export async function seedAppointment(options: {
 }
 
 /**
- * A salon-hours slot a fixed number of days from now, skipping the days the
- * seeded salon is closed: Sundays and the seeded holiday. Skipping only Sundays
- * made a Monday run land on the holiday, which sits a week ahead.
+ * A slot a fixed number of days from now, at that hour on the salon's clock,
+ * skipping the days the seeded salon is closed: Sundays and the seeded holiday.
+ *
+ * Both the day and the hour are the salon's, never the machine's: on a UTC
+ * runner, 11:30 machine time is 12:30 in Madrid, and the screen rightly says so.
  */
 export function slotDaysFromNow(days: number, hour = 11, minute = 30): Date {
-  const holiday = closureDate(process.env['SALON_TIMEZONE'] ?? 'Europe/Madrid');
-  const target = new Date();
-  target.setDate(target.getDate() + days);
-  while (target.getDay() === 0 || localDate(target) === holiday) {
-    target.setDate(target.getDate() + 1);
+  const timeZone = salonTimezone();
+  const holiday = closureDate(timeZone);
+  let date = Temporal.Now.plainDateISO(timeZone).add({ days });
+  while (date.dayOfWeek === 7 || date.toString() === holiday) {
+    date = date.add({ days: 1 });
   }
-  target.setHours(hour, minute, 0, 0);
-  return target;
+  const startsAt = date.toZonedDateTime({
+    timeZone,
+    plainTime: new Temporal.PlainTime(hour, minute),
+  });
+  return new Date(startsAt.epochMilliseconds);
 }
 
-function localDate(date: Date): string {
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${date.getFullYear()}-${month}-${day}`;
+/** The salon's wall-clock time, `HH:MM`, at an instant. */
+export function salonTimeLabel(at: Date): string {
+  const time = Temporal.Instant.fromEpochMilliseconds(at.getTime()).toZonedDateTimeISO(
+    salonTimezone(),
+  );
+  return `${String(time.hour).padStart(2, '0')}:${String(time.minute).padStart(2, '0')}`;
+}
+
+function salonTimezone(): string {
+  return process.env['SALON_TIMEZONE'] ?? 'Europe/Madrid';
 }
