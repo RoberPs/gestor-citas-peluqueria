@@ -255,7 +255,7 @@ visibles a la izquierda (SC-001, SC-002).
   conservan (T011b, Principio VI).
 - [X] T019 [US1] Ejecutar T008–T011c hasta verde. Después
   `npm run test:e2e -- --project=mobile-360` y `--project=desktop-1280` completos en verde.
-- [ ] T020 [US1] Repetir la medición de T003 con
+- [X] T020 [US1] Repetir la medición de T003 con
   `npm run test:e2e -- --project=mobile-360 performance.spec.ts` tres veces y anotarla en
   D-008 de `research.md`. Si alguna acción supera los 2000 ms de forma reproducible,
   parar e informar antes de seguir (SC-006).
@@ -274,7 +274,7 @@ cancelar una y reprogramar otra.
 
 ### Tests for User Story 2 ⚠️
 
-- [ ] T021 [US2] En `tests/e2e/responsive.spec.ts`, añadir `describe('US2 — la cita en ordenador')`
+- [X] T021 [US2] En `tests/e2e/responsive.spec.ts`, añadir `describe('US2 — la cita en ordenador')`
   a 1280 × 800, con un test por escenario de la historia 2:
   1. Reservar con el helper de `tests/e2e/helpers/booking.ts` hasta `/cita/{token}?nueva=1`:
      los datos de la cita, el enlace de gestión y el aviso de guardarlo tienen
@@ -287,7 +287,7 @@ cancelar una y reprogramar otra.
   4. Abrir el diálogo de cancelar y manejarlo sólo con teclado (Tab, Enter, Escape),
      con la confirmación explícita igual que en móvil.
   5. `/cita/{'a'.repeat(43)}`: el ancho de `main` está entre 640 y 720 px.
-- [ ] T022 [US2] En `describe('US2 — el móvil no cambia')`, a 360 × 740: en
+- [X] T022 [US2] En `describe('US2 — el móvil no cambia')`, a 360 × 740: en
   `/cita/{token}/reprogramar` con hora elegida, la sección de días y la de horas no son
   visibles y el panel de confirmación sí.
 

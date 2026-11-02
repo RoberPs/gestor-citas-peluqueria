@@ -196,6 +196,27 @@ con la red de 4G emulada del test:
 | JS de la reserva | 102,7 KiB | 102,7 KiB | 102,7 KiB |
 | JS del formulario | 6,1 KiB | 6,1 KiB | 6,1 KiB |
 
+### Medición tras US1 (T020)
+
+Misma prueba y misma máquina. Elegir servicio y día ya es navegación dentro de la app
+(`NavForm`), y el test espera a que cambie la URL antes de dar el paso por terminado.
+
+| Acción | 1 | 2 | 3 |
+|---|---|---|---|
+| Abrir la reserva | 1175 ms | 1123 ms | 1209 ms |
+| Elegir servicio | 633 ms | 605 ms | 560 ms |
+| Elegir día | 272 ms | 420 ms | 295 ms |
+| Elegir hora | 438 ms | 512 ms | 526 ms |
+| Confirmar | 556 ms | 580 ms | 497 ms |
+| Abrir la cita | 974 ms | 765 ms | 924 ms |
+| Abrir reprogramar | 574 ms | 464 ms | 611 ms |
+| JS de la reserva | 104,8 KiB | 104,8 KiB | 104,8 KiB |
+| JS del formulario | 6,5 KiB | 6,5 KiB | 6,5 KiB |
+
+Ninguna acción se acerca a los 2000 ms (SC-006). Abrir la reserva sube unos 250 ms de
+media, por el HTML de las dos columnas y el JavaScript de `NavForm` y del borrador
+(+2,1 KiB). Elegir día y servicio bajan, porque ya no recargan la página.
+
 ## D-009 — Tests
 
 **Decision**:
