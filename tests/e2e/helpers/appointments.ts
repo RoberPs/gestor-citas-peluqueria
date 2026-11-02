@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { Pool } from 'pg';
+import { closureDate } from '../../../db/seed/seed';
 
 /**
  * Empties the appointments between tests.
@@ -86,11 +87,24 @@ export async function seedAppointment(options: {
   return { token, startsAt: options.startsAt };
 }
 
-/** A salon-hours slot a fixed number of days from now, skipping Sundays. */
+/**
+ * A salon-hours slot a fixed number of days from now, skipping the days the
+ * seeded salon is closed: Sundays and the seeded holiday. Skipping only Sundays
+ * made a Monday run land on the holiday, which sits a week ahead.
+ */
 export function slotDaysFromNow(days: number, hour = 11, minute = 30): Date {
+  const holiday = closureDate(process.env['SALON_TIMEZONE'] ?? 'Europe/Madrid');
   const target = new Date();
   target.setDate(target.getDate() + days);
-  if (target.getDay() === 0) target.setDate(target.getDate() + 1);
+  while (target.getDay() === 0 || localDate(target) === holiday) {
+    target.setDate(target.getDate() + 1);
+  }
   target.setHours(hour, minute, 0, 0);
   return target;
+}
+
+function localDate(date: Date): string {
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${date.getFullYear()}-${month}-${day}`;
 }

@@ -50,7 +50,7 @@ const CLOSURE_ID = '00000000-0000-4000-8000-000000000031';
  * day that is not a Sunday — the two states must be visibly the same to the
  * client and distinct from FULL.
  */
-function closureDate(timezone: string): string {
+export function closureDate(timezone: string): string {
   const today = Temporal.Now.zonedDateTimeISO(timezone).toPlainDate();
   const candidate = today.add({ days: 7 });
   // Sunday is closed anyway; a closure there would prove nothing.
