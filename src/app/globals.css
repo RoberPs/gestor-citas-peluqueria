@@ -122,6 +122,58 @@ select {
   color: var(--accent-ink);
 }
 
+/* Layout --------------------------------------------------------------- */
+
+/*
+ * The only two widths of the responsive layout (003, D-006): 640 px for
+ * tablet and 1024 px for desktop. Below 640 px nothing here applies, so the
+ * phone keeps the 001 design untouched. A unit test rejects any other media
+ * query and any `order`, because the DOM order is the reading order (FR-015).
+ */
+
+/* Shown only on desktop; `display: none` also takes it out of the
+ * accessibility tree, so a phone screen reader hears nothing it cannot see. */
+.wide-only {
+  display: none;
+}
+
+@media (min-width: 640px) {
+  main,
+  .site-header {
+    max-width: 720px;
+  }
+}
+
+@media (min-width: 1024px) {
+  /* The header comes before `main` in the DOM, so it carries its own class. */
+  .site-header--split,
+  main.page--split {
+    max-width: 1120px;
+  }
+
+  main.page--split {
+    display: grid;
+    grid-template-columns: minmax(0, 26rem) minmax(0, 1fr);
+    column-gap: 2rem;
+    align-items: start;
+    align-content: start;
+  }
+
+  /* The title and page-wide notices span both columns. */
+  main.page--split > :not(.col-main):not(.col-side) {
+    grid-column: 1 / -1;
+  }
+
+  .col-main p,
+  .col-side p {
+    max-width: 70ch;
+  }
+
+  .wide-only {
+    display: revert;
+  }
+}
+
 /* Buttons ------------------------------------------------------------- */
 
 .button,

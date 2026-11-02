@@ -71,7 +71,7 @@ Proyecto único: `src/` y `tests/` en la raíz. Rutas según [plan.md](./plan.md
 
 **Purpose**: la base de disposición compartida y el grupo de rutas. Bloquea todas las historias.
 
-- [ ] T004 [P] Crear `tests/unit/ui/layout-breakpoints.test.ts` (Vitest, entorno Node).
+- [X] T004 [P] Crear `tests/unit/ui/layout-breakpoints.test.ts` (Vitest, entorno Node).
   Lee `src/app/globals.css` y comprueba:
   - toda `@media` es exactamente `(min-width: 640px)` o `(min-width: 1024px)`;
   - no aparece la propiedad `order:`;
@@ -79,7 +79,7 @@ Proyecto único: `src/` y `tests/` en la raíz. Rutas según [plan.md](./plan.md
     `.col-side` y `.wide-only`.
 
   Debe fallar (todavía no existen las clases).
-- [ ] T005 [P] Crear `tests/e2e/responsive.spec.ts` con un `describe('sin desplazamiento horizontal')`.
+- [X] T005 [P] Crear `tests/e2e/responsive.spec.ts` con un `describe('sin desplazamiento horizontal')`.
   - Para cada ancho de 320, 360, 640, 768, 1024, 1280 y 1920 px (`page.setViewportSize`,
     alto 800) visita `/`, `/reservar` con un hueco válido, `/cita/{token}`,
     `/cita/{token}/reprogramar` y `/cita/{'a'.repeat(43)}`. Reutiliza los helpers de
@@ -88,7 +88,7 @@ Proyecto único: `src/` y `tests/` en la raíz. Rutas según [plan.md](./plan.md
   - Añade un caso a 320 × 200, que emula 1280 × 800 al 400 % (FR-005, SC-003).
 
   Puede pasar ya: es la guarda de regresión de toda la feature.
-- [ ] T006 Añadir el bloque `/* Layout */` en `src/app/globals.css`, siguiendo
+- [X] T006 Añadir el bloque `/* Layout */` en `src/app/globals.css`, siguiendo
   [contracts/ui-layout.md](./contracts/ui-layout.md):
   - `@media (min-width: 640px)`: `main` y `.site-header` pasan de `max-width: 480px` a
     `720px`.
@@ -104,7 +104,7 @@ Proyecto único: `src/` y `tests/` en la raíz. Rutas según [plan.md](./plan.md
   - `.wide-only { display: none }` por defecto y `display: revert` a partir de 1024 px.
 
   T004 pasa a verde y la suite de la 001 a 360 px sigue en verde.
-- [ ] T007 Mover las pantallas de reserva al grupo de rutas `(booking)` sin cambiar
+- [X] T007 Mover las pantallas de reserva al grupo de rutas `(booking)` sin cambiar
   ninguna URL:
   - `git mv src/app/page.tsx "src/app/(booking)/page.tsx"`
   - `git mv src/app/reservar "src/app/(booking)/reservar"`

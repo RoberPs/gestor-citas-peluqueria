@@ -1,8 +1,8 @@
 'use client';
 
 import { useActionState } from 'react';
-import { submitBooking } from '@/app/reservar/actions';
-import { emptyBookingFormState, type BookingFormState } from '@/app/reservar/form-state';
+import { submitBooking } from '@/app/(booking)/reservar/actions';
+import { emptyBookingFormState, type BookingFormState } from '@/app/(booking)/reservar/form-state';
 import { messages } from '@/messages/es-ES';
 
 /**
