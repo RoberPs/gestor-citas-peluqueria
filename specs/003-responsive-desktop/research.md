@@ -91,6 +91,12 @@ obligaría a reescribirlos (SC-004). En su lugar, `src/components/nav-form.tsx`
 pero con `new FormData(form, submitter)`. Sin JavaScript es un `<form method="get">`
 normal.
 
+**Estado de carga**: al no recargar, la pantalla que se deja sigue a la vista mientras
+llega la nueva, y se podía elegir una hora del día anterior. Mientras hay una navegación
+en curso, `NavForm` ignora cualquier otra elección hecha sobre esa pantalla y marca
+`html[data-navigating]`, con el que la hoja de estilos atenúa servicios, días y horas
+(Principio VI). Los tests e2e de la 001 esperan cada navegación con `clickAndNavigate`.
+
 ## D-004 — Datos escritos sólo en memoria
 
 **Decision**: un proveedor de cliente, `BookingDraftProvider`, guarda nombre, teléfono y
@@ -164,6 +170,10 @@ ancho distinto de 640 o 1024 px, o una propiedad `order` (FR-006, FR-015).
   sección de resumen, que es una región `aria-live="polite"` sin `aria-atomic`: sólo se
   leen la fecha y la hora que cambian. Para no anunciarlo dos veces, la lista de horas
   de `/reservar` se pinta sin `aria-live` (`SlotList live={false}`).
+- Al reprogramar con una hora elegida pasa lo mismo: la lista de horas deja de ser
+  región `aria-live` y el panel de confirmación se pinta dentro de una región
+  `aria-live` que está siempre en la página. Así se anuncia al aparecer y al cambiar de
+  hora, una sola vez.
 - Si al confirmar la hora ya está ocupada, la action llama a `revalidatePath('/reservar')`:
   las dos columnas se recalculan en la misma respuesta y nunca queda a la vista una hora
   que ya no se puede reservar (Principio VI). Lo escrito se conserva porque es estado de

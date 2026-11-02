@@ -438,6 +438,15 @@ select {
   background: var(--surface-sunken);
 }
 
+/* While a choice is on its way, what is still on screen belongs to the
+ * previous one and cannot be chosen (003, NavForm). Only the cursor says so:
+ * fading it out would drop the text below AA contrast. */
+html[data-navigating] .service-list,
+html[data-navigating] .day-grid,
+html[data-navigating] .slot-list {
+  cursor: progress;
+}
+
 /* The chosen hour also carries a ✓ and the word "Elegida" (003). */
 .slot.is-selected {
   border-width: 3px;

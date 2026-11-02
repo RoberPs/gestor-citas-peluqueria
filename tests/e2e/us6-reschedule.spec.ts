@@ -155,7 +155,7 @@ test('SC-010 y SC-011 — no WCAG AA violations and no sideways scroll at 360 px
   await expectNoHorizontalScroll(page);
 
   // The confirmation step is a screen of its own and gets checked as one.
-  await page.locator(`${SLOT_LIST} button:not(.is-current-appointment)`).first().click();
+  await clickAndNavigate(page.locator(`${SLOT_LIST} button:not(.is-current-appointment)`).first());
   await expectNoAccessibilityViolations(page);
   await expectNoHorizontalScroll(page);
 });

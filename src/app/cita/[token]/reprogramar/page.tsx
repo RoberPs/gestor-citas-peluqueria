@@ -159,13 +159,17 @@ export default async function ReschedulePage({
               serviceId={appointment.service.serviceId}
               action={here}
               browseAction={here}
-              {...(chosen === undefined ? {} : { selectedStartsAt: chosen })}
+              {...(chosen === undefined ? {} : { selectedStartsAt: chosen, live: false })}
             />
           </div>
 
-          {chosen !== undefined && (
-            <ConfirmPanel token={token} startsAt={chosen} timezone={timezone} back={here} />
-          )}
+          {/* Always on the page, so choosing an hour announces the confirmation
+              it asks for, and only that, once (003, FR-016). */}
+          <div aria-live="polite">
+            {chosen !== undefined && (
+              <ConfirmPanel token={token} startsAt={chosen} timezone={timezone} back={here} />
+            )}
+          </div>
 
           <p>
             <Link className="button-secondary" href={`/cita/${token}`}>
