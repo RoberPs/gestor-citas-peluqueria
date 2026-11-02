@@ -529,3 +529,23 @@ select {
 .confirm-panel .actions {
   margin-bottom: 0;
 }
+
+/* Roomier days and hours from tablet up --------------------------------- */
+
+/* Last in the file on purpose: it overrides the component rules above,
+ * which share its specificity (003, US3). With the room a tablet gives, days
+ * and hours get a larger target than the 44 px minimum a phone settles for. */
+@media (min-width: 640px) {
+  .day-grid {
+    gap: 6px;
+  }
+
+  .day-cell {
+    min-height: 56px;
+  }
+
+  .slot-list {
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+    gap: 10px;
+  }
+}
