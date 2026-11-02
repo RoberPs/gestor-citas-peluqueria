@@ -367,6 +367,31 @@ test.describe('US1 — reserva en ordenador', () => {
     await expect(page.locator(`button[value="${startsAt}"]`)).toHaveCount(0);
   });
 
+  test('Principio VI — mientras llega el día nuevo, las horas del anterior no se eligen', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    const oldHour = page.locator(`${SLOTS} button[name="startsAt"]`).first();
+    const day = page.locator(`${DAYS} button.is-available`).last();
+    const date = (await day.getAttribute('value')) ?? '';
+
+    // A slow network, so the screen being left stays in view long enough to act on.
+    await page.route(/_rsc=/, async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      await route.continue();
+    });
+
+    await day.click();
+    await expect(page.locator('html')).toHaveAttribute('data-navigating', '');
+    await oldHour.focus();
+    await page.keyboard.press('Enter');
+
+    await page.waitForURL(new RegExp(`selectedDate=${date}`));
+    await expect(page.locator('html')).not.toHaveAttribute('data-navigating', '');
+    expect(new URL(page.url()).pathname).toBe('/');
+    expect(new URL(page.url()).searchParams.get('startsAt')).toBeNull();
+  });
+
   test('Principio V — parámetros inválidos caen al rango por defecto', async ({ page }) => {
     const at = slotDaysFromNow(5);
     const response = await page.goto(
@@ -440,6 +465,22 @@ test.describe('US2 — la cita en ordenador', () => {
       startsAt,
     );
     await expect(page.locator(`${SLOTS} button.is-current-appointment`)).toBeVisible();
+  });
+
+  test('FR-016 — al reprogramar se anuncia la confirmación, no la lista de horas', async ({
+    page,
+  }) => {
+    const { token } = await seedAppointment({ startsAt: slotDaysFromNow(6) });
+    await page.goto(`/cita/${token}/reprogramar`);
+    await expect(page.locator(`${SLOTS} [aria-live]`)).toHaveCount(1);
+
+    const hour = page.locator(`${SLOTS} button[name="startsAt"]:not(.is-current-appointment)`).first();
+    const startsAt = (await hour.getAttribute('value')) ?? '';
+    await hour.click();
+    await page.waitForURL((url) => url.searchParams.get('startsAt') === startsAt);
+
+    await expect(page.locator(`${SLOTS} [aria-live]`)).toHaveCount(0);
+    await expect(page.locator(`[aria-live="polite"] ${CONFIRM_CHANGE}`)).toBeVisible();
   });
 
   test('escenario 4 — cancelar se maneja entero con teclado', async ({ page }) => {
