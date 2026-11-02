@@ -20,7 +20,8 @@ y actualizar `README.md`.
 Cada paso termina con `npm run test:all`, `npm run lint` y `npm run check:layers` en
 verde, y es un punto donde se puede parar.
 
-- [ ] **0 · Cerrar la 001** (rama `001-client-appointment-booking`)
+- [x] **0 · Cerrar la 001** (rama `001-client-appointment-booking`) — PR #1 y #2,
+  2026-11-02
   - Arreglar `availability-horizon.test.ts`: `seedHistory` recibe el instante de
     referencia en vez de usar `now()` de PostgreSQL.
   - Arreglar `slotDaysFromNow` para que no caiga en el día de cierre del seed.
@@ -109,6 +110,8 @@ Ninguna por ahora.
 - 2026-11-02 · **US10:** las canceladas se ocultan por defecto y se muestran con el
   filtro *Confirmadas / Canceladas / Todas*, como en la agenda (FR-015).
 - 2026-11-02 · Se empieza por el paso 0.
+- 2026-11-02 · Cada feature se fusiona a `main` al cerrarla, no todas al final del
+  proyecto. Cada una conserva su spec en `specs/NNN-…/`.
 
 - 2026-11-02 · El listado de reservas es una historia de la 002 (US10), no una feature
   aparte, y entra en el MVP mínimo.

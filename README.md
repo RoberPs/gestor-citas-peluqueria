@@ -38,15 +38,15 @@ salón la ve sin consultarla a mano.
 
 | Feature | Estado | Tareas | Rama | En `main` |
 |---|---|---|---|---|
-| [001 · Reserva del cliente](specs/001-client-appointment-booking/spec.md) | Implementada | 118 / 118 | `001-client-appointment-booking` | No |
+| [001 · Reserva del cliente](specs/001-client-appointment-booking/spec.md) | Implementada | 118 / 118 | `001-client-appointment-booking` | Sí (PR #1) |
 | 002 · Gestión del salón (`specs/002-salon-management/` en su rama) | Spec, plan y tareas; sin código | 0 / 164 | `002-salon-management` | No |
 | 003 · Versión responsive para ordenador | Planificada, sin spec | — | — | — |
 | 004 · Avisos por email y SMS | Planificada, sin spec | — | — | — |
 
-`main` sigue en el snapshot inicial (`0c45f82`). La rama `002-salon-management` contiene
-todos los commits de la 001 más la documentación de la 002. La corrección de la
-documentación de la 001 y la enmienda 1.1.0 de la constitución también están en la
-rama 001, para que lleguen a `main` con ella.
+`main` contiene la 001 completa, con la corrección de su documentación y la enmienda
+1.1.0 de la constitución. Cada feature se fusiona a `main` al cerrarla, con la CI en
+verde. La rama `002-salon-management` salió de la 001 antes de esa fusión y hay que
+rebasarla sobre `main` (paso 2 del [roadmap](docs/roadmap.md)).
 
 ### Qué puede hacer hoy la app (001)
 
@@ -74,14 +74,20 @@ Probado a mano el 2026-11-02:
 | `npm run lint` | ✅ |
 | `npm run check:layers` | ✅ |
 
-El 2026-11-02 se corrigieron dos **tests que dependían de la fecha de ejecución**, no
-defectos de la app:
+El 2026-11-02 se corrigieron tres **tests que dependían de la fecha o de la zona
+horaria de la máquina**, no defectos de la app:
 
 1. `availability-horizon.test.ts` fijaba el reloj en 2026-09-15, pero
    `db/seed/history.ts` creaba el histórico con el `now()` real de PostgreSQL. Ahora
    `seedHistory` recibe el instante de referencia.
 2. `slotDaysFromNow` saltaba los domingos pero no el festivo que crea el seed (hoy + 7),
    y un lunes caía en él. Ahora salta los dos.
+3. `slotDaysFromNow` fijaba la hora con la zona horaria de la máquina. En la CI, que
+   corre en UTC, la cita quedaba una hora más tarde en Madrid y `us4-view` fallaba.
+   Ahora calcula día y hora en `SALON_TIMEZONE`, igual que `us1-availability`.
+
+`performance.spec.ts` (SC-004) va justo en el límite: con `TZ=UTC` midió una vez 2017 ms
+frente a 2000 ms y pasó al repetirlo. Si falla de forma intermitente en la CI, es esto.
 
 ### Defectos menores de experiencia de uso (001)
 
