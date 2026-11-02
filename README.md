@@ -40,7 +40,7 @@ salón la ve sin consultarla a mano.
 |---|---|---|---|---|
 | [001 · Reserva del cliente](specs/001-client-appointment-booking/spec.md) | Implementada | 118 / 118 | `001-client-appointment-booking` | Sí (PR #1) |
 | 002 · Gestión del salón (`specs/002-salon-management/` en su rama) | Spec, plan y tareas; sin código | 0 / 164 | `002-salon-management` | No |
-| 003 · Versión responsive para ordenador | Planificada, sin spec | — | — | — |
+| [003 · Versión responsive para tablet y ordenador](specs/003-responsive-desktop/spec.md) | Implementada | 35 / 35 | `003-responsive-desktop` | No (pendiente de PR) |
 | 004 · Avisos por email y SMS | Planificada, sin spec | — | — | — |
 
 `main` contiene la 001 completa, con la corrección de su documentación y la enmienda
@@ -63,14 +63,30 @@ Probado a mano el 2026-11-02:
 - Enlace inexistente o malformado: mensaje neutro.
 - Borrado de datos personales a los 12 meses (`npm run retention:purge`).
 
+Con la 003 (en su rama), todo lo anterior se adapta a tres tamaños:
+
+- **Móvil** (< 640 px): igual que en la 001.
+- **Tablet** (640–1023 px): una columna de 720 px, con días y horas más holgados.
+- **Ordenador** (≥ 1024 px): la reserva, la cita y la reprogramación pasan a dos
+  columnas. Al reservar, servicio y días quedan a la izquierda; horas, resumen y
+  formulario, a la derecha.
+- Elegir día u hora no recarga la página: lo escrito se conserva sin guardarse nunca en
+  el navegador. Atrás deshace la última elección y recargar la mantiene.
+
 ### Estado de los checks
+
+En la rama `003-responsive-desktop`, el 2026-11-02. Playwright tiene tres proyectos,
+uno por tamaño (ver `playwright.config.ts`).
 
 | Check | Resultado |
 |---|---|
-| `npm test` (unitarios) | 257 / 257 ✅ |
+| `npm test` (unitarios) | 264 / 264 ✅ |
 | `npm run test:integration` | 114 / 114 ✅ |
 | `npm run test:contract` | 80 / 80 ✅ |
-| `npm run test:e2e` | 61 / 61 ✅ |
+| `npm run test:e2e` | 159 / 159 ✅ |
+| · proyecto `mobile-360` (la suite de la 001) | 61 / 61 ✅ |
+| · proyecto `desktop-1280` (la 001 sin rendimiento, más `responsive.spec.ts`) | 90 / 90 ✅ |
+| · proyecto `tablet-768` (accesibilidad) | 8 / 8 ✅ |
 | `npm run lint` | ✅ |
 | `npm run check:layers` | ✅ |
 
@@ -103,7 +119,5 @@ frente a 2000 ms y pasó al repetirlo. Si falla de forma intermitente en la CI, 
 
 - La configuración del salón se cachea en memoria al primer acceso (D-003 de la 001).
   Cambiarla con el seed exige reiniciar la app; la 002 lo sustituye por lectura en vivo.
-- La interfaz está diseñada para 360 px. En pantallas anchas se ve como una columna
-  estrecha; la 003 lo resuelve.
 - v1 no envía SMS ni email. La 004 cambiará esa decisión y activará el Principio IV
   de la constitución.

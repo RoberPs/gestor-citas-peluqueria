@@ -363,7 +363,7 @@ cancelar una y reprogramar otra.
   - un test de cambio de tamaño: con datos escritos en `/reservar`, `setViewportSize`
     a 700 × 800 y de vuelta a 1280 × 800, y los valores, la URL y la hora elegida se
     conservan (FR-014).
-- [ ] T030 Actualizar la documentación:
+- [X] T030 Actualizar la documentación:
   - `README.md`: tabla de features con la 003 implementada; eliminar de "Restricciones"
     la nota de la columna estrecha; añadir los proyectos de Playwright a "Estado de los
     checks".
