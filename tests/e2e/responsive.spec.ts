@@ -535,3 +535,45 @@ test.describe('US3 — tablet', () => {
     await expect(page.locator(DAYS)).toBeVisible();
   });
 });
+
+test.describe('común a los tamaños', () => {
+  test.use({ viewport: DESKTOP });
+
+  test('FR-015 — el foco recorre la izquierda antes que la derecha', async ({ page }) => {
+    await page.goto('/');
+
+    const order: string[] = [];
+    for (let step = 0; step < 60 && order.length < 3; step += 1) {
+      await page.keyboard.press('Tab');
+      const area = await page.evaluate(() => {
+        const focused = document.activeElement;
+        if (focused?.closest('section[aria-labelledby="service-heading"]')) return 'service';
+        if (focused?.closest('section[aria-labelledby="day-heading"]')) return 'day';
+        if (focused?.closest('section[aria-labelledby="slot-heading"]')) return 'slot';
+        return null;
+      });
+      if (area !== null && !order.includes(area)) order.push(area);
+    }
+
+    expect(order).toEqual(['service', 'day', 'slot']);
+  });
+
+  test('FR-014 — cambiar el tamaño a mitad de la reserva no pierde nada', async ({ page }) => {
+    await page.goto('/');
+    await chooseLastDay(page);
+    const startsAt = await chooseHour(page, 0);
+    await fillContact(page, ANA);
+    const url = page.url();
+
+    await page.setViewportSize({ width: 700, height: 800 });
+    await expectContact(page, ANA);
+    await page.setViewportSize(DESKTOP);
+
+    expect(page.url()).toBe(url);
+    await expectContact(page, ANA);
+    await expect(page.locator(`${SLOTS} button[aria-pressed="true"]`)).toHaveAttribute(
+      'value',
+      startsAt,
+    );
+  });
+});

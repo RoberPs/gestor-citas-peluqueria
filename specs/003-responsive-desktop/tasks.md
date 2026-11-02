@@ -340,7 +340,7 @@ cancelar una y reprogramar otra.
 
 ### Implementation for User Story 3
 
-- [ ] T027 [US3] En `src/app/globals.css`, dentro de `@media (min-width: 640px)`:
+- [X] T027 [US3] En `src/app/globals.css`, dentro de `@media (min-width: 640px)`:
   - más separación en `.day-grid` y `.slot-list`;
   - `.slot-list` con `minmax(96px, 1fr)`;
   - celdas del rango con altura mínima de 56 px.
@@ -353,10 +353,10 @@ cancelar una y reprogramar otra.
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T028 [P] En `tests/e2e/accessibility.spec.ts`, añadir el caso "`/reservar` con hora
+- [X] T028 [P] En `tests/e2e/accessibility.spec.ts`, añadir el caso "`/reservar` con hora
   elegida" si no existe, para que axe revise también a 768 y 1280 px la columna derecha
   completa (SC-005).
-- [ ] T029 [P] En `tests/e2e/responsive.spec.ts`, añadir a 1280 px:
+- [X] T029 [P] En `tests/e2e/responsive.spec.ts`, añadir a 1280 px:
   - un test de orden de foco: pulsando Tab desde el inicio, el primer botón de servicio
     recibe el foco antes que la primera celda del rango, y esta antes que la primera hora
     (FR-015);
