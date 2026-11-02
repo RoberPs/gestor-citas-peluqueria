@@ -1,8 +1,9 @@
 'use client';
 
 import { useActionState } from 'react';
-import { submitBooking } from '@/app/reservar/actions';
-import { emptyBookingFormState, type BookingFormState } from '@/app/reservar/form-state';
+import { submitBooking } from '@/app/(booking)/reservar/actions';
+import { emptyBookingFormState, type BookingFormState } from '@/app/(booking)/reservar/form-state';
+import { useBookingDraft } from '@/components/booking-draft';
 import { messages } from '@/messages/es-ES';
 
 /**
@@ -16,6 +17,10 @@ import { messages } from '@/messages/es-ES';
  *
  * Each error is tied to its field with `aria-describedby`, and the summary sits
  * in a live region so it is announced rather than merely appearing (FR-037).
+ *
+ * What is typed is also copied into the booking draft, so that on desktop,
+ * where the client can change day or hour with the form in view, nothing
+ * typed is lost (003, FR-009). After a rejected attempt the server's values win.
  */
 export function BookingForm({
   serviceId,
@@ -28,6 +33,7 @@ export function BookingForm({
     submitBooking,
     emptyBookingFormState,
   );
+  const { draft, update } = useBookingDraft();
 
   return (
     <form action={action} noValidate>
@@ -51,7 +57,8 @@ export function BookingForm({
         label={messages.booking.nameLabel}
         hint={messages.booking.nameHint}
         autoComplete="name"
-        defaultValue={state.values.name}
+        defaultValue={state.values.name || draft.name}
+        onChange={(value) => update('name', value)}
         error={state.fieldErrors.name}
       />
       <Field
@@ -61,7 +68,8 @@ export function BookingForm({
         type="tel"
         autoComplete="tel"
         inputMode="tel"
-        defaultValue={state.values.phone}
+        defaultValue={state.values.phone || draft.phone}
+        onChange={(value) => update('phone', value)}
         error={state.fieldErrors.phone}
       />
       <Field
@@ -71,7 +79,8 @@ export function BookingForm({
         type="email"
         autoComplete="email"
         inputMode="email"
-        defaultValue={state.values.email}
+        defaultValue={state.values.email || draft.email}
+        onChange={(value) => update('email', value)}
         error={state.fieldErrors.email}
       />
 
@@ -90,6 +99,7 @@ function Field({
   hint,
   error,
   defaultValue,
+  onChange,
   type = 'text',
   autoComplete,
   inputMode,
@@ -99,6 +109,7 @@ function Field({
   readonly hint: string;
   readonly error: string | undefined;
   readonly defaultValue: string;
+  readonly onChange: (value: string) => void;
   readonly type?: string;
   readonly autoComplete?: string;
   readonly inputMode?: 'tel' | 'email';
@@ -118,6 +129,7 @@ function Field({
         name={name}
         type={type}
         defaultValue={defaultValue}
+        onChange={(event) => onChange(event.target.value)}
         className={error === undefined ? 'input' : 'input is-invalid'}
         aria-describedby={error === undefined ? hintId : `${hintId} ${errorId}`}
         aria-invalid={error !== undefined}

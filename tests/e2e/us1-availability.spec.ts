@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { salonTimeLabel } from './helpers/appointments';
 import { expectNoAccessibilityViolations, expectNoHorizontalScroll } from './helpers/axe';
+import { clickAndNavigate } from './helpers/booking';
 import { useOwnClientIp } from './helpers/client-ip';
 
 /**
@@ -13,7 +14,7 @@ const DAY_GRID = 'ul[aria-label="Días disponibles"]';
 const SLOT_LIST = 'ul[aria-label="Horas disponibles"]';
 
 async function chooseService(page: Page, name: string): Promise<void> {
-  await page.getByRole('button', { name: new RegExp(`^${name}`) }).click();
+  await clickAndNavigate(page.getByRole('button', { name: new RegExp(`^${name}`) }));
   await expect(page.locator('.service-option.is-selected')).toContainText(name);
 }
 
@@ -79,7 +80,7 @@ test('escenario 3 — Saturday with a midday close offers nothing between 14:00 
 
   // The seed closes Saturday from 14:00 to 16:00.
   const saturday = page.locator(`${DAY_GRID} button.is-available`, { hasText: 'sáb' }).first();
-  await saturday.click();
+  await clickAndNavigate(saturday);
 
   const times = await page.locator(`${SLOT_LIST} button`).allTextContents();
   const shown = times.map((text) => text.trim().slice(0, 5));
@@ -94,7 +95,7 @@ test('escenario 2 — a 90 minute service stops being offered before closing', a
   await chooseService(page, 'Color');
 
   const day = page.locator(`${DAY_GRID} button.is-available`, { hasText: /lun|mar|mié|jue|vie/ });
-  await day.last().click();
+  await clickAndNavigate(day.last());
 
   const times = (await page.locator(`${SLOT_LIST} button`).allTextContents()).map((t) =>
     t.trim().slice(0, 5),
@@ -109,7 +110,7 @@ test('escenario 7 — changing day keeps the chosen service', async ({ page }) =
   await chooseService(page, 'Color');
 
   const day = await firstAvailableDay(page);
-  await day.click();
+  await clickAndNavigate(day);
 
   await expect(page.locator('.service-option.is-selected')).toContainText('Color');
 });
@@ -140,7 +141,7 @@ test('escenario 9 — the range that reaches day 60 cannot go forward', async ({
   // Four steps of 14 days reach the end of the 60 day horizon.
   for (let step = 0; step < 4; step += 1) {
     if (await forward.isDisabled()) break;
-    await forward.click();
+    await clickAndNavigate(forward);
   }
 
   await expect(page.getByRole('button', { name: /14 días siguientes/ })).toBeDisabled();
@@ -174,7 +175,7 @@ test('escenario 5 — nothing is ever offered less than two hours away (BR-003)'
   // Both branches assert the same rule from opposite sides, so the test states
   // something true whatever hour the suite happens to run at — and never skips.
   if (isAvailable) {
-    await today.click();
+    await clickAndNavigate(today);
 
     const times = (await page.locator(`${SLOT_LIST} button`).allTextContents()).map((text) =>
       text.trim().slice(0, 5),
@@ -203,7 +204,7 @@ test('SC-010 y SC-011 — no WCAG AA violations and no sideways scroll at 360 px
   await expectNoHorizontalScroll(page);
 
   const day = await firstAvailableDay(page);
-  await day.click();
+  await clickAndNavigate(day);
 
   await expectNoAccessibilityViolations(page);
   await expectNoHorizontalScroll(page);

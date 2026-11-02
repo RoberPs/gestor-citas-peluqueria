@@ -1,5 +1,6 @@
 import { monthLabel } from '@/app/_lib/format';
 import type { AvailabilityDto } from '@/app/api/_lib/serializers';
+import { NavForm } from '@/components/nav-form';
 import { messages } from '@/messages/es-ES';
 
 /**
@@ -42,7 +43,7 @@ export function DayRangePicker({
     <section aria-labelledby="day-heading">
       <h2 id="day-heading">{messages.availability.daySectionTitle}</h2>
 
-      <form method="get" action={action}>
+      <NavForm action={action}>
         <input type="hidden" name="serviceId" value={serviceId} />
         <input type="hidden" name="rangeStart" value={range.start} />
 
@@ -53,9 +54,9 @@ export function DayRangePicker({
             </li>
           ))}
         </ul>
-      </form>
+      </NavForm>
 
-      <form method="get" action={action} className="range-nav">
+      <NavForm action={action} className="range-nav">
         <input type="hidden" name="serviceId" value={serviceId} />
 
         <button
@@ -77,7 +78,7 @@ export function DayRangePicker({
         >
           {messages.availability.nextRange} →
         </button>
-      </form>
+      </NavForm>
 
       {!range.canGoBack && <p className="muted">{messages.availability.cannotGoBack}</p>}
       {!range.canGoForward && <p className="muted">{messages.availability.cannotGoForward}</p>}

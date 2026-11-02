@@ -27,7 +27,7 @@ verde, y es un punto donde se puede parar.
   - Arreglar `slotDaysFromNow` para que no caiga en el día de cierre del seed.
   - Primero el commit `test:` que reproduce el fallo, después el arreglo.
   - Abrir PR a `main` y fusionar.
-- [ ] **1 · `003-responsive-desktop`**
+- [x] **1 · `003-responsive-desktop`** — implementada en su rama; falta el PR a `main`.
   - Spec corta con `/speckit-specify`.
   - Tres tamaños: móvil (< 640 px, el actual), tablet (≥ 640 px), ordenador
     (≥ 1024 px, reserva en dos columnas: servicio y días a la izquierda, horas y

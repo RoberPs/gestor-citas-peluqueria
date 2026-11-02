@@ -59,136 +59,142 @@ export default async function AppointmentPage({
 
   return (
     <>
-      <header className="site-header">
+      <header className="site-header site-header--split">
         <p>
           {salon.name} · {salon.address}
         </p>
       </header>
 
-      <main>
+      {/* On desktop, the appointment on the left and what can be done with it on
+          the right (003, FR-011a). Below 1024 px, one column in this order. */}
+      <main className="page--split">
         <h1>{isFreshlyBooked ? messages.confirmation.title : messages.appointment.title}</h1>
 
         {isFreshlyBooked && <p>{messages.confirmation.intro}</p>}
 
-        <section aria-labelledby="appointment-heading" className="card">
-          <h2 id="appointment-heading" className="visually-hidden">
-            {messages.appointment.title}
-          </h2>
+        <div className="col-main">
+          <section aria-labelledby="appointment-heading" className="card">
+            <h2 id="appointment-heading" className="visually-hidden">
+              {messages.appointment.title}
+            </h2>
 
-          <dl className="summary">
-            <dt>{messages.appointment.statusLabel}</dt>
-            <dd>
-              <span className={`status status-${view.toLowerCase()}`}>
-                <span aria-hidden="true">{status.icon} </span>
-                {status.label}
-              </span>
-            </dd>
+            <dl className="summary">
+              <dt>{messages.appointment.statusLabel}</dt>
+              <dd>
+                <span className={`status status-${view.toLowerCase()}`}>
+                  <span aria-hidden="true">{status.icon} </span>
+                  {status.label}
+                </span>
+              </dd>
 
-            <dt>{messages.booking.summaryService}</dt>
-            <dd>{appointment.service.name}</dd>
+              <dt>{messages.booking.summaryService}</dt>
+              <dd>{appointment.service.name}</dd>
 
-            <dt>{messages.booking.summaryDate}</dt>
-            <dd>{longDateLabel(date)}</dd>
+              <dt>{messages.booking.summaryDate}</dt>
+              <dd>{longDateLabel(date)}</dd>
 
-            <dt>{messages.booking.summaryTime}</dt>
-            <dd>
-              {formatLocalTime(appointment.startsAt, timezone)} –{' '}
-              {formatLocalTime(appointment.endsAt, timezone)}
-            </dd>
+              <dt>{messages.booking.summaryTime}</dt>
+              <dd>
+                {formatLocalTime(appointment.startsAt, timezone)} –{' '}
+                {formatLocalTime(appointment.endsAt, timezone)}
+              </dd>
 
-            <dt>{messages.booking.summaryDuration}</dt>
-            <dd>{durationLabel(appointment.service.durationMinutes)}</dd>
+              <dt>{messages.booking.summaryDuration}</dt>
+              <dd>{durationLabel(appointment.service.durationMinutes)}</dd>
 
-            <dt>{messages.booking.summaryPrice}</dt>
-            <dd>{priceLabel(appointment.service.priceCents)}</dd>
+              <dt>{messages.booking.summaryPrice}</dt>
+              <dd>{priceLabel(appointment.service.priceCents)}</dd>
 
-            <dt>{messages.booking.summaryCancellationPolicy}</dt>
-            <dd>{messages.booking.cancellationPolicyValue(detail.policy.cancellationDeadlineHours)}</dd>
-          </dl>
+              <dt>{messages.booking.summaryCancellationPolicy}</dt>
+              <dd>{messages.booking.cancellationPolicyValue(detail.policy.cancellationDeadlineHours)}</dd>
+            </dl>
 
-          <p className="muted">{messages.common.timezoneNotice}</p>
-        </section>
+            <p className="muted">{messages.common.timezoneNotice}</p>
+          </section>
 
-        {isFreshlyBooked && (
-          <section aria-labelledby="save-link-heading" className="notice-warning">
-            <h2 id="save-link-heading">{messages.confirmation.saveLinkTitle}</h2>
-            <p>{messages.confirmation.saveLinkWarning}</p>
+          {isFreshlyBooked && (
+            <section aria-labelledby="save-link-heading" className="notice-warning">
+              <h2 id="save-link-heading">{messages.confirmation.saveLinkTitle}</h2>
+              <p>{messages.confirmation.saveLinkWarning}</p>
+              <p>
+                <strong>{messages.confirmation.linkLabel}:</strong>
+                <br />
+                <a className="management-link" href={managementLink(token)}>
+                  {managementLink(token)}
+                </a>
+              </p>
+            </section>
+          )}
+        </div>
+
+        <div className="col-side">
+          <section aria-labelledby="actions-heading">
+            <h2 id="actions-heading">{messages.appointment.title}</h2>
+
+            {view === 'CANCELLED' && <p>{messages.appointment.cancelledNote}</p>}
+            {view === 'COMPLETED' && <p>{messages.appointment.completedNote}</p>}
+
+            {reason !== null && (
+              <div className="notice-warning" role="status" id="unavailable-reason">
+                <p>{reason}</p>
+              </div>
+            )}
+
+            {detail.canCancel && isConfirmingCancellation ? (
+              <CancelDialog token={token} confirming />
+            ) : (
+              <div className="actions">
+                {detail.canReschedule ? (
+                  <Link className="button-secondary" href={`/cita/${token}/reprogramar`}>
+                    {messages.appointment.rescheduleAction}
+                  </Link>
+                ) : (
+                  <button
+                    type="button"
+                    className="button-secondary"
+                    aria-disabled="true"
+                    aria-describedby="unavailable-reason"
+                  >
+                    {messages.appointment.rescheduleAction}
+                  </button>
+                )}
+
+                {detail.canCancel ? (
+                  <CancelDialog token={token} confirming={false} />
+                ) : (
+                  <button
+                    type="button"
+                    className="button-secondary"
+                    aria-disabled="true"
+                    aria-describedby="unavailable-reason"
+                  >
+                    {messages.appointment.cancelAction}
+                  </button>
+                )}
+              </div>
+            )}
+
             <p>
-              <strong>{messages.confirmation.linkLabel}:</strong>
-              <br />
-              <a className="management-link" href={managementLink(token)}>
-                {managementLink(token)}
-              </a>
+              <Link className="button" href="/">
+                {messages.appointment.bookAnother}
+              </Link>
             </p>
           </section>
-        )}
 
-        <section aria-labelledby="actions-heading">
-          <h2 id="actions-heading">{messages.appointment.title}</h2>
-
-          {view === 'CANCELLED' && <p>{messages.appointment.cancelledNote}</p>}
-          {view === 'COMPLETED' && <p>{messages.appointment.completedNote}</p>}
-
-          {reason !== null && (
-            <div className="notice-warning" role="status" id="unavailable-reason">
-              <p>{reason}</p>
-            </div>
-          )}
-
-          {detail.canCancel && isConfirmingCancellation ? (
-            <CancelDialog token={token} confirming />
-          ) : (
-            <div className="actions">
-              {detail.canReschedule ? (
-                <Link className="button-secondary" href={`/cita/${token}/reprogramar`}>
-                  {messages.appointment.rescheduleAction}
-                </Link>
-              ) : (
-                <button
-                  type="button"
-                  className="button-secondary"
-                  aria-disabled="true"
-                  aria-describedby="unavailable-reason"
-                >
-                  {messages.appointment.rescheduleAction}
-                </button>
-              )}
-
-              {detail.canCancel ? (
-                <CancelDialog token={token} confirming={false} />
-              ) : (
-                <button
-                  type="button"
-                  className="button-secondary"
-                  aria-disabled="true"
-                  aria-describedby="unavailable-reason"
-                >
-                  {messages.appointment.cancelAction}
-                </button>
-              )}
-            </div>
-          )}
-
-          <p>
-            <Link className="button" href="/">
-              {messages.appointment.bookAnother}
-            </Link>
-          </p>
-        </section>
-
-        <section aria-labelledby="salon-heading" className="card">
-          <h2 id="salon-heading">{messages.appointment.salonTitle}</h2>
-          <dl className="summary">
-            <dt>{messages.appointment.salonName}</dt>
-            <dd>{salon.name}</dd>
-            <dt>{messages.appointment.salonAddress}</dt>
-            <dd>{salon.address}</dd>
-            <dt>{messages.appointment.salonPhone}</dt>
-            <dd>
-              <a href={`tel:${salon.phone.replace(/\s/g, '')}`}>{salon.phone}</a>
-            </dd>
-          </dl>
-        </section>
+          <section aria-labelledby="salon-heading" className="card">
+            <h2 id="salon-heading">{messages.appointment.salonTitle}</h2>
+            <dl className="summary">
+              <dt>{messages.appointment.salonName}</dt>
+              <dd>{salon.name}</dd>
+              <dt>{messages.appointment.salonAddress}</dt>
+              <dd>{salon.address}</dd>
+              <dt>{messages.appointment.salonPhone}</dt>
+              <dd>
+                <a href={`tel:${salon.phone.replace(/\s/g, '')}`}>{salon.phone}</a>
+              </dd>
+            </dl>
+          </section>
+        </div>
       </main>
     </>
   );

@@ -5,7 +5,7 @@ import {
   seedAppointment,
 } from './helpers/appointments';
 import { expectNoAccessibilityViolations, expectNoHorizontalScroll } from './helpers/axe';
-import { bookAppointment, DAY_GRID, SLOT_LIST } from './helpers/booking';
+import { bookAppointment, DAY_GRID, SLOT_LIST, clickAndNavigate } from './helpers/booking';
 import { useOwnClientIp } from './helpers/client-ip';
 
 /**
@@ -56,7 +56,7 @@ test('escenario 2 — confirming cancels it and the hour goes back on the board'
   await expect(page.locator(APPOINTMENT_CARD)).toContainText('Cancelada');
 
   await page.goto('/');
-  await page.locator(`${DAY_GRID} button.is-available`).last().click();
+  await clickAndNavigate(page.locator(`${DAY_GRID} button.is-available`).last());
   const offered = (await page.locator(`${SLOT_LIST} button`).allTextContents()).map((text) =>
     text.trim().slice(0, 5),
   );
@@ -115,8 +115,8 @@ test('escenario 5 — another client can book the freed hour with no fuss', asyn
   await other.setExtraHTTPHeaders({ 'x-forwarded-for': '198.51.100.42' });
 
   await other.goto('/');
-  await other.getByRole('button', { name: /^Corte/ }).click();
-  await other.locator(`${DAY_GRID} button.is-available`).last().click();
+  await clickAndNavigate(other.getByRole('button', { name: /^Corte/ }));
+  await clickAndNavigate(other.locator(`${DAY_GRID} button.is-available`).last());
   await other.getByRole('button', { name: new RegExp(`^${localTime}`) }).click();
   await other.getByLabel('Nombre').fill('Otro Cliente');
   await other.getByLabel('Teléfono').fill('700112233');

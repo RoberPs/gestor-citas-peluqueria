@@ -1,4 +1,4 @@
-import { expect, type Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 
 /**
  * Walking a booking through the real screens, which is how every story after
@@ -12,6 +12,19 @@ import { expect, type Page } from '@playwright/test';
 
 export const DAY_GRID = 'ul[aria-label="Días disponibles"]';
 export const SLOT_LIST = 'ul[aria-label="Horas disponibles"]';
+
+/**
+ * Choosing a service, a day or a range is an in-app navigation since 003
+ * (D-003): the URL changes a moment after the click, with no page load for
+ * Playwright to wait on. This waits for it, so whatever is read or clicked
+ * next belongs to the new choice and not to the screen being left.
+ */
+export async function clickAndNavigate(target: Locator): Promise<void> {
+  const page = target.page();
+  const before = page.url();
+  await target.click();
+  await page.waitForURL((url) => url.href !== before);
+}
 
 export type BookedAppointment = {
   readonly token: string;
@@ -31,12 +44,12 @@ export async function bookAppointment(
   };
 
   await page.goto('/');
-  await page.getByRole('button', { name: new RegExp(`^${service}`) }).click();
+  await clickAndNavigate(page.getByRole('button', { name: new RegExp(`^${service}`) }));
 
   // The last day with room in the range: comfortably past the 24 hour deadline.
   const day = page.locator(`${DAY_GRID} button.is-available`).last();
   await expect(day).toBeVisible();
-  await day.click();
+  await clickAndNavigate(day);
 
   const slot = page.locator(`${SLOT_LIST} button`).first();
   await expect(slot).toBeVisible();
