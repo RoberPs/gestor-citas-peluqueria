@@ -20,6 +20,9 @@ const { GET } = await import('@/app/api/availability/route');
 
 const HISTORY_SIZE = 10_000;
 
+/** History before the frozen clock, not before the machine's: it must be past for the endpoint too. */
+const HISTORY_BEFORE = new Date(CONTRACT_NOW.epochMilliseconds);
+
 function request(): Request {
   const url = new URL('http://localhost/api/availability');
   url.searchParams.set('serviceId', CORTE);
@@ -56,7 +59,11 @@ describe('the past history does not reach the availability endpoint (SC-005)', (
 
     const emptyAgenda = await measure();
 
-    const inserted = await seedHistory(process.env['DATABASE_URL_TEST'] ?? '', HISTORY_SIZE);
+    const inserted = await seedHistory(
+      process.env['DATABASE_URL_TEST'] ?? '',
+      HISTORY_SIZE,
+      HISTORY_BEFORE,
+    );
     expect(inserted).toBe(HISTORY_SIZE);
 
     const withHistory = await measure();
@@ -73,7 +80,7 @@ describe('the past history does not reach the availability endpoint (SC-005)', (
       days: { date: string; slotCount: number }[];
     };
 
-    await seedHistory(process.env['DATABASE_URL_TEST'] ?? '', 2_000);
+    await seedHistory(process.env['DATABASE_URL_TEST'] ?? '', 2_000, HISTORY_BEFORE);
 
     const after = (await (await GET(request())).json()) as {
       days: { date: string; slotCount: number }[];
@@ -84,7 +91,7 @@ describe('the past history does not reach the availability endpoint (SC-005)', (
   });
 
   it('keeps the history in the table, where the salon can still count it', async () => {
-    await seedHistory(process.env['DATABASE_URL_TEST'] ?? '', 2_000);
+    await seedHistory(process.env['DATABASE_URL_TEST'] ?? '', 2_000, HISTORY_BEFORE);
 
     const { rows } = await testPool().query<{ count: string }>(
       'SELECT count(*) AS count FROM appointment',

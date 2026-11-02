@@ -10,15 +10,21 @@ import { Pool } from 'pg';
  *
  *   npm run db:seed:history -- --appointments 10000
  *
- * The rows are spaced two hours apart going backwards from yesterday, so they
- * never overlap and never collide with the exclusion constraint. They are
+ * The rows are spaced two hours apart going backwards from the start of the day
+ * of `before`, so they never overlap and never collide with the exclusion
+ * constraint. `before` defaults to now; a test with a frozen clock passes that
+ * clock, or the "history" would land in its future. They are
  * `CONFIRMED`, which is the case that matters: a history of cancelled
  * appointments would not be in the partial index and would prove nothing.
  */
 
 const DEFAULT_COUNT = 10_000;
 
-export async function seedHistory(connectionString: string, count: number): Promise<number> {
+export async function seedHistory(
+  connectionString: string,
+  count: number,
+  before: Date = new Date(),
+): Promise<number> {
   const pool = new Pool({ connectionString, max: 2 });
 
   try {
@@ -40,8 +46,8 @@ export async function seedHistory(connectionString: string, count: number): Prom
          customer_phone_normalized, customer_email_normalized, token_hash, created_at
        )
        SELECT gen_random_uuid(), 'CONFIRMED',
-              date_trunc('day', now()) - (n * interval '2 hours'),
-              date_trunc('day', now()) - (n * interval '2 hours') + interval '30 minutes',
+              date_trunc('day', $3::timestamptz) - (n * interval '2 hours'),
+              date_trunc('day', $3::timestamptz) - (n * interval '2 hours') + interval '30 minutes',
               $1, 'Corte', 30, 1800,
               'Cliente ' || n, '600112233', 'cliente@example.com',
               '+34600112233', 'cliente@example.com',
@@ -49,7 +55,7 @@ export async function seedHistory(connectionString: string, count: number): Prom
                 || decode(md5(random()::text || n::text), 'hex'),
               now()
          FROM generate_series(1, $2) AS n`,
-      [serviceId, count],
+      [serviceId, count, before],
     );
 
     return inserted.rowCount ?? 0;

@@ -5,7 +5,7 @@ import {
   seedAppointment,
   slotDaysFromNow,
 } from './helpers/appointments';
-import { DAY_GRID, SLOT_LIST } from './helpers/booking';
+import { DAY_GRID, SLOT_LIST, clickAndNavigate } from './helpers/booking';
 import { useOwnClientIp } from './helpers/client-ip';
 
 /**
@@ -101,13 +101,13 @@ test('SC-004 — no step of the booking flow takes more than 2 s on 4G', async (
   record('open the booking screen', openBooking);
 
   const chooseService = await timeOf(async () => {
-    await page.getByRole('button', { name: /^Color/ }).click();
+    await clickAndNavigate(page.getByRole('button', { name: /^Color/ }));
     await page.locator(SLOT_LIST).waitFor();
   });
   record('choose a service', chooseService);
 
   const chooseDay = await timeOf(async () => {
-    await page.locator(`${DAY_GRID} button.is-available`).last().click();
+    await clickAndNavigate(page.locator(`${DAY_GRID} button.is-available`).last());
     await page.locator(SLOT_LIST).waitFor();
   });
   record('choose a day', chooseDay);
@@ -165,8 +165,8 @@ test('the booking route stays inside its JavaScript budget', async ({ page }) =>
   const bookingScreen = scripts.total();
 
   scripts.reset();
-  await page.getByRole('button', { name: /^Corte/ }).click();
-  await page.locator(`${DAY_GRID} button.is-available`).last().click();
+  await clickAndNavigate(page.getByRole('button', { name: /^Corte/ }));
+  await clickAndNavigate(page.locator(`${DAY_GRID} button.is-available`).last());
   await page.locator(`${SLOT_LIST} button`).first().click();
   await page.getByLabel('Nombre').waitFor();
   const formScreen = scripts.total();

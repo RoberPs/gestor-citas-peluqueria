@@ -1,5 +1,6 @@
 'use server';
 
+import { revalidatePath } from 'next/cache';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { container } from '@/app/_lib/container';
@@ -96,6 +97,12 @@ export async function submitBooking(
       : failure.rejection.kind === 'TOO_LATE_TO_BOOK'
         ? messages.errors.tooLateToBook
         : messages.errors.outsideOpeningHours;
+
+  // The hour is no longer bookable, and on desktop the hours and days are on
+  // screen beside the form: they are recomputed in this same response, so the
+  // hour that was just lost is never offered again (003, Principio VI). What
+  // was typed is client state and survives the refresh.
+  revalidatePath('/reservar');
 
   return { fieldErrors: {}, summaryError, values };
 }

@@ -65,7 +65,15 @@ npm run check:layers     # frontera del dominio — bloquea el merge si se cruza
   logs, trazas ni analítica.
 - Los textos de la interfaz viven todos en `src/messages/es-ES.ts`.
 - Mobile-first a 360 px y WCAG 2.2 AA: estado siempre con texto e icono, no sólo color.
+- Responsive: los únicos anchos son 640 px (tablet) y 1024 px (ordenador), y las
+  clases `.page--split`, `.site-header--split`, `.col-main`, `.col-side` y `.wide-only`
+  viven en `src/app/globals.css`. Toda pantalla nueva las usa;
+  `tests/unit/ui/layout-breakpoints.test.ts` rechaza cualquier otro ancho y `order`.
+- Los formularios GET de navegación usan `NavForm` (`src/components/nav-form.tsx`), no
+  `next/form`, que pierde el `name`/`value` del botón pulsado. En e2e, un clic que
+  navega se espera con `clickAndNavigate` (`tests/e2e/helpers/booking.ts`).
 - Nada de código muerto, comentado ni TODOs en `main`.
 
-Las reglas de producto viven en `.specify/memory/constitution.md` y el estado del
-producto en `specs/README.md`.
+Las reglas de producto viven en `.specify/memory/constitution.md`, el estado del
+producto en `README.md` y el plan de trabajo, con sus decisiones pendientes, en
+`docs/roadmap.md`. Al empezar una sesión, leer los dos últimos.

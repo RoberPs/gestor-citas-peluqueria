@@ -122,6 +122,58 @@ select {
   color: var(--accent-ink);
 }
 
+/* Layout --------------------------------------------------------------- */
+
+/*
+ * The only two widths of the responsive layout (003, D-006): 640 px for
+ * tablet and 1024 px for desktop. Below 640 px nothing here applies, so the
+ * phone keeps the 001 design untouched. A unit test rejects any other media
+ * query and any `order`, because the DOM order is the reading order (FR-015).
+ */
+
+/* Shown only on desktop; `display: none` also takes it out of the
+ * accessibility tree, so a phone screen reader hears nothing it cannot see. */
+.wide-only {
+  display: none;
+}
+
+@media (min-width: 640px) {
+  main,
+  .site-header {
+    max-width: 720px;
+  }
+}
+
+@media (min-width: 1024px) {
+  /* The header comes before `main` in the DOM, so it carries its own class. */
+  .site-header--split,
+  main.page--split {
+    max-width: 1120px;
+  }
+
+  main.page--split {
+    display: grid;
+    grid-template-columns: minmax(0, 26rem) minmax(0, 1fr);
+    column-gap: 2rem;
+    align-items: start;
+    align-content: start;
+  }
+
+  /* The title and page-wide notices span both columns. */
+  main.page--split > :not(.col-main):not(.col-side) {
+    grid-column: 1 / -1;
+  }
+
+  .col-main p,
+  .col-side p {
+    max-width: 70ch;
+  }
+
+  .wide-only {
+    display: revert;
+  }
+}
+
 /* Buttons ------------------------------------------------------------- */
 
 .button,
@@ -386,6 +438,21 @@ select {
   background: var(--surface-sunken);
 }
 
+/* While a choice is on its way, what is still on screen belongs to the
+ * previous one and cannot be chosen (003, NavForm). Only the cursor says so:
+ * fading it out would drop the text below AA contrast. */
+html[data-navigating] .service-list,
+html[data-navigating] .day-grid,
+html[data-navigating] .slot-list {
+  cursor: progress;
+}
+
+/* The chosen hour also carries a ✓ and the word "Elegida" (003). */
+.slot.is-selected {
+  border-width: 3px;
+  background: var(--surface-sunken);
+}
+
 .slot-badge {
   font-size: 0.6875rem;
   font-weight: 400;
@@ -470,4 +537,24 @@ select {
 
 .confirm-panel .actions {
   margin-bottom: 0;
+}
+
+/* Roomier days and hours from tablet up --------------------------------- */
+
+/* Last in the file on purpose: it overrides the component rules above,
+ * which share its specificity (003, US3). With the room a tablet gives, days
+ * and hours get a larger target than the 44 px minimum a phone settles for. */
+@media (min-width: 640px) {
+  .day-grid {
+    gap: 6px;
+  }
+
+  .day-cell {
+    min-height: 56px;
+  }
+
+  .slot-list {
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+    gap: 10px;
+  }
 }

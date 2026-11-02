@@ -81,6 +81,10 @@ export const messages = {
       'No queda ningún hueco para este servicio en los próximos 60 días. Llama al salón y buscamos una fecha.',
     slotCountSummary: (count: number) =>
       count === 1 ? 'Queda 1 hora libre.' : `Quedan ${count} horas libres.`,
+    /** 003, FR-010: on desktop, what appears beside the hours once one is chosen. */
+    chooseHourHint:
+      'Elige una hora y aquí verás el resumen de tu cita y el formulario para tus datos.',
+    selectedSlot: 'Elegida',
 
     previousRange: 'Ver los 14 días anteriores',
     nextRange: 'Ver los 14 días siguientes',
@@ -90,6 +94,8 @@ export const messages = {
 
   booking: {
     title: 'Tus datos',
+    /** The document title, read out by the route announcer on arrival (003, D-007). */
+    pageTitle: 'Tus datos · Reserva tu cita',
     summaryTitle: 'Lo que vas a reservar',
     summaryService: 'Servicio',
     summaryDate: 'Día',
