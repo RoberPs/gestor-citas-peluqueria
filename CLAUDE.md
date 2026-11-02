@@ -67,5 +67,6 @@ npm run check:layers     # frontera del dominio — bloquea el merge si se cruza
 - Mobile-first a 360 px y WCAG 2.2 AA: estado siempre con texto e icono, no sólo color.
 - Nada de código muerto, comentado ni TODOs en `main`.
 
-Las reglas de producto viven en `.specify/memory/constitution.md` y el estado del
-producto en `specs/README.md`.
+Las reglas de producto viven en `.specify/memory/constitution.md`, el estado del
+producto en `README.md` y el plan de trabajo, con sus decisiones pendientes, en
+`docs/roadmap.md`. Al empezar una sesión, leer los dos últimos.
