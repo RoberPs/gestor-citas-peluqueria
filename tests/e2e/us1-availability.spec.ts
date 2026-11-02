@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { salonTimeLabel } from './helpers/appointments';
 import { expectNoAccessibilityViolations, expectNoHorizontalScroll } from './helpers/axe';
 import { useOwnClientIp } from './helpers/client-ip';
 
@@ -44,7 +45,9 @@ test('escenario 8 — no salon picker: one salon per instance', async ({ page })
   await expect(page.getByText(/elige (el )?sal[óo]n/i)).toHaveCount(0);
 });
 
-test('SC-010 — every day states itself with text and a shape, not only colour', async ({ page }) => {
+test('SC-010 — every day states itself with text and a shape, not only colour', async ({
+  page,
+}) => {
   const closed = page.locator(`${DAY_GRID} button.is-closed`).first();
 
   await expect(closed).toHaveAttribute('aria-disabled', 'true');
@@ -112,15 +115,15 @@ test('escenario 7 — changing day keeps the chosen service', async ({ page }) =
 });
 
 test('escenario 7 — changing service recomputes the 14 days', async ({ page }) => {
-  const before = await page.locator(`${DAY_GRID} button`).evaluateAll((cells) =>
-    cells.map((cell) => cell.className),
-  );
+  const before = await page
+    .locator(`${DAY_GRID} button`)
+    .evaluateAll((cells) => cells.map((cell) => cell.className));
 
   await chooseService(page, 'Color');
 
-  const after = await page.locator(`${DAY_GRID} button`).evaluateAll((cells) =>
-    cells.map((cell) => cell.className),
-  );
+  const after = await page
+    .locator(`${DAY_GRID} button`)
+    .evaluateAll((cells) => cells.map((cell) => cell.className));
 
   expect(after).toHaveLength(before.length);
   await expect(page.locator('.service-option.is-selected')).toContainText('Color');
@@ -165,11 +168,8 @@ test('escenario 5 — nothing is ever offered less than two hours away (BR-003)'
   const today = page.locator(`${DAY_GRID} > li`).first().locator('button');
   const isAvailable = (await today.getAttribute('class'))?.includes('is-available') ?? false;
 
-  const now = new Date();
-  const earliest = new Date(now.getTime() + 2 * 60 * 60 * 1000);
-  const earliestLabel = `${String(earliest.getHours()).padStart(2, '0')}:${String(
-    earliest.getMinutes(),
-  ).padStart(2, '0')}`;
+  // On the salon's clock: the slot labels are, and the runner may not be.
+  const earliestLabel = salonTimeLabel(new Date(Date.now() + 2 * 60 * 60 * 1000));
 
   // Both branches assert the same rule from opposite sides, so the test states
   // something true whatever hour the suite happens to run at — and never skips.
@@ -191,7 +191,9 @@ test('escenario 5 — nothing is ever offered less than two hours away (BR-003)'
 });
 
 test('FR-033 — the screen says the hours are the salon clock', async ({ page }) => {
-  await expect(page.getByText('Todas las horas son las del salón, en horario de Madrid.')).toBeVisible();
+  await expect(
+    page.getByText('Todas las horas son las del salón, en horario de Madrid.'),
+  ).toBeVisible();
 });
 
 test('SC-010 y SC-011 — no WCAG AA violations and no sideways scroll at 360 px', async ({
