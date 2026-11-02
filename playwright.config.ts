@@ -6,8 +6,13 @@ const BASE_URL = `http://127.0.0.1:${PORT}`;
 
 /**
  * E2E suite: one user story per file, plus @axe-core/playwright on every screen.
- * The viewport is 360 px wide because SC-011 is measured there, not scaled down
- * from a desktop layout.
+ *
+ * Three projects, one per size of the responsive layout (003, D-009):
+ * - `mobile-360`: the whole 001 suite at the width SC-011 is measured at.
+ * - `desktop-1280`: the same suite again, minus the performance budget and the
+ *   tests tagged `@mobile-only`, plus `responsive.spec.ts`, which sets its own
+ *   viewport per scenario.
+ * - `tablet-768`: the accessibility checks only, so axe sees the middle size.
  */
 export default defineConfig({
   testDir: './tests/e2e',
@@ -34,6 +39,28 @@ export default defineConfig({
         isMobile: false,
         hasTouch: true,
       },
+      testIgnore: /responsive\.spec\.ts/,
+    },
+    {
+      name: 'desktop-1280',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1280, height: 800 },
+        isMobile: false,
+        hasTouch: false,
+      },
+      testIgnore: /performance\.spec\.ts/,
+      grepInvert: /@mobile-only/,
+    },
+    {
+      name: 'tablet-768',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 768, height: 1024 },
+        isMobile: false,
+        hasTouch: true,
+      },
+      testMatch: /accessibility\.spec\.ts/,
     },
   ],
   webServer: {
