@@ -7,8 +7,10 @@ import { writeConfiguration } from './configuration';
  *
  * - Every service takes 30 minutes: the barber has not set durations yet, and
  *   bookings keep going every half hour.
- * - Prices are 0 until they are agreed with the client. They become optional
- *   in feature 005; until then the screen shows "0,00 €".
+ * - No service has a price until they are agreed with the client: the screen
+ *   says "Precio a consultar en el salón" (feature 005).
+ * - A client may book several services in one appointment: "Corte de pelo"
+ *   and "Diseño y corte de barba" make one appointment of 1 h.
  * - No closures: real holidays are added once the salon gives them.
  *
  * Tests never use this data; their fixture is `seed.ts`. Running either script
@@ -26,7 +28,7 @@ const SERVICES = [
     name: 'Diseño y corte de perilla o bigote',
     order: 4,
   },
-].map((service) => ({ ...service, minutes: 30, cents: 0 }));
+].map((service) => ({ ...service, minutes: 30, cents: null }));
 
 /** Monday to Friday 10:00–14:00 and 17:00–20:00; Saturday 10:00–14:00. */
 const OPENING = [1, 2, 3, 4, 5]
