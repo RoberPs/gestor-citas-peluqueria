@@ -513,7 +513,7 @@ y 14).
     servicios en `appointment_service`, y que el contrato HTTP vivo es el 2.0.0 de
     `specs/001-…/contracts/http-api.yaml`. Corregir de paso la ruta antigua
     `contracts/http-api.yaml`.
-- [ ] T055 Ejecutar `npm run test:all`, `npm run lint` y `npm run check:layers`. Todo en
+- [X] T055 Ejecutar `npm run test:all`, `npm run lint` y `npm run check:layers`. Todo en
   verde, sin tests saltados, sin TODOs ni código comentado. Abrir el PR a `main`.
 
 ---
