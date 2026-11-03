@@ -164,7 +164,7 @@ La `0003_multiple_services.sql` es de la 005 y ya está en `main`: las de esta f
 - [x] T067 [P] [US2] Implementar `src/components/owner/timeline.tsx` como **lista** semántica, no rejilla absoluta: recorrible con teclado y legible con lector de pantalla (Principio VII). Cada cita muestra todos sus servicios y su precio total reutilizando `src/components/service-summary.tsx` de la 005 (FR-014)
 - [x] T068 [US2] Implementar la pantalla `src/app/gestion/agenda/page.tsx` con la navegación a cualquier fecha y el atajo de hoy (FR-012), con `NavForm` para cambiar de día y la base responsive de la 003: línea temporal en `.col-main`, navegación en `.col-side` dentro de `.page--split` (D-034)
 - [x] T069 [P] [US2] Añadir a `src/messages/es-ES.ts` los textos de origen de la cita, estado, estado vacío "sin citas" y "cerrado" (FR-013, FR-017)
-- [ ] T070 [P] [US2] Extender la redacción de Pino en `src/infrastructure/logging/logger.ts` a los cuerpos de agenda y conflicto y a los de crear y editar una cita. *Pendiente para la US6: en el paso 4 ningún código registra esos cuerpos; las contraseñas ya se redactan (T039)*. Se extiende (`POST /gestion/citas` y `PATCH /gestion/citas/{id}`), que llevan nombre, teléfono y email (FR-057)
+- [ ] T070 [P] [US2] Extender la redacción de Pino en `src/infrastructure/logging/logger.ts` a los cuerpos de agenda y conflicto y a los de crear y editar una cita (`POST /gestion/citas` y `PATCH /gestion/citas/{id}`), que llevan nombre, teléfono y email (FR-057). *Pendiente para la US6: en el paso 4 ningún código registra esos cuerpos; las contraseñas ya se redactan (T039)*
 
 **Checkpoint**: la agenda sustituye al papel. Historias 1 y 2 funcionan por separado.
 
