@@ -652,7 +652,7 @@ components:
     AppointmentDetail:
       type: object
       required:
-        [view, services, date, startsLocalTime, endsLocalTime, durationMinutes,
+        [view, services, price, date, startsLocalTime, endsLocalTime, durationMinutes,
          startsAt, canCancel, canReschedule, salon]
       properties:
         view:

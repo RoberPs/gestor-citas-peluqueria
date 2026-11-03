@@ -19,9 +19,10 @@ export const dynamic = 'force-dynamic';
  * Choosing a new hour (Historia 6).
  *
  * It reuses the day grid and the slot list of the booking screen, pointed at
- * this route instead of at `/`. There is no service picker at all: the service
- * is not something this screen can change, so it is not something this screen
- * offers (FR-024).
+ * this route instead of at `/`. There is no service picker at all: the services
+ * are not something this screen can change, so it is not something this screen
+ * offers (FR-024). The hours are for the appointment's total duration, from its
+ * own snapshots (005, FR-017, D-008).
  */
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -110,7 +111,11 @@ export default async function ReschedulePage({
       <main className="page--split">
         <h1>{messages.reschedule.title}</h1>
 
-        <p>{messages.reschedule.sameServiceNotice(appointment.services[0].name)}</p>
+        <p>
+          {messages.reschedule.sameServiceNotice(
+            appointment.services.map((service) => service.name),
+          )}
+        </p>
 
         <div className="col-main">
           <div className="card">

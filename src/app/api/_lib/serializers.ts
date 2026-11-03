@@ -3,7 +3,7 @@ import type { AppointmentDetail } from '@/application/use-cases/view-appointment
 import { durationOf } from '@/domain/booking/appointment';
 import type { ModificationBlock } from '@/domain/booking/modification-rules';
 import type { Salon } from '@/domain/catalog/salon';
-import type { PriceTotal } from '@/domain/catalog/selection';
+import { totalPriceOf, type PriceTotal } from '@/domain/catalog/selection';
 import { snapshotOf, type Service, type ServiceSnapshot } from '@/domain/catalog/service';
 import { formatIsoDate, formatLocalTime, localDateOf } from '@/domain/shared/time';
 import { messages, withPhone } from '@/messages/es-ES';
@@ -133,6 +133,8 @@ export function appointmentDetailResponse(detail: AppointmentDetail) {
   return {
     view: detail.view,
     services: appointment.services.map(snapshotDto),
+    // From the snapshots: a price set after booking does not reach it (FR-014).
+    price: priceTotalDto(totalPriceOf(appointment.services)),
     date: formatIsoDate(localDateOf(appointment.startsAt, timezone)),
     startsLocalTime: formatLocalTime(appointment.startsAt, timezone),
     endsLocalTime: formatLocalTime(appointment.endsAt, timezone),

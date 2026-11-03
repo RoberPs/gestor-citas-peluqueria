@@ -195,9 +195,14 @@ export const messages = {
 
   reschedule: {
     title: 'Cambiar de hora',
-    /** FR-024: the service is fixed; only the hour is on the table. */
-    sameServiceNotice: (service: string) =>
-      `Estás cambiando la hora de tu ${service}. El servicio no cambia; si quieres otro, cancela esta cita y reserva una nueva.`,
+    /**
+     * FR-024, 005 FR-017: the services are fixed; only the hour is on the
+     * table. With one service it reads as in 001.
+     */
+    sameServiceNotice: (services: readonly string[]) =>
+      services.length === 1
+        ? `Estás cambiando la hora de tu ${services[0] ?? ''}. El servicio no cambia; si quieres otro, cancela esta cita y reserva una nueva.`
+        : `Estás cambiando la hora de tu cita (${listOf(services)}). Los servicios no cambian; si quieres otros, cancela esta cita y reserva una nueva.`,
     /** FR-027: the slot the appointment already holds, offered and marked. */
     currentSlot: 'tu hora actual',
     confirmTitle: '¿Cambias tu cita a esta hora?',
@@ -283,6 +288,12 @@ export const messages = {
     },
   },
 } as const;
+
+/** `Corte`, `Corte y Lavado`, `Corte, Color y Lavado`: how a list is said in Spanish. */
+function listOf(items: readonly string[]): string {
+  const last = items.at(-1) ?? '';
+  return items.length < 2 ? last : `${items.slice(0, -1).join(', ')} y ${last}`;
+}
 
 /** Fills the salon phone into a message that offers it as the way out (FR-028). */
 export function withPhone(text: string, phone: string): string {

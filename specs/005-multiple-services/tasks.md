@@ -419,16 +419,16 @@ ve igual (quickstart, pasos 12 y 13).
 
 ### Implementation for User Story 2
 
-- [ ] T043 [US2] En `src/app/cita/[token]/reprogramar/page.tsx`:
+- [X] T043 [US2] En `src/app/cita/[token]/reprogramar/page.tsx`:
   - pasar a `getAvailability` `currentAppointment: { durationMinutes: durationOf(appointment), startsAt }`;
   - sustituir `appointment.services[0]` por la lista.
 
   Lo mismo en `src/app/api/appointments/[token]/availability/route.ts`.
-- [ ] T044 [P] [US2] Cambiar `messages.reschedule.sameServiceNotice` en
+- [X] T044 [P] [US2] Cambiar `messages.reschedule.sameServiceNotice` en
   `src/messages/es-ES.ts` para que reciba la lista de nombres: «Estás cambiando la hora
   de tu cita (A y B). Los servicios no cambian; si quieres otros, cancela esta cita y
   reserva una nueva». Con un servicio, mantener el texto de la 001.
-- [ ] T045 [US2] Añadir al detalle de la cita:
+- [X] T045 [US2] Añadir al detalle de la cita:
   - `price: totalPriceOf(appointment.services)` en `appointmentDetailResponse`
     (`src/app/api/_lib/serializers.ts`), marcado como obligatorio en `AppointmentDetail`
     del contrato;
@@ -436,7 +436,7 @@ ve igual (quickstart, pasos 12 y 13).
     incluye duración y precio total.
 
   Lo mismo en la pantalla de confirmación (`?nueva=1`), que es esta misma página.
-- [ ] T046 [US2] Ejecutar la suite completa. T038 a T041 en verde. Commit
+- [X] T046 [US2] Ejecutar la suite completa. T038 a T041 en verde. Commit
   `feat: view and reschedule an appointment with several services`.
 
 **Checkpoint**: US1 y US2 funcionan juntas; las citas anteriores siguen intactas.
