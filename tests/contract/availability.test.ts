@@ -1,6 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { COLOR, CONTRACT_NOW, CORTE, seedContractDatabase } from './helpers/seed-contract-db';
+import {
+  COLOR,
+  CONTRACT_NOW,
+  CORTE,
+  LAVADO,
+  seedContractDatabase,
+} from './helpers/seed-contract-db';
 import { expectMatchesContract, responseSchema } from './helpers/openapi';
 import { closeTestDb, truncateAppointments } from '../integration/helpers/test-db';
 
@@ -194,5 +200,33 @@ describe('several services (005, contract 2.0.0)', () => {
     expectMatchesContract(errorSchema, await response.json());
     expect(body.code).toBe('EMPTY_SELECTION');
     expect(body.nextAction.length).toBeGreaterThan(0);
+  });
+});
+
+describe('a selection that is only partly priced (005, FR-020)', () => {
+  it('adds what is known and says the rest is asked at the salon', async () => {
+    const response = await GET(request({ serviceIds: `${CORTE},${LAVADO}` }));
+    const body = (await response.clone().json()) as AvailabilityBody;
+
+    expectMatchesContract(okSchema, await response.json());
+    expect(body.price).toEqual({
+      kind: 'PARTIALLY_PRICED',
+      knownCents: 1800,
+      label: '18,00 € + precio a consultar en el salón',
+    });
+    expect(body.services.map((service) => service.priceLabel)).toEqual([
+      '18,00 €',
+      'Precio a consultar en el salón',
+    ]);
+  });
+
+  it('has no price at all when no service has one', async () => {
+    const { body } = await availability({ serviceIds: LAVADO });
+
+    expect(body.price).toEqual({
+      kind: 'NONE_PRICED',
+      knownCents: null,
+      label: 'Precio a consultar en el salón',
+    });
   });
 });

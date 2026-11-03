@@ -7,7 +7,7 @@ import {
   slotDaysFromNow,
 } from './helpers/appointments';
 import { expectNoAccessibilityViolations } from './helpers/axe';
-import { DAY_GRID, SLOT_LIST, clickAndNavigate } from './helpers/booking';
+import { DAY_GRID, SLOT_LIST, chooseOnlyService, clickAndNavigate } from './helpers/booking';
 import { useOwnClientIp } from './helpers/client-ip';
 
 /**
@@ -434,5 +434,106 @@ test.describe('Historia 2 — consultar y reprogramar una cita con varios servic
     await expect(card).toContainText('30 min');
     await expect(card).toContainText('18,00 €');
     await expect(page.getByText(/Estás cambiando/)).toHaveCount(0);
+  });
+});
+
+test.describe('Historia 3 — «Precio a consultar» cuando un servicio no tiene precio', () => {
+  const LAVADO_ROW = {
+    id: '00000000-0000-4000-8000-000000000014',
+    name: 'Lavado',
+    minutes: 30,
+    cents: null,
+  };
+
+  test('escenarios 1 y 2 — Lavado solo: catálogo, resumen, confirmación y enlace', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    await expect(service(page, 'Lavado')).toContainText('Precio a consultar en el salón');
+    await expect(service(page, 'Lavado')).not.toContainText('€');
+
+    await chooseOnlyService(page, 'Lavado');
+    await chooseLastWeekday(page);
+    await page.locator(`${SLOT_LIST} button`).first().click();
+
+    const summary = page.locator(SUMMARY);
+    await expect(summary.locator('dd').nth(4)).toHaveText('Precio a consultar en el salón');
+
+    await fillContact(page);
+    await page.getByRole('button', { name: 'Confirmar la cita' }).click();
+    await page.waitForURL(/\/cita\/[A-Za-z0-9_-]{43}\?nueva=1/);
+    await expect(page.locator(APPOINTMENT)).toContainText('Precio a consultar en el salón');
+
+    await page.goto(page.url().replace('?nueva=1', ''));
+    await expect(page.locator(APPOINTMENT)).toContainText('Precio a consultar en el salón');
+  });
+
+  test('escenarios 3 y 4 — todos con precio suman; la mezcla suma lo conocido', async ({
+    page,
+  }) => {
+    const allPriced = await seedAppointment({
+      startsAt: slotDaysFromNow(6, 10, 0),
+      services: [
+        { id: CORTE, name: 'Corte', minutes: 30, cents: 1800 },
+        { id: PEINADO, name: 'Peinado', minutes: 45, cents: 2500 },
+      ],
+    });
+    const mixed = await seedAppointment({
+      startsAt: slotDaysFromNow(6, 16, 0),
+      services: [{ id: CORTE, name: 'Corte', minutes: 30, cents: 1800 }, LAVADO_ROW],
+    });
+
+    await page.goto(`/cita/${allPriced.token}`);
+    await expect(page.locator(APPOINTMENT)).toContainText('43,00 €');
+
+    await page.goto(`/cita/${mixed.token}`);
+    await expect(page.locator(APPOINTMENT)).toContainText(
+      'Lavado · 30 min · Precio a consultar en el salón',
+    );
+    await expect(page.locator(APPOINTMENT)).toContainText(
+      '18,00 € + precio a consultar en el salón',
+    );
+  });
+
+  test('escenario 5 — un precio puesto después de reservar no llega a la cita', async ({
+    page,
+  }) => {
+    // Booked when Corte had no price; the catalogue has given it one since.
+    const { token } = await seedAppointment({
+      startsAt: slotDaysFromNow(6),
+      services: [{ id: CORTE, name: 'Corte', minutes: 30, cents: null }],
+    });
+
+    await page.goto(`/cita/${token}`);
+
+    await expect(page.locator(APPOINTMENT)).toContainText('Precio a consultar en el salón');
+    await expect(page.locator(APPOINTMENT)).not.toContainText('18,00 €');
+  });
+
+  test('SC-005 — ninguna pantalla muestra «0,00 €»', async ({ page }) => {
+    const { token } = await seedAppointment({
+      startsAt: slotDaysFromNow(6),
+      services: [LAVADO_ROW],
+    });
+    const startsAt = slotDaysFromNow(5, 10, 0).toISOString();
+
+    // Where a price is shown it is said in words; where none is shown, there is no 0 either.
+    const screens = [
+      { path: `/?serviceIds=${LAVADO_ROW.id}`, showsPrice: true },
+      { path: `/reservar?serviceIds=${LAVADO_ROW.id}&startsAt=${startsAt}`, showsPrice: true },
+      { path: `/cita/${token}`, showsPrice: true },
+      { path: `/cita/${token}/reprogramar`, showsPrice: false },
+    ];
+
+    for (const { path, showsPrice } of screens) {
+      await page.goto(path);
+      if (showsPrice) {
+        // On a phone `/reservar` hides the catalogue: what counts is what is in view.
+        await expect(
+          page.locator('text=Precio a consultar en el salón >> visible=true').first(),
+        ).toBeVisible();
+      }
+      expect(await page.locator('body').innerText(), path).not.toContain('0,00 €');
+    }
   });
 });

@@ -459,13 +459,13 @@ y 14).
 
 ### Tests for User Story 3 ⚠️
 
-- [ ] T047 [P] [US3] Ampliar `tests/contract/services.test.ts`,
+- [X] T047 [P] [US3] Ampliar `tests/contract/services.test.ts`,
   `tests/contract/availability.test.ts` y `tests/contract/appointment-detail.test.ts`:
   - `Lavado` con `priceCents: null` y su `priceLabel`;
   - `price` de una selección mixta con `kind: PARTIALLY_PRICED`, `knownCents: 1800` y
     su `label`;
   - el detalle de una cita sólo con `Lavado` con `kind: NONE_PRICED`.
-- [ ] T048 [P] [US3] Añadir a `tests/e2e/multiple-services.spec.ts` los escenarios 1 a 5
+- [X] T048 [P] [US3] Añadir a `tests/e2e/multiple-services.spec.ts` los escenarios 1 a 5
   de US3:
   - catálogo con «Precio a consultar en el salón» en `Lavado`;
   - resumen, confirmación y enlace con selección mixta y con `Lavado` solo;
@@ -475,14 +475,14 @@ y 14).
   Añadir un test **SC-005**: recorrer `/`, `/reservar`, `/cita/{token}` y
   `/cita/{token}/reprogramar` con `Lavado` y comprobar que el texto «0,00 €» no aparece
   en ninguna.
-- [ ] T049 [US3] Ejecutar T047 y T048. Si alguno falla, commit
+- [X] T049 [US3] Ejecutar T047 y T048. Si alguno falla, commit
   `test: describe services without a price` con los que fallan. Si todos pasan ya
   (porque la regla llegó con US1), commit `test: cover services without a price end to
   end`, diciéndolo en el mensaje. No se inventa implementación para justificar un rojo.
 
 ### Implementation for User Story 3
 
-- [ ] T050 [US3] Corregir lo que T047 y T048 hayan destapado. Como mínimo, revisar que
+- [X] T050 [US3] Corregir lo que T047 y T048 hayan destapado. Como mínimo, revisar que
   `service-picker.tsx`, `service-summary.tsx`, `/reservar`, `/cita/{token}` y
   `/cita/{token}/reprogramar` usan `priceLabel`/`totalPriceLabel` y que ningún archivo
   formatea céntimos por su cuenta: buscar `/ 100` y `toFixed` en `src/`. Con la suite

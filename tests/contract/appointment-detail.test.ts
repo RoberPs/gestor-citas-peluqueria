@@ -1,5 +1,11 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { CONTRACT_NOW, COLOR, CORTE, seedContractDatabase } from './helpers/seed-contract-db';
+import {
+  CONTRACT_NOW,
+  COLOR,
+  CORTE,
+  LAVADO,
+  seedContractDatabase,
+} from './helpers/seed-contract-db';
 import { expectMatchesContract, responseSchema } from './helpers/openapi';
 import { closeTestDb, testPool, truncateAppointments } from '../integration/helpers/test-db';
 
@@ -192,5 +198,25 @@ describe('an appointment of several services (005, contract 2.0.0)', () => {
 
     expect(body.services).toHaveLength(1);
     expect(body.price).toMatchObject({ kind: 'ALL_PRICED', label: '18,00 €' });
+  });
+});
+
+describe('an appointment without a price (005, FR-019, FR-020)', () => {
+  it('shows "Precio a consultar en el salón" for the service and the total, never 0', async () => {
+    const response = await lookup(await book(LAVADO));
+    const body = (await response.clone().json()) as {
+      services: { priceCents: number | null; priceLabel: string }[];
+      price: { kind: string; knownCents: number | null; label: string };
+    };
+
+    expectMatchesContract(detailSchema, await response.json());
+    expect(body.services).toMatchObject([
+      { priceCents: null, priceLabel: 'Precio a consultar en el salón' },
+    ]);
+    expect(body.price).toEqual({
+      kind: 'NONE_PRICED',
+      knownCents: null,
+      label: 'Precio a consultar en el salón',
+    });
   });
 });

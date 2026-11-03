@@ -9,7 +9,12 @@ import { createAppointmentRepository } from '@/infrastructure/db/appointment-rep
 import { createSalonConfigRepository } from '@/infrastructure/db/salon-config-repository';
 import { tokenGenerator } from '@/infrastructure/security/token';
 import { closeTestDb, ensureSchema, testPool, truncateAppointments } from '../helpers/test-db';
-import { COLOR, CORTE, seedContractDatabase } from '../../contract/helpers/seed-contract-db';
+import {
+  COLOR,
+  CORTE,
+  LAVADO,
+  seedContractDatabase,
+} from '../../contract/helpers/seed-contract-db';
 
 /**
  * FR-025 and BR-006: the move is atomic, and the failing case is the one that
@@ -23,9 +28,6 @@ const clock: Clock = { now: () => currentNow };
 /** Friday 2026-09-18 at 11:30 and 16:00, salon time. */
 const FRIDAY_1130 = '2026-09-18T09:30:00Z';
 const FRIDAY_1600 = '2026-09-18T14:00:00Z';
-
-/** No price, 30 minutes: with Corte, an appointment of one hour. */
-const LAVADO = '00000000-0000-4000-8000-000000000014';
 
 function build() {
   const config = createSalonConfigRepository(() => testPool());
@@ -68,11 +70,6 @@ async function startOf(token: string): Promise<string | undefined> {
 beforeAll(async () => {
   await ensureSchema();
   await seedContractDatabase();
-  await testPool().query(
-    `INSERT INTO service (id, name, duration_minutes, price_cents, is_active, display_order)
-     VALUES ($1, 'Lavado', 30, NULL, true, 4)`,
-    [LAVADO],
-  );
 });
 
 afterAll(async () => {

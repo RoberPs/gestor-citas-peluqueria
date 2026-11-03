@@ -12,6 +12,8 @@ import { ensureSchema, testPool, truncateAll } from '../../integration/helpers/t
 
 export const CORTE = '00000000-0000-4000-8000-000000000011';
 export const COLOR = '00000000-0000-4000-8000-000000000012';
+/** No price: "Precio a consultar en el salón", never 0 (005, FR-018). */
+export const LAVADO = '00000000-0000-4000-8000-000000000014';
 
 /** Tuesday 2026-09-15, 10:00 in Madrid. Every contract suite pins the clock here. */
 export const CONTRACT_NOW = Temporal.Instant.from('2026-09-15T08:00:00Z');
@@ -43,7 +45,8 @@ export async function seedContractDatabase(): Promise<void> {
 
   await testPool().query(
     `INSERT INTO service (id, name, duration_minutes, price_cents, is_active, display_order)
-     VALUES ($1, 'Corte', 30, 1800, true, 1), ($2, 'Color', 90, 5500, true, 2)`,
-    [CORTE, COLOR],
+     VALUES ($1, 'Corte', 30, 1800, true, 1), ($2, 'Color', 90, 5500, true, 2),
+            ($3, 'Lavado', 30, NULL, true, 4)`,
+    [CORTE, COLOR, LAVADO],
   );
 }

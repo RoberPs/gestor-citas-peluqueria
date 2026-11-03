@@ -7,7 +7,12 @@ import { createAppointmentRepository } from '@/infrastructure/db/appointment-rep
 import { createSalonConfigRepository } from '@/infrastructure/db/salon-config-repository';
 import { tokenGenerator } from '@/infrastructure/security/token';
 import { closeTestDb, ensureSchema, testPool, truncateAppointments } from '../helpers/test-db';
-import { seedContractDatabase, CORTE, COLOR } from '../../contract/helpers/seed-contract-db';
+import {
+  seedContractDatabase,
+  CORTE,
+  COLOR,
+  LAVADO,
+} from '../../contract/helpers/seed-contract-db';
 
 /**
  * FR-011, FR-012, FR-013 and BR-014 against a real database.
@@ -18,7 +23,6 @@ import { seedContractDatabase, CORTE, COLOR } from '../../contract/helpers/seed-
  */
 
 const PEINADO = '00000000-0000-4000-8000-000000000013';
-const LAVADO = '00000000-0000-4000-8000-000000000014';
 /** Offered when the client looked, withdrawn before they confirmed (FR-015). */
 const RETIRADO = '00000000-0000-4000-8000-000000000016';
 
@@ -49,9 +53,8 @@ beforeAll(async () => {
   await seedContractDatabase();
   await testPool().query(
     `INSERT INTO service (id, name, duration_minutes, price_cents, is_active, display_order)
-     VALUES ($1, 'Peinado', 45, 2500, true, 3), ($2, 'Lavado', 30, NULL, true, 4),
-            ($3, 'Retirado', 30, 1000, true, 6)`,
-    [PEINADO, LAVADO, RETIRADO],
+     VALUES ($1, 'Peinado', 45, 2500, true, 3), ($2, 'Retirado', 30, 1000, true, 6)`,
+    [PEINADO, RETIRADO],
   );
 });
 
