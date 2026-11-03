@@ -64,7 +64,7 @@ Unas vacaciones de una semana se ven como cerradas, no como llenas (escenario 3 
  };
 ```
 
-**Contrato de `validateContact`**: cuando el email está ausente (`null` o cadena vacía tras recortar), no es un fallo de formato; es un contacto válido sin email. Cuando está presente, se valida exactamente con las mismas reglas que antes (FR-031). El nombre y el teléfono siguen siendo obligatorios en los dos orígenes: son la vía de contacto real del salón (BR-011).
+**Contrato de `validateContact`** (*concretado al implementar*): recibe quién pide el contacto, `{ email: 'REQUIRED' | 'OPTIONAL' }`. La reserva online pasa `REQUIRED`, porque la 001 pide los tres datos (FR-008 de la 001), y su comportamiento no cambia. La cita a mano y la edición pasan `OPTIONAL`: un email ausente (`null` o cadena vacía tras recortar) no es un fallo de formato, es un contacto válido sin email. Cuando está presente, se valida exactamente con las mismas reglas que antes (FR-031). El nombre y el teléfono siguen siendo obligatorios en los dos casos: son la vía de contacto real del salón (BR-011).
 
 El tipo obliga a cada lector a hacerse cargo del caso ausente, igual que `customer: CustomerContact | null` ya obligaba con la anonimización. No hay ninguna lectura de `.email` que el compilador deje pasar sin tratar.
 
@@ -88,7 +88,7 @@ export function searchableName(raw: string): SearchableName;
  };
 ```
 
-**Contrato**: NFD, sin las marcas U+0300–U+036F, en minúsculas, con los espacios recortados y colapsados. «José  NÚÑEZ» → «jose nunez». Es **la única** definición de cómo se compara un nombre (FR-069): la usan `validateContact`, para que cada cita guarde su `customer_name_search`, y `parseBookingListQuery`, para el término buscado. Función total, sin `Result`: cualquier cadena tiene su forma buscable.
+**Contrato**: NFD, sin las marcas U+0300–U+036F, en minúsculas, con los espacios recortados y colapsados. «José  NÚÑEZ» → «jose nunez». Es **la única** definición de cómo se compara un nombre (FR-069): `parseBookingListQuery` la aplica al término buscado, y la columna generada `customer_name_search` la replica en SQL, con un test que exige que coincidan (D-036). Función total, sin `Result`: cualquier cadena tiene su forma buscable.
 
 ### `confirmBooking` — el servicio puede haberse retirado mientras tanto
 
@@ -601,7 +601,7 @@ export interface BookingListReader {
 }
 ```
 
-**Cambios en `AppointmentRepository`** (de la 001): `cancel(id, at)` pasa a `cancel(id, at, by: CancellationActor)` y escribe `cancelled_by` en el mismo `UPDATE` que el estado. Las lecturas devuelven `origin` y `cancelledBy`. Las citas de un día para la agenda se leen con sus servicios en una sola consulta, igual que la disponibilidad (D-027). El `insert` escribe `customer_name_search` desde `ValidatedContact.searchName`, y la anonimización la pone a `NULL` con los demás datos personales (D-036). `countFutureByContact` admite excluir una cita, para el límite al editar el contacto (FR-075).
+**Cambios en `AppointmentRepository`** (de la 001): `cancel(id, at)` pasa a `cancel(id, at, by: CancellationActor)` y escribe `cancelled_by` en el mismo `UPDATE` que el estado. Las lecturas devuelven `origin` y `cancelledBy`. Las citas de un día para la agenda se leen con sus servicios en una sola consulta, igual que la disponibilidad (D-027). `customer_name_search` es una columna generada: ni el `insert` ni la anonimización la tocan (D-036). `findInWindow(from, to, { includeCancelled })` lee las citas que tocan una ventana con todos sus servicios, en una consulta. `countFutureByContact` acepta un email nulo, que no cuenta nada, y admitirá excluir una cita, para el límite al editar el contacto (FR-075).
 
 **Cambio en la vista de la cita del cliente** (D-037): la lectura por token devuelve también `cancelledBy`, y `AppointmentDetail` del contrato de cliente lo expone en su versión 2.1.0. Ninguna regla del cliente cambia: sólo el texto que la pantalla elige.
 

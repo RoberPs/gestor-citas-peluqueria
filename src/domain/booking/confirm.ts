@@ -145,7 +145,8 @@ export function validateBookingRequest(
   const slot = validateSlot({ ...input, durationMinutes: durationOfServices(input.services) });
   if (!slot.ok) return slot;
 
-  const contact = validateContact(input.contact);
+  // Online, the email is what 001 asks for along with the rest (FR-008).
+  const contact = validateContact(input.contact, { email: 'REQUIRED' });
   if (!contact.ok) return err({ kind: 'INVALID_CONTACT', fields: contact.error });
 
   return ok({ ...slot.value, services: input.services, contact: contact.value });

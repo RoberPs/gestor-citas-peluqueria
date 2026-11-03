@@ -101,10 +101,10 @@ export async function seedAppointment(options: {
          id, status, starts_at, ends_at,
          customer_name, customer_phone, customer_email,
          customer_phone_normalized, customer_email_normalized,
-         token_hash, created_at, cancelled_at
+         token_hash, created_at, cancelled_at, cancelled_by
        ) VALUES (gen_random_uuid(), $1, $2, $3,
                  'Ana López', '600112233', 'ana@example.com',
-                 '+34600112233', 'ana@example.com', $4, now(), $5)
+                 '+34600112233', 'ana@example.com', $4, now(), $5, $10)
        RETURNING id
      )
      INSERT INTO appointment_service
@@ -123,6 +123,8 @@ export async function seedAppointment(options: {
       services.map((service) => service.name),
       services.map((service) => service.minutes),
       services.map((service) => service.cents),
+      // Before 002 only the client could cancel, from the link (D-032).
+      status === 'CANCELLED' ? 'CUSTOMER' : null,
     ],
   );
 

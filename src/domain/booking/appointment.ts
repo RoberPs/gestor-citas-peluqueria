@@ -13,17 +13,25 @@ export type AppointmentStatus = 'CONFIRMED' | 'CANCELLED';
  */
 export type AppointmentView = 'CONFIRMED' | 'CANCELLED' | 'COMPLETED';
 
+/** Booked online, or written by the owner by hand (002, FR-025). Never changes. */
+export type AppointmentOrigin = 'ONLINE' | 'OWNER';
+
+/** Who cancelled it: the client from their link, or the owner (002, FR-040a). */
+export type CancellationActor = 'CUSTOMER' | 'OWNER';
+
 /** The three personal fields, and no others (FR-008, Principio III). */
 export type CustomerContact = {
   /** As the client typed it: it is what the owner reads out when calling. */
   readonly name: string;
   readonly phone: string;
-  readonly email: string;
+  /** Missing only from an appointment the owner wrote by hand (002, FR-024). */
+  readonly email: string | null;
 };
 
 export type Appointment = {
   readonly id: AppointmentId;
   readonly status: AppointmentStatus;
+  readonly origin: AppointmentOrigin;
   readonly startsAt: Temporal.Instant;
   /** The start plus the total duration of its services, fixed when confirmed. */
   readonly endsAt: Temporal.Instant;
@@ -33,6 +41,8 @@ export type Appointment = {
   readonly customer: CustomerContact | null;
   readonly createdAt: Temporal.Instant;
   readonly cancelledAt: Temporal.Instant | null;
+  /** `null` exactly when `cancelledAt` is: a fact of the cancellation (BR-019). */
+  readonly cancelledBy: CancellationActor | null;
   readonly anonymizedAt: Temporal.Instant | null;
 };
 

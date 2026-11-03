@@ -36,7 +36,7 @@ export function createCancelAppointment(deps: {
     const cancellable = applyCancellation(appointment, now, configuration.policy);
     if (!cancellable.ok) return err({ kind: 'BLOCKED', block: cancellable.error });
 
-    const persisted = await deps.appointments.cancel(appointment.id, now);
+    const persisted = await deps.appointments.cancel(appointment.id, now, 'CUSTOMER');
 
     // Somebody cancelled it between the read and the write. The domain already
     // has a word for that, so the race reads like every other rejection.

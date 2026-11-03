@@ -102,7 +102,7 @@ No es una feature aditiva y conviene tenerlo a la vista antes de empezar:
 | `SalonConfigRepository.load()` | Deja de cachear | D-021 |
 | `DEFAULT_BOOKING_POLICY` | Dos de sus siete campos pasan a leerse de la base | D-022 |
 | `CustomerContact.email` | `string` → `string \| null` | D-026 |
-| `ValidatedContact` | Gana `searchName` (`searchableName`); el `insert` escribe `customer_name_search` y la anonimización lo borra | D-036 |
+| `ValidatedContact` y `validateContact` | Gana `searchName` (`searchableName`); `validateContact` recibe si el email es obligatorio. `customer_name_search` es una columna generada | D-026, D-036 |
 | `countFutureByContact` | Admite excluir una cita, para el límite al editar el contacto | D-035 |
 | Vista de la cita cancelada del cliente y `cancelledNote` | Texto según `cancelledBy`; `AppointmentDetail` gana `cancelledBy` | D-037 |
 | `contracts/http-api.yaml` | 2.0.0 → **2.1.0** | D-037 |

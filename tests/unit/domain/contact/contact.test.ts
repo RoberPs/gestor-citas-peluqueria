@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeEmail, normalizePhone, validateName } from '@/domain/contact/contact';
+import {
+  normalizeEmail,
+  normalizePhone,
+  searchableName,
+  validateContact,
+  validateName,
+} from '@/domain/contact/contact';
 
 /** Unwraps a success, failing loudly instead of silently returning undefined. */
 function value<T, E>(result: { ok: true; value: T } | { ok: false; error: E }): T {
@@ -108,5 +114,66 @@ describe('validateName', () => {
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error('unreachable');
     expect(result.error).toBe('INVALID_NAME');
+  });
+});
+
+describe('validateContact — who needs an email (002, FR-024, D-026)', () => {
+  const contact = { name: 'Ana López', phone: '600 11 22 33' };
+
+  it('requires it for an online booking, exactly as in 001 (FR-008)', () => {
+    const result = validateContact({ ...contact, email: '' }, { email: 'REQUIRED' });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('unreachable');
+    expect(result.error).toEqual([{ field: 'customer.email', code: 'INVALID_EMAIL' }]);
+  });
+
+  it.each([[''], ['   '], [null]])(
+    'treats %j as no email when it is optional: a valid contact without one',
+    (email) => {
+      const result = value(validateContact({ ...contact, email }, { email: 'OPTIONAL' }));
+
+      expect(result.email).toBeNull();
+      expect(result.normalizedEmail).toBeNull();
+      expect(result.normalizedPhone).toBe('+34600112233');
+    },
+  );
+
+  it('still checks the format of an optional email that is there (FR-031)', () => {
+    const result = validateContact({ ...contact, email: 'ana@' }, { email: 'OPTIONAL' });
+
+    expect(result.ok).toBe(false);
+  });
+
+  it('keeps name and phone compulsory whatever the email rule (BR-011)', () => {
+    const result = validateContact({ name: ' ', phone: '123', email: null }, { email: 'OPTIONAL' });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('unreachable');
+    expect(result.error.map((error) => error.field)).toEqual(['customer.name', 'customer.phone']);
+  });
+});
+
+describe('searchableName — how a name is compared (002, FR-069, D-036)', () => {
+  it.each([
+    ['José  NÚÑEZ', 'jose nunez'],
+    ['  María Jesús ', 'maria jesus'],
+    ['Begoña Güell', 'begona guell'],
+    ['Çelik', 'celik'],
+    ['ana lópez', 'ana lopez'],
+  ])('turns %j into %j', (raw, expected) => {
+    expect(searchableName(raw)).toBe(expected);
+  });
+
+  it('is what validateContact keeps alongside the name as typed', () => {
+    const result = value(
+      validateContact(
+        { name: 'José Núñez', phone: '600112233', email: 'jose@example.com' },
+        { email: 'REQUIRED' },
+      ),
+    );
+
+    expect(result.name).toBe('José Núñez');
+    expect(result.searchName).toBe('jose nunez');
   });
 });

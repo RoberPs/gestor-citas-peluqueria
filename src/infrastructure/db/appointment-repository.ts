@@ -1,5 +1,5 @@
 import { Temporal } from '@js-temporal/polyfill';
-import { and, asc, eq, getTableColumns, gte, isNotNull, lt, sql } from 'drizzle-orm';
+import { and, asc, eq, getTableColumns, gt, gte, isNotNull, lt, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import type { Pool } from 'pg';
 import type { AppointmentRepository, NewAppointment } from '@/application/ports';
@@ -63,17 +63,20 @@ function toDomain(row: AppointmentWithServices): Appointment {
   return {
     id: row.id,
     status: row.status,
+    origin: row.origin,
     startsAt: instantOf(row.startsAt),
     endsAt: instantOf(row.endsAt),
     services: nonEmpty(row.services, row.id),
-    // Anonymised rows keep the slot and lose the person (BR-018). The three
-    // fields go together, so testing one is enough — the database enforces it.
+    // Anonymised rows keep the slot and lose the person (BR-018). Name and
+    // phone go together — the database enforces it — and the email may be
+    // missing from a live appointment written by hand (002, FR-024).
     customer:
-      row.customerName === null || row.customerPhone === null || row.customerEmail === null
+      row.customerName === null || row.customerPhone === null
         ? null
         : { name: row.customerName, phone: row.customerPhone, email: row.customerEmail },
     createdAt: instantOf(row.createdAt),
     cancelledAt: row.cancelledAt === null ? null : instantOf(row.cancelledAt),
+    cancelledBy: row.cancelledBy,
     anonymizedAt: row.anonymizedAt === null ? null : instantOf(row.anonymizedAt),
   };
 }
@@ -116,6 +119,20 @@ export function createAppointmentRepository(getPool: () => Pool): AppointmentRep
       return rows.map((row) => ({ startsAt: instantOf(row.startsAt), endsAt: instantOf(row.endsAt) }));
     },
 
+    async findInWindow(from, to, { includeCancelled }) {
+      // ONE query for the window, services included (D-011 of 005, D-027):
+      // the agenda of a day never becomes a query per appointment. Touching
+      // the window is enough, so one still under way at its start is in.
+      const touches = and(lt(appointment.startsAt, dateOf(to)), gt(appointment.endsAt, dateOf(from)));
+      const rows = await database()
+        .select(withServices)
+        .from(appointment)
+        .where(includeCancelled ? touches : and(touches, eq(appointment.status, 'CONFIRMED')))
+        .orderBy(asc(appointment.startsAt), asc(appointment.id));
+
+      return rows.map(toDomain);
+    },
+
     async countFutureByContact(phone, email, now) {
       // Two counts, one query, and deliberately not their union: the rule is
       // `byPhone >= 3 || byEmail >= 3`. A `WHERE phone = $1 OR email = $2` count
@@ -146,6 +163,9 @@ export function createAppointmentRepository(getPool: () => Pool): AppointmentRep
             .values({
               id: input.id,
               status: 'CONFIRMED',
+              // The only writer of this method is the online booking; the
+              // owner's appointments go through her own writer (002).
+              origin: 'ONLINE',
               startsAt: dateOf(input.startsAt),
               endsAt: dateOf(input.endsAt),
               customerName: input.contact.name,
@@ -202,12 +222,13 @@ export function createAppointmentRepository(getPool: () => Pool): AppointmentRep
       }
     },
 
-    async cancel(id, at): Promise<Result<Appointment, 'ALREADY_CANCELLED'>> {
+    async cancel(id, at, by): Promise<Result<Appointment, 'ALREADY_CANCELLED'>> {
       // Guarding on the current status inside the UPDATE makes the second
-      // cancellation lose without a read-then-write window (BR-007).
+      // cancellation lose without a read-then-write window (BR-007). Who
+      // cancelled goes in the same statement, so the two never disagree (D-032).
       const rows = await database()
         .update(appointment)
-        .set({ status: 'CANCELLED', cancelledAt: dateOf(at) })
+        .set({ status: 'CANCELLED', cancelledAt: dateOf(at), cancelledBy: by })
         .where(and(eq(appointment.id, id), eq(appointment.status, 'CONFIRMED')))
         .returning(withServices);
 

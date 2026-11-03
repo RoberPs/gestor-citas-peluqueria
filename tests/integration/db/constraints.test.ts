@@ -18,6 +18,8 @@ const SERVICE_ID = randomUUID();
 
 type AppointmentOverrides = {
   status?: 'CONFIRMED' | 'CANCELLED';
+  origin?: 'ONLINE' | 'OWNER';
+  cancelledBy?: 'CUSTOMER' | 'OWNER' | null;
   startsAt?: string;
   endsAt?: string;
   customerName?: string | null;
@@ -33,6 +35,8 @@ type AppointmentOverrides = {
 async function insertAppointment(overrides: AppointmentOverrides = {}): Promise<void> {
   const {
     status = 'CONFIRMED',
+    origin = 'ONLINE',
+    cancelledBy = status === 'CANCELLED' ? 'CUSTOMER' : null,
     startsAt = '2026-09-18T10:00:00+02:00',
     endsAt = '2026-09-18T11:30:00+02:00',
     customerName = 'Ana',
@@ -49,6 +53,8 @@ async function insertAppointment(overrides: AppointmentOverrides = {}): Promise<
     {
       id: randomUUID(),
       status,
+      origin,
+      cancelled_by: cancelledBy,
       starts_at: startsAt,
       ends_at: endsAt,
       customer_name: customerName,
@@ -260,6 +266,101 @@ describe('appointment_anonymization_is_atomic (BR-018)', () => {
     expect(rows[0]?.service_name).toBe('Corte');
     expect(rows[0]?.status).toBe('CONFIRMED');
   });
+});
+
+describe('appointment_anonymization_is_atomic, rewritten by 0006 (002, D-026)', () => {
+  it('accepts an appointment the owner wrote by hand, with no email and no link (FR-024, FR-026)', async () => {
+    const code = await sqlStateOf(() =>
+      insertAppointment({
+        origin: 'OWNER',
+        customerEmail: null,
+        customerEmailNormalized: null,
+        tokenHash: null,
+      }),
+    );
+
+    expect(code).toBeUndefined();
+  });
+
+  it('rejects an appointment written by hand that carries a management link', async () => {
+    expect(await sqlStateOf(() => insertAppointment({ origin: 'OWNER' }))).toBe('23514');
+  });
+
+  it('rejects an online appointment without its management link', async () => {
+    expect(await sqlStateOf(() => insertAppointment({ origin: 'ONLINE', tokenHash: null }))).toBe(
+      '23514',
+    );
+  });
+
+  it('rejects an email without its canonical form, and the other way round', async () => {
+    const withoutCanonical = await sqlStateOf(() =>
+      insertAppointment({ customerEmailNormalized: null }),
+    );
+    const withoutEmail = await sqlStateOf(() =>
+      insertAppointment({
+        customerEmail: null,
+        startsAt: '2026-09-19T10:00:00+02:00',
+        endsAt: '2026-09-19T11:00:00+02:00',
+      }),
+    );
+
+    expect(withoutCanonical).toBe('23514');
+    expect(withoutEmail).toBe('23514');
+  });
+
+  it('keeps the searchable name in step with the name, and clears it on anonymising (D-036)', async () => {
+    await insertAppointment({ customerName: 'José  NÚÑEZ' });
+    await insertAppointment({
+      anonymizedAt: '2027-10-01T03:30:00+02:00',
+      customerName: null,
+      customerPhone: null,
+      customerEmail: null,
+      customerPhoneNormalized: null,
+      customerEmailNormalized: null,
+      tokenHash: null,
+      startsAt: '2026-09-19T10:00:00+02:00',
+      endsAt: '2026-09-19T11:00:00+02:00',
+    });
+
+    const { rows } = await testPool().query<{ customer_name_search: string | null }>(
+      'SELECT customer_name_search FROM appointment ORDER BY starts_at',
+    );
+
+    expect(rows.map((row) => row.customer_name_search)).toEqual(['jose nunez', null]);
+  });
+});
+
+describe('appointment_cancelled_by_consistency (002, FR-040a, D-032)', () => {
+  it('rejects a cancelled appointment that does not say who cancelled it', async () => {
+    const code = await sqlStateOf(() =>
+      insertAppointment({
+        status: 'CANCELLED',
+        cancelledAt: '2026-09-17T10:00:00+02:00',
+        cancelledBy: null,
+      }),
+    );
+
+    expect(code).toBe('23514');
+  });
+
+  it('rejects a confirmed appointment that says who cancelled it', async () => {
+    expect(await sqlStateOf(() => insertAppointment({ cancelledBy: 'OWNER' }))).toBe('23514');
+  });
+
+  it.each([['CUSTOMER'], ['OWNER']] as const)(
+    'accepts a cancellation by the %s',
+    async (cancelledBy) => {
+      const code = await sqlStateOf(() =>
+        insertAppointment({
+          status: 'CANCELLED',
+          cancelledAt: '2026-09-17T10:00:00+02:00',
+          cancelledBy,
+        }),
+      );
+
+      expect(code).toBeUndefined();
+    },
+  );
 });
 
 describe('appointment_token_hash_idx (D-005)', () => {

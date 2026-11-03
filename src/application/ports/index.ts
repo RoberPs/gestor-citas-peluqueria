@@ -3,6 +3,7 @@ import type {
   Appointment,
   AppointmentId,
   BusyInterval,
+  CancellationActor,
 } from '@/domain/booking/appointment';
 import type { SalonConfiguration, UnavailablePeriod } from '@/domain/catalog/salon';
 import type { NonEmptyServiceList } from '@/domain/catalog/selection';
@@ -45,9 +46,21 @@ export interface AppointmentRepository {
    */
   countFutureByContact(
     phone: NormalizedPhone,
-    email: NormalizedEmail,
+    /** `null` counts nothing: an appointment without email takes no email quota. */
+    email: NormalizedEmail | null,
     now: Temporal.Instant,
   ): Promise<{ readonly byPhone: number; readonly byEmail: number }>;
+
+  /**
+   * The appointments that touch `[from, to)`, each with all its services, in
+   * ONE query (002, FR-014, D-027): the owner's agenda reads a day through
+   * here. Cancelled ones only when asked for (FR-015).
+   */
+  findInWindow(
+    from: Temporal.Instant,
+    to: Temporal.Instant,
+    options: { readonly includeCancelled: boolean },
+  ): Promise<readonly Appointment[]>;
 
   /**
    * Inserts the appointment and its services in one transaction (005, D-011).
@@ -64,9 +77,11 @@ export interface AppointmentRepository {
     end: Temporal.Instant,
   ): Promise<Result<Appointment, 'SLOT_TAKEN'>>;
 
+  /** Writes who cancelled in the same UPDATE as the status (002, FR-040a). */
   cancel(
     id: AppointmentId,
     at: Temporal.Instant,
+    by: CancellationActor,
   ): Promise<Result<Appointment, 'ALREADY_CANCELLED'>>;
 }
 

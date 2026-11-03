@@ -202,7 +202,7 @@ El esquema no cambia; `is_active` y `display_order` ya existían esperando esto.
 |---|---|---|
 | `origin` | **nuevo** | `appointment_origin` (`ONLINE` \| `OWNER`), `NOT NULL`. Las filas existentes migran a `ONLINE`. |
 | `cancelled_by` | **nuevo** | `appointment_actor` (`CUSTOMER` \| `OWNER`), anulable. Presente si y sólo si la cita está cancelada. Las canceladas existentes migran a `CUSTOMER` (D-032). |
-| `customer_name_search` | **nuevo** | `text`, anulable. El nombre normalizado por `searchableName` del dominio (D-036). Lo escriben la reserva, la cita a mano y la edición; es dato personal derivado y la anonimización lo borra. |
+| `customer_name_search` | **nuevo** | `text`, **generada** desde `customer_name` con el algoritmo de `searchableName` del dominio (D-036). Nadie la escribe: sigue al nombre al reservar, al editar y a `NULL` al anonimizar. |
 | `customer_email` | ahora anulable en cita viva | Una cita manual puede no tenerlo (FR-024). |
 | `customer_email_normalized` | ídem | Nulo cuando no hay email. No consume cupo de email en BR-014. |
 | `token_hash` | ahora anulable en cita viva | Sólo las de origen `ONLINE` lo tienen (FR-026). |
@@ -218,7 +218,6 @@ ALTER TABLE appointment ADD CONSTRAINT appointment_anonymization_is_atomic
   CHECK (
     (anonymized_at IS NULL
       AND customer_name IS NOT NULL
-      AND customer_name_search IS NOT NULL
       AND customer_phone IS NOT NULL
       -- El email puede faltar en una cita creada a mano (FR-024).
       AND (customer_email IS NOT NULL) = (customer_email_normalized IS NOT NULL)
@@ -226,24 +225,26 @@ ALTER TABLE appointment ADD CONSTRAINT appointment_anonymization_is_atomic
       AND (token_hash IS NOT NULL) = (origin = 'ONLINE'))
     OR
     (anonymized_at IS NOT NULL
-      AND customer_name IS NULL AND customer_name_search IS NULL
-      AND customer_phone IS NULL
+      AND customer_name IS NULL AND customer_phone IS NULL
       AND customer_email IS NULL AND customer_phone_normalized IS NULL
       AND customer_email_normalized IS NULL AND token_hash IS NULL)
   );
 ```
 
-**Relleno de `customer_name_search`** en las filas existentes, dentro de la misma migración y **antes** de la restricción (D-036):
+**`customer_name_search`**, columna generada (D-036):
 
 ```sql
-UPDATE appointment
-   SET customer_name_search = btrim(regexp_replace(
-         lower(regexp_replace(normalize(customer_name, NFD), '[̀-ͯ]', '', 'g')),
-         '\s+', ' ', 'g'))
- WHERE customer_name IS NOT NULL;
+ALTER TABLE appointment ADD COLUMN customer_name_search text
+  GENERATED ALWAYS AS (
+    btrim(regexp_replace(
+      lower(regexp_replace(normalize(customer_name, NFD), '[\u0300-\u036f]', '', 'g')),
+      '\s+', ' ', 'g'))
+  ) STORED;
 ```
 
-Es el mismo algoritmo que `searchableName` del dominio, escrito en SQL porque la migración no puede llamar al dominio (D-008). Su test compara los dos con un juego de nombres. Las citas nuevas nunca pasan por aquí: la columna la escribe el repositorio con lo que calcula el dominio.
+Es el mismo algoritmo que `searchableName` del dominio, escrito en SQL porque la migración no puede llamar al dominio (D-008); su test compara los dos con un juego de nombres. Al ser generada, las filas existentes salen con ella calculada, y una cita anonimizada la pierde con el nombre sin que la restricción de anonimización tenga que nombrarla.
+
+**`origin` lleva `DEFAULT 'ONLINE'`**: lo era toda cita anterior a la 002 y lo es toda la que escribe la 001. Una cita a mano que olvidara decir su origen no pasaría por online: no tiene enlace, y el bicondicional de arriba la rechaza.
 
 La garantía que la 001 buscaba se conserva entera: **no existe una cita medio anonimizada**, ni una con enlace vivo y sin teléfono, ni una sin enlace que conservó el email. Lo que se añade es que el enlace y el email dejan de ser obligatorios donde la especificación dice que no lo son, y el bicondicional `(token_hash IS NOT NULL) = (origin = 'ONLINE')` es más fuerte que el `IS NOT NULL` anterior: ahora también prohíbe que una cita manual tenga enlace.
 
@@ -276,9 +277,9 @@ El orden por defecto con el filtro *Confirmadas* ya lo sirve `appointment_confir
 
 **La búsqueda no añade índices** (D-036). Por teléfono compara con igualdad sobre `customer_phone_normalized`; por nombre, por contenido sobre `customer_name_search`, que como mucho recorre las citas de un año con nombre —la retención borra el resto—. Si algún día hiciera falta, el índice es `pg_trgm` sobre `customer_name_search`, sin tocar nada más.
 
-**Editar una cita** (D-035) cambia, en una transacción: `ends_at`, los cinco campos del cliente con sus formas normalizadas, y las filas de `appointment_service` que salen o entran. **No cambia** `id`, `starts_at`, `origin`, `created_at` ni `token_hash`, ni reescribe ninguna fila de `appointment_service` que se quede, salvo su `position`, que se renumera en el orden del catálogo. La clave primaria `(appointment_id, position)` obliga a renumerar en dos tiempos o con la restricción diferida.
+**Editar una cita** (D-035) cambia, en una transacción: `ends_at`, los cinco campos del cliente con sus formas normalizadas —el nombre buscable se recalcula solo—, y las filas de `appointment_service` que salen o entran. **No cambia** `id`, `starts_at`, `origin`, `created_at` ni `token_hash`, ni reescribe ninguna fila de `appointment_service` que se quede, salvo su `position`, que se renumera en el orden del catálogo. La clave primaria `(appointment_id, position)` obliga a renumerar en dos tiempos o con la restricción diferida.
 
-**Retención**: las citas manuales siguen exactamente la misma política de 12 meses. La anonimización ya pone a nulo lo que haya —ahora también `customer_name_search`—; una cita sin email anonimiza igual de bien.
+**Retención**: las citas manuales siguen exactamente la misma política de 12 meses. La anonimización ya pone a nulo lo que haya, y `customer_name_search`, generada desde el nombre, se queda en nulo con él; una cita sin email anonimiza igual de bien.
 
 ---
 
@@ -449,7 +450,7 @@ Editar no es una transición de estado: la cita sigue confirmada, con el mismo `
 | Valores por defecto y cursor del listado (FR-061, FR-062) | **decide** | — | forma de la consulta |
 | Qué es teléfono y qué es nombre al buscar, y cómo se compara (FR-069) | **decide** (`parseBookingListQuery`, `searchableName`) | — | longitud máxima |
 | Snapshots que se quedan y que entran al editar (FR-072, BR-021) | **decide** (`mergeServiceSelection`) | índice único de la 005 | `minItems`, `uniqueItems` |
-| Coherencia de `customer_name_search` con la anonimización | — | `CHECK` | — |
+| `customer_name_search` sigue al nombre, también al anonimizar | — | columna generada | — |
 | Rangos de los parámetros (FR-054) | valida y explica límites | `CHECK` | forma del cuerpo |
 | Al menos un servicio activo (FR-051) | **decide** | — | — |
 | Límite de 3 citas futuras por contacto (FR-029) | **decide** | — | — |

@@ -13,12 +13,14 @@ function appointment(overrides: Partial<Appointment> = {}): Appointment {
   return {
     id: 'b2e9c0de',
     status: 'CONFIRMED',
+    origin: 'ONLINE',
     startsAt: at('2026-09-18', '11:30'),
     endsAt: at('2026-09-18', '12:00'),
     services: [{ serviceId: 's1', name: 'Corte', durationMinutes: 30, priceCents: 1800 }],
     customer: { name: 'Ana', phone: '600112233', email: 'ana@example.com' },
     createdAt: at('2026-09-15', '10:00'),
     cancelledAt: null,
+    cancelledBy: null,
     anonymizedAt: null,
     ...overrides,
   };
@@ -34,6 +36,13 @@ describe('applyCancellation', () => {
     if (!result.ok) throw new Error('unreachable');
     expect(result.value.status).toBe('CANCELLED');
     expect(result.value.cancelledAt?.equals(now)).toBe(true);
+  });
+
+  it('records that the client cancelled it (002, FR-040a)', () => {
+    const result = applyCancellation(appointment(), at('2026-09-16', '11:30'), POLICY);
+
+    if (!result.ok) throw new Error('unreachable');
+    expect(result.value.cancelledBy).toBe('CUSTOMER');
   });
 
   it('keeps the slot, the service and the identity of the appointment', () => {

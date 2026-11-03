@@ -87,6 +87,20 @@ describe('cancelling', () => {
     expect(result.value.appointment.cancelledAt?.equals(NOW)).toBe(true);
   });
 
+  it('records that the client cancelled it, in the same row (002, FR-040a, D-032)', async () => {
+    const token = await book();
+
+    const result = await useCases.cancelAppointment(token);
+    if (!result.ok) throw new Error('unreachable');
+
+    expect(result.value.appointment.cancelledBy).toBe('CUSTOMER');
+    const { rows } = await testPool().query<{ cancelled_by: string | null }>(
+      'SELECT cancelled_by FROM appointment WHERE id = $1',
+      [result.value.appointment.id],
+    );
+    expect(rows[0]?.cancelled_by).toBe('CUSTOMER');
+  });
+
   it('frees the slot in the same commit (FR-023, BR-005)', async () => {
     const token = await book();
     expect(await slotsOnFriday()).not.toContain('11:30');
