@@ -1,10 +1,10 @@
 # Phase 1 — Data Model: Gestión del salón (cara a la dueña) v1
 
-**Feature**: `002-salon-management` | **Date**: 2026-09-16 | **Revised**: 2026-11-03 (005, quién canceló y listado de reservas)
+**Feature**: `002-salon-management` | **Date**: 2026-09-16 | **Revised**: 2026-11-03 (005, quién canceló y listado de reservas; después, editar una cita y búsqueda en el listado)
 
 Este documento define las entidades nuevas, los cambios sobre las existentes y el esquema relacional resultante. Mantiene la distinción de la 001 entre el **tipo de dominio** —lo que manipula `src/domain`— y la **tabla** —lo que conoce `src/infrastructure`—: la traducción vive en el repositorio (Principio I).
 
-Lo que no aparece aquí no cambia. `Slot` y el ciclo de vida de los datos personales siguen siendo los de [`../001-client-appointment-booking/data-model.md`](../001-client-appointment-booking/data-model.md). Los servicios de una cita —uno o varios, cada uno con su snapshot en `appointment_service`— y el precio opcional del catálogo son los de [`../005-multiple-services/data-model.md`](../005-multiple-services/data-model.md), que esta feature usa sin cambiarlos.
+Lo que no aparece aquí no cambia. `Slot` y el ciclo de vida de los datos personales siguen siendo los de [`../001-client-appointment-booking/data-model.md`](../001-client-appointment-booking/data-model.md). Los servicios de una cita —uno o varios, cada uno con su snapshot en `appointment_service`— y el precio opcional del catálogo son los de [`../005-multiple-services/data-model.md`](../005-multiple-services/data-model.md), que esta feature usa sin cambiar su esquema. Lo único nuevo es que, al editar una cita, sus filas de `appointment_service` pueden quitarse y añadirse después de reservar (D-035).
 
 ---
 
@@ -24,10 +24,12 @@ UnavailablePeriod                              NUEVA. SUSTITUYE a Closure, que d
 
 Appointment                                    + origin (ONLINE | OWNER)
   │                                            + cancelled_by (CUSTOMER | OWNER), sólo si cancelada
+  │                                            + customer_name_search, el nombre tal como se busca
   │                                            + customer_email ahora puede faltar
   │                                            + token_hash ahora puede faltar (si origin = OWNER)
-  └──< AppointmentService                      DE LA 005, sin cambios: uno o varios por cita,
-                                               cada uno con su snapshot. La 002 lo lee y lo escribe.
+  └──< AppointmentService                      DE LA 005, mismo esquema: uno o varios por cita,
+                                               cada uno con su snapshot. La 002 lo lee, lo escribe
+                                               y, al editar, quita y añade filas (BR-021).
 
 AgendaDay, TimelineEntry, ConflictReport,      NO SE PERSISTEN. Conceptos derivados.
 ResolutionPlan, BookingListQuery,
@@ -194,12 +196,13 @@ El esquema no cambia; `is_active` y `display_order` ya existían esperando esto.
 - **Retirar no altera citas** (FR-050, FR-052, BR-003). No hace falta hacer nada para conseguirlo: cada fila de `appointment_service` (D-001 de la 005) ya congeló nombre, duración y precio en el momento de reservar. Esta feature se limita a **no romperlo**, y el test de regresión correspondiente lo vigila, también con citas de varios servicios.
 - La clave foránea `appointment_service.service_id → service.id`, con `ON DELETE RESTRICT`, impide borrar de verdad un servicio con citas. Retirar es `is_active = false`, nunca `DELETE`, y esto es lo que lo garantiza.
 
-### Appointment — origen, quién canceló, email opcional, enlace opcional
+### Appointment — origen, quién canceló, nombre buscable, email opcional, enlace opcional
 
 | Campo | Cambio | Notas |
 |---|---|---|
 | `origin` | **nuevo** | `appointment_origin` (`ONLINE` \| `OWNER`), `NOT NULL`. Las filas existentes migran a `ONLINE`. |
 | `cancelled_by` | **nuevo** | `appointment_actor` (`CUSTOMER` \| `OWNER`), anulable. Presente si y sólo si la cita está cancelada. Las canceladas existentes migran a `CUSTOMER` (D-032). |
+| `customer_name_search` | **nuevo** | `text`, anulable. El nombre normalizado por `searchableName` del dominio (D-036). Lo escriben la reserva, la cita a mano y la edición; es dato personal derivado y la anonimización lo borra. |
 | `customer_email` | ahora anulable en cita viva | Una cita manual puede no tenerlo (FR-024). |
 | `customer_email_normalized` | ídem | Nulo cuando no hay email. No consume cupo de email en BR-014. |
 | `token_hash` | ahora anulable en cita viva | Sólo las de origen `ONLINE` lo tienen (FR-026). |
@@ -215,6 +218,7 @@ ALTER TABLE appointment ADD CONSTRAINT appointment_anonymization_is_atomic
   CHECK (
     (anonymized_at IS NULL
       AND customer_name IS NOT NULL
+      AND customer_name_search IS NOT NULL
       AND customer_phone IS NOT NULL
       -- El email puede faltar en una cita creada a mano (FR-024).
       AND (customer_email IS NOT NULL) = (customer_email_normalized IS NOT NULL)
@@ -222,11 +226,24 @@ ALTER TABLE appointment ADD CONSTRAINT appointment_anonymization_is_atomic
       AND (token_hash IS NOT NULL) = (origin = 'ONLINE'))
     OR
     (anonymized_at IS NOT NULL
-      AND customer_name IS NULL AND customer_phone IS NULL
+      AND customer_name IS NULL AND customer_name_search IS NULL
+      AND customer_phone IS NULL
       AND customer_email IS NULL AND customer_phone_normalized IS NULL
       AND customer_email_normalized IS NULL AND token_hash IS NULL)
   );
 ```
+
+**Relleno de `customer_name_search`** en las filas existentes, dentro de la misma migración y **antes** de la restricción (D-036):
+
+```sql
+UPDATE appointment
+   SET customer_name_search = btrim(regexp_replace(
+         lower(regexp_replace(normalize(customer_name, NFD), '[̀-ͯ]', '', 'g')),
+         '\s+', ' ', 'g'))
+ WHERE customer_name IS NOT NULL;
+```
+
+Es el mismo algoritmo que `searchableName` del dominio, escrito en SQL porque la migración no puede llamar al dominio (D-008). Su test compara los dos con un juego de nombres. Las citas nuevas nunca pasan por aquí: la columna la escribe el repositorio con lo que calcula el dominio.
 
 La garantía que la 001 buscaba se conserva entera: **no existe una cita medio anonimizada**, ni una con enlace vivo y sin teléfono, ni una sin enlace que conservó el email. Lo que se añade es que el enlace y el email dejan de ser obligatorios donde la especificación dice que no lo son, y el bicondicional `(token_hash IS NOT NULL) = (origin = 'ONLINE')` es más fuerte que el `IS NOT NULL` anterior: ahora también prohíbe que una cita manual tenga enlace.
 
@@ -257,7 +274,11 @@ CREATE INDEX appointment_created_at_id_idx  ON appointment (created_at DESC, id 
 
 El orden por defecto con el filtro *Confirmadas* ya lo sirve `appointment_confirmed_starts_at_idx`, que es parcial; estos dos cubren *Canceladas* y *Todas* y el orden por fecha de reserva sin recorrer la tabla.
 
-**Retención**: las citas manuales siguen exactamente la misma política de 12 meses. La anonimización ya pone a nulo lo que haya; una cita sin email anonimiza igual de bien.
+**La búsqueda no añade índices** (D-036). Por teléfono compara con igualdad sobre `customer_phone_normalized`; por nombre, por contenido sobre `customer_name_search`, que como mucho recorre las citas de un año con nombre —la retención borra el resto—. Si algún día hiciera falta, el índice es `pg_trgm` sobre `customer_name_search`, sin tocar nada más.
+
+**Editar una cita** (D-035) cambia, en una transacción: `ends_at`, los cinco campos del cliente con sus formas normalizadas, y las filas de `appointment_service` que salen o entran. **No cambia** `id`, `starts_at`, `origin`, `created_at` ni `token_hash`, ni reescribe ninguna fila de `appointment_service` que se quede, salvo su `position`, que se renumera en el orden del catálogo. La clave primaria `(appointment_id, position)` obliga a renumerar en dos tiempos o con la restricción diferida.
+
+**Retención**: las citas manuales siguen exactamente la misma política de 12 meses. La anonimización ya pone a nulo lo que haya —ahora también `customer_name_search`—; una cita sin email anonimiza igual de bien.
 
 ---
 
@@ -305,7 +326,7 @@ type ConflictReport = {
 };
 
 type ResolutionPlan = {
-  readonly intent: CreateAppointment | RescheduleAppointment | CreatePeriod;
+  readonly intent: CreateAppointment | RescheduleAppointment | EditAppointment | CreatePeriod;
   readonly cancelAppointments: readonly AppointmentId[];
   readonly shortenPeriods: readonly { id: UnavailablePeriodId;
                                       startsAt: Temporal.Instant;
@@ -317,7 +338,9 @@ type ResolutionPlan = {
 
 Cada `Conflict` lleva **lo que hay que enseñar para nombrarlo** (FR-033): el nombre del cliente y sus servicios para una cita, la franja y el motivo para un periodo. El nombre del cliente sale de la base y llega a la pantalla, pero no al log (FR-057).
 
-**`stateToken`**: SHA-256 de la lista ordenada de `(tipo, id, marca de modificación)` de los elementos en conflicto. No es un secreto ni autoriza nada; es una huella para detectar que lo que la dueña vio ya no es lo que hay. Puede viajar en claro.
+**`stateToken`**: SHA-256 de la lista ordenada de los `Conflict` completos —tipo, `id`, franja y, según el tipo, nombre del cliente y servicios o motivo—. No hace falta ninguna columna de última modificación: si cambia algo de lo que la dueña vio, cambia la huella (D-024). No es un secreto ni autoriza nada; es una huella para detectar que lo que la dueña vio ya no es lo que hay. Puede viajar en claro.
+
+`EditAppointment` lleva el `id` de la cita, los servicios resultantes de `mergeServiceSelection`, el contacto validado y la nueva franja, que empieza donde empezaba la cita (D-035).
 
 `warnings` viaja en el **plan**, no en el error, porque un aviso no impide nada: exige acuse (D-025).
 
@@ -337,6 +360,8 @@ type BookingListQuery = {
   /** Días del salón, inclusivos, sobre el día de la cita. */
   readonly from: Temporal.PlainDate | null;
   readonly to: Temporal.PlainDate | null;
+  /** Nombre por contenido o teléfono entero (D-036). null: sin búsqueda. */
+  readonly search: BookingListSearch | null;
   /** Sólo con UPCOMING: el inicio de hoy en la zona del salón, del reloj inyectado. */
   readonly notBefore: Temporal.Instant | null;
   readonly after: BookingListCursor | null;
@@ -346,6 +371,10 @@ type BookingListQuery = {
 type BookingListCursor =
   | { readonly order: 'UPCOMING'; readonly startsAt: Temporal.Instant; readonly id: AppointmentId }
   | { readonly order: 'RECENT'; readonly createdAt: Temporal.Instant; readonly id: AppointmentId };
+
+type BookingListSearch =
+  | { readonly kind: 'PHONE'; readonly phone: NormalizedPhone }     // = customer_phone_normalized
+  | { readonly kind: 'NAME'; readonly fragment: SearchableName };   // contenido en customer_name_search
 
 type BookingListPage = {
   readonly rows: readonly Appointment[];            // con services, origin y cancelledBy
@@ -399,7 +428,11 @@ Ninguna de las dos transiciones toca ninguna cita (BR-003).
 CONFIRMED ──cliente cancela desde su enlace──> CANCELLED (cancelled_by = CUSTOMER)
 CONFIRMED ──dueña cancela desde la gestión──> CANCELLED (cancelled_by = OWNER)
 CONFIRMED ──dueña mueve──> CONFIRMED (mismos servicios, misma duración total: FR-039)
+CONFIRMED ──dueña edita──> CONFIRMED (mismo inicio; otros servicios y otra duración,
+                                      u otros datos del cliente: FR-071, FR-073)
 ```
+
+Editar no es una transición de estado: la cita sigue confirmada, con el mismo `id`, y una cancelada no se edita (FR-042).
 
 ---
 
@@ -414,6 +447,9 @@ CONFIRMED ──dueña mueve──> CONFIRMED (mismos servicios, misma duración
 | Al menos un servicio por cita, sin repetidos (FR-024) | **decide** (`selectServices`) | índice único de la 005 | `minItems`, `uniqueItems` |
 | Quién canceló, presente sólo si cancelada (FR-040a) | **decide** | `CHECK` | — |
 | Valores por defecto y cursor del listado (FR-061, FR-062) | **decide** | — | forma de la consulta |
+| Qué es teléfono y qué es nombre al buscar, y cómo se compara (FR-069) | **decide** (`parseBookingListQuery`, `searchableName`) | — | longitud máxima |
+| Snapshots que se quedan y que entran al editar (FR-072, BR-021) | **decide** (`mergeServiceSelection`) | índice único de la 005 | `minItems`, `uniqueItems` |
+| Coherencia de `customer_name_search` con la anonimización | — | `CHECK` | — |
 | Rangos de los parámetros (FR-054) | valida y explica límites | `CHECK` | forma del cuerpo |
 | Al menos un servicio activo (FR-051) | **decide** | — | — |
 | Límite de 3 citas futuras por contacto (FR-029) | **decide** | — | — |
@@ -435,9 +471,9 @@ Cuatro migraciones, una idea cada una, en este orden. Empiezan en la 0004 porque
 |---|---|
 | `0004_owner_account_and_session.sql` | `owner_account`, `owner_session`, sus índices y la unicidad de la fila de cuenta. |
 | `0005_unavailable_period.sql` | Crea `unavailable_period` y su índice GiST, **convierte los cierres existentes** y elimina `closure`. |
-| `0006_appointment_origin_and_cancellation.sql` | Enums `appointment_origin` y `appointment_actor`; columnas `origin` (`ONLINE` para lo existente) y `cancelled_by` (`CUSTOMER` para las ya canceladas) con su `CHECK`; reescritura de `appointment_anonymization_is_atomic`; los dos índices del listado. |
+| `0006_appointment_owner_fields.sql` | Enums `appointment_origin` y `appointment_actor`; columnas `origin` (`ONLINE` para lo existente), `cancelled_by` (`CUSTOMER` para las ya canceladas) con su `CHECK` y `customer_name_search` (rellenada desde `customer_name`); reescritura de `appointment_anonymization_is_atomic`; los dos índices del listado. |
 | `0007_editable_configuration.sql` | Columnas de política en `salon`, `CHECK` de rangos, `CHECK` y `EXCLUDE` de `opening_interval`. `service` no necesita nada: sus `CHECK` ya existen. |
 
-Escritas a mano, como exige D-008. La 0005 es la única que convierte cierres y la única que borra una tabla; su prueba de integración carga cierres, migra y comprueba que los periodos resultantes cubren exactamente los mismos días, **incluido uno en la semana del cambio de hora**. La 0006 también convierte datos —marca las cancelaciones existentes como del cliente— y su prueba lo comprueba.
+Escritas a mano, como exige D-008. La 0005 es la única que convierte cierres y la única que borra una tabla; su prueba de integración carga cierres, migra y comprueba que los periodos resultantes cubren exactamente los mismos días, **incluido uno en la semana del cambio de hora**. La 0006 también convierte datos —marca las cancelaciones existentes como del cliente y calcula el nombre buscable de las citas con nombre— y su prueba comprueba las dos cosas, la segunda contra `searchableName`.
 
 El orden importa: la 0007 impone el `EXCLUDE` de `opening_interval` sobre datos que el seed ya cargó. Si el seed de alguna instancia tuviera tramos solapados, la migración falla ahí y no a medio camino — que es el comportamiento correcto.

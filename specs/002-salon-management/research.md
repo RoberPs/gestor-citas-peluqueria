@@ -1,6 +1,6 @@
 # Phase 0 — Research: Gestión del salón (cara a la dueña) v1
 
-**Feature**: `002-salon-management` | **Date**: 2026-09-16 | **Revised**: 2026-11-03 (D-030 … D-034)
+**Feature**: `002-salon-management` | **Date**: 2026-09-16 | **Revised**: 2026-11-03 (D-030 … D-034; después D-035 … D-037, y cambios en D-024, D-030, D-032 y D-033)
 
 Este documento fija las decisiones técnicas de la feature y deja constancia de lo descartado. La numeración continúa la de `001-client-appointment-booking` (D-001 … D-014). La `005-multiple-services` numera las suyas aparte (D-001 … D-012 de la 005) y aquí se citan siempre con el sufijo «de la 005», porque las decisiones de aquella siguen vigentes y algunas de éstas las modifican expresamente.
 
@@ -138,7 +138,7 @@ La alternativa —que el caso de uso fuera cancelando y creando paso a paso— d
 
 **Decisión**: dos mecanismos, en este orden.
 
-1. **Firma de estado**. Al detectar un conflicto, la respuesta incluye un `stateToken`: el hash de los identificadores y las marcas de tiempo de modificación de los elementos en conflicto. Al confirmar, la dueña lo devuelve; el caso de uso **vuelve a detectar el conflicto dentro de la transacción** y compara. Si la firma no coincide, no aplica nada y responde con el conflicto recalculado sobre el estado nuevo (FR-038).
+1. **Firma de estado**. Al detectar un conflicto, la respuesta incluye un `stateToken`: el hash de **todo lo que el aviso enseña** de cada elemento en conflicto —tipo, identificador, franja y, para una cita, nombre del cliente y servicios; para un periodo, motivo—. No hace falta ninguna columna de «última modificación»: si lo que la dueña vio cambia, la huella cambia, también cuando otra cita se edita y se alarga (D-035). Al confirmar, la dueña lo devuelve; el caso de uso **vuelve a detectar el conflicto dentro de la transacción** y compara. Si la firma no coincide, no aplica nada y responde con el conflicto recalculado sobre el estado nuevo (FR-038).
 2. **La restricción `EXCLUDE USING gist`** de D-002, intacta. Es la que garantiza BR-001 y FR-035 aunque el paso 1 fallara o alguien escribiera por otra vía. Una violación `23P01` dentro de la transacción se traduce a "el estado cambió", que es lo que realmente ha pasado.
 
 **Rationale**: los dos mecanismos responden a exigencias distintas y ninguno sustituye al otro. La restricción garantiza la **invariante** —nunca dos citas confirmadas solapadas— pero no sabe explicar nada. La firma garantiza la **experiencia** que pide el escenario 5 de la Historia 6: la segunda dueña no recibe un error seco, recibe el conflicto recalculado sobre lo que hay ahora.
@@ -242,7 +242,9 @@ Los cinco casos límite que la constitución exige siguen cubiertos, y esta feat
 
 **Rationale**: el Principio I exige que una regla viva en un solo sitio. Si la dueña sumara duraciones por su cuenta, una cita manual y una online con los mismos servicios podrían durar distinto.
 
-**Descartado**: cambiar los servicios de una cita al moverla. La 005 lo dejó fuera para el cliente (cancelar y reservar de nuevo) y la dueña sigue la misma regla en v1; reabrirlo obligaría a recalcular el conflicto con otra duración en mitad del protocolo de dos pasos.
+**Descartado**: cambiar los servicios de una cita **al moverla**, en la misma operación. Mover conserva los servicios; cambiarlos es editar la cita (D-035), que conserva la hora. Juntar las dos cosas obligaría a recalcular el conflicto con otra hora y otra duración a la vez en mitad del protocolo de dos pasos, sin que la dueña lo necesite: son dos gestos distintos y se hacen uno detrás de otro.
+
+*Revisado el 2026-11-03*: este apartado decía que la dueña tampoco cambiaba los servicios en v1. La dueña del producto lo cambió el mismo día; ver D-035.
 
 ---
 
@@ -266,7 +268,7 @@ CHECK ((status = 'CANCELLED') = (cancelled_by IS NOT NULL))
 
 Las citas ya canceladas migran a `CUSTOMER`: antes de la 002 la única forma de cancelar era el enlace del cliente.
 
-**En el dominio**: `applyCancellation` recibe quién cancela y `Appointment` expone `cancelledBy: 'CUSTOMER' | 'OWNER' | null`. El caso de uso del cliente de la 001 pasa `CUSTOMER`; el de la dueña, `OWNER`. El cliente no ve el dato: su vista de la cita no cambia.
+**En el dominio**: `applyCancellation` recibe quién cancela y `Appointment` expone `cancelledBy: 'CUSTOMER' | 'OWNER' | null`. El caso de uso del cliente de la 001 pasa `CUSTOMER`; el de la dueña, `OWNER`. El cliente también ve el dato, con sus propias palabras: D-037.
 
 **Rationale**: el listado de reservas lo muestra (FR-063) y responde a la pregunta real de la dueña —«¿esta la anulé yo o me la anularon?»—. No es un dato personal: no identifica a nadie fuera de la cita y no se borra al anonimizar.
 
@@ -291,7 +293,9 @@ Las citas ya canceladas migran a `CUSTOMER`: antes de la 002 la única forma de 
 
 La paginación es **por cursor** (*keyset*), no por desplazamiento. Una reserva online que entra mientras la dueña pasa de página no desplaza las filas siguientes, de modo que no se repite ni se salta ninguna (FR-064). El cursor es opaco para la pantalla y viaja en la URL, así que *Atrás* del navegador vuelve a la página anterior sin estado guardado. Hay *Página siguiente* y *Volver al principio*; no hay salto a la página N, que con cursor no tiene sentido y que con 20 filas por página la dueña no necesita.
 
-**Dónde vive cada regla**: el dominio (`owner/booking-list.ts`) normaliza la consulta —valores por defecto, rango de fechas válido, inicio de hoy calculado con el reloj y la zona del salón— y fija `BOOKING_LIST_PAGE_SIZE`. El repositorio sólo traduce esa consulta ya decidida a SQL.
+**Dónde vive cada regla**: el dominio (`owner/booking-list.ts`) normaliza la consulta —valores por defecto, rango de fechas válido, inicio de hoy calculado con el reloj y la zona del salón, y la búsqueda de D-036— y fija `BOOKING_LIST_PAGE_SIZE`. El repositorio sólo traduce esa consulta ya decidida a SQL.
+
+**El rango de fechas** se aplica al día de la cita también con *Últimas reservas recibidas*: el orden cambia, el significado del filtro no (decisión de la dueña del producto, 2026-11-03).
 
 **Índices nuevos**: el orden por defecto con el filtro *Confirmadas* ya lo sirve `appointment_confirmed_starts_at_idx`. Se añaden `appointment_starts_at_id_idx (starts_at, id)` para *Canceladas* y *Todas*, y `appointment_created_at_id_idx (created_at DESC, id DESC)` para *Últimas reservas recibidas*. Una prueba de integración comprueba que una página cuesta las mismas consultas con la base vacía que con las 10.000 citas de `db:seed:history` (SC-013).
 
@@ -321,6 +325,77 @@ Los formularios GET de navegación —cambiar de día en la agenda, los filtros 
 
 ---
 
+## D-035 — Editar una cita: un plan más del mismo protocolo
+
+**Decisión** (2026-11-03, a petición de la dueña del producto): la dueña edita los servicios y los datos del cliente de una cita confirmada y no terminada con `PATCH /api/gestion/citas/{id}`, que sigue el **mismo protocolo de dos pasos** que crear y mover (D-023, D-024). El dominio lo planifica con una función nueva, `planAppointmentEdit`, y el plan entra en `applyPlan` como un tercer tipo de intención, `EditAppointment`, junto a `CreateAppointment` y `RescheduleAppointment`.
+
+| Pieza | Cómo |
+|---|---|
+| Servicios resultantes | `mergeServiceSelection` en `catalog/selection.ts`: los que la cita ya tenía conservan su snapshot; los nuevos se validan con `selectServices` contra el catálogo **activo** y toman el snapshot de ese momento (BR-021) |
+| Duración y fin | `durationOfServices` sobre los servicios resultantes; el inicio no cambia (FR-073) |
+| Lo que estorba | `detectConflicts` con `excludeAppointmentId` de la propia cita, igual que al mover (FR-074) |
+| Fuera de horario | `OUTSIDE_OPENING_HOURS`, aviso dentro del éxito, igual que al mover (D-025) |
+| Pasado y cancelada | `isPastSlot` sobre el **fin actual**, y `ALREADY_CANCELLED`: una cita en curso se edita (FR-071) |
+| Datos del cliente | `validateContact` con el email opcional (D-026); el límite por contacto sólo se evalúa si cambian el teléfono o el email, sin contar la propia cita (FR-075) |
+| Persistencia | En la transacción de `applyPlan`: `UPDATE` de `ends_at` y de los datos del cliente; `DELETE` de las filas de `appointment_service` que se quitan e `INSERT` de las nuevas, con `position` recalculada en el orden del catálogo. La restricción `EXCLUDE` vigila el nuevo `ends_at` como vigila cualquier otro |
+
+**Las filas que se quedan no se reescriben.** Es la regla que impide que una edición «refresque» sin querer el precio de un servicio que subió desde la reserva. El repositorio sólo borra las que salen e inserta las que entran; la renumeración de `position` es un `UPDATE` de esa columna y de ninguna otra. La clave primaria `(appointment_id, position)` obliga a hacerlo en dos tiempos dentro de la transacción —a posiciones negativas y después a las definitivas— o con la restricción diferida; se decide al implementar, con su test.
+
+**El orden de los servicios resultantes** es el del catálogo, como al reservar (FR-014). Un servicio retirado que la cita conserva no está en el catálogo activo pero sí en `service`, con su `display_order`: se ordena por él.
+
+**El enlace del cliente no cambia** (FR-041, FR-076): `token_hash` no se toca. La pantalla del enlace ya lee los servicios de `appointment_service` en cada consulta (D-011 de la 005), así que mostrar los nuevos no exige código en la cara del cliente. Reprogramar desde el enlace usa `durationOf(appointment)` con lo que haya **en ese momento**, no con lo que la pantalla del cliente cargó.
+
+**Rationale**: la dueña del producto sustituyó «cancelar y apuntar otra» porque rompía el enlace de una cita online, perdía su fecha de reserva y dejaba la hora libre entre los dos pasos. Una edición que reutiliza el protocolo de conflicto no añade ninguna regla de solape nueva: el alargamiento es, para el dominio, lo mismo que mover la cita a una franja más larga que empieza a la misma hora.
+
+**Descartado**:
+
+- **Editar como cancelar más crear, dentro de una transacción**: sería atómico, pero cambiaría el `id` de la cita, que es lo que enlazan la agenda y el listado, y obligaría a copiar a mano `origin`, `created_at` y `token_hash`, cada uno con su forma de equivocarse.
+- **Reescribir todos los snapshots de la cita con el catálogo de hoy**: más simple de programar, pero viola BR-003 y BR-021: el cliente que reservó a 15 € vería 18 € sin haber cambiado nada de su servicio.
+- **Un endpoint para servicios y otro para datos del cliente**: dos pasos de conflicto para lo que la dueña hace en un solo formulario. Cambiar sólo los datos del cliente no puede producir conflicto, así que la primera llamada ya aplica.
+
+---
+
+## D-036 — Buscar en el listado por nombre o teléfono
+
+**Decisión** (2026-11-03, a petición de la dueña del producto): un único parámetro `buscar` en `GET /api/gestion/reservas`. El dominio lo clasifica y lo normaliza en `parseBookingListQuery`; el repositorio sólo compara.
+
+| Término | Se trata como | Comparación |
+|---|---|---|
+| Sólo cifras, con o sin espacios, puntos, guiones y `+34` / `0034` | Teléfono | `normalizePhone` de la 001, y **igualdad** con `customer_phone_normalized`. Si no es un teléfono válido, `INVALID_VALUE` en `buscar` con un mensaje que pide escribirlo completo |
+| Cualquier otro | Nombre | `searchableName` del término **contenido** en `customer_name_search` (`LIKE '%…%'`, con `%`, `_` y `\` escapados en la infraestructura) |
+
+**Una columna nueva, `customer_name_search`**, con el nombre ya normalizado por el dominio: Unicode NFD, sin las marcas diacríticas U+0300–U+036F, en minúsculas y con los espacios colapsados. Es el mismo patrón que `customer_phone_normalized` y `customer_email_normalized` de la 001: la regla de comparación vive en **un solo sitio**, `searchableName` en `contact/contact.ts`, y se aplica igual al guardar y al buscar. La escriben el `insert` de las citas online y manuales y la edición de D-035. Es un dato derivado del nombre y, por tanto, personal: la anonimización la pone a `NULL` junto al resto, y `appointment_anonymization_is_atomic` lo exige.
+
+**Rellenar las citas que ya existen**: la migración `0006` calcula la columna en SQL con el mismo algoritmo —`lower(regexp_replace(normalize(customer_name, NFD), '[̀-ͯ]', '', 'g'))` y el colapso de espacios—, porque las migraciones son SQL a mano (D-008) y no pueden llamar al dominio. Un test de la migración comprueba que el SQL y `searchableName` dan lo mismo para un juego de nombres con tildes, diéresis, eñes y mayúsculas. `lower` sobre lo que queda es seguro con cualquier intercalación: tras quitar las marcas, un nombre español sólo tiene letras ASCII.
+
+**El teléfono se compara entero**: la decisión de la dueña pide «por una parte» sólo para el nombre. Buscar «600 11» no es un teléfono y se explica, en lugar de devolver una lista vacía que se leería como «este cliente no tiene citas».
+
+**Las anonimizadas no aparecen** (FR-070) sin ninguna condición extra: sus dos columnas de búsqueda son `NULL` y no casan con nada.
+
+**Coste**: la búsqueda va **dentro** de la misma consulta de la página (FR-066). Un salón de un sillón acumula unos pocos miles de citas al año y la retención borra los nombres a los 12 meses, de modo que comparar por contenido recorre como mucho las filas de un año. El test de rendimiento del listado (SC-013) se amplía con la búsqueda. Si algún día no bastara, el siguiente paso es un índice `pg_trgm` sobre `customer_name_search`, sin cambiar nada más.
+
+**Descartado**:
+
+- **`unaccent` e `ILIKE` en la consulta**: deja la regla de comparación en SQL, fuera del dominio, y obliga a instalar otra extensión. Además `unaccent` no es `IMMUTABLE` y no se puede indexar sin envolverlo.
+- **Buscar también por email**: la decisión dice nombre o teléfono, y el email puede faltar en las citas a mano.
+- **Teléfono por una parte**: encontraría números ajenos con cuatro cifras en común, y la dueña siempre tiene el teléfono entero cuando la llaman.
+
+---
+
+## D-037 — El cliente sabe quién canceló su cita
+
+**Decisión** (2026-11-03, a petición de la dueña del producto): la pantalla del enlace de una cita cancelada dice «Has cancelado esta cita» si `cancelledBy = 'CUSTOMER'` y «El salón ha cancelado esta cita», con el teléfono del salón, si es `'OWNER'`. Sustituye al texto actual de la 001, «Esta cita está cancelada. Si quieres venir, reserva una nueva.». El listado de la dueña dice «Cancelada por el cliente» y «Cancelada por ti».
+
+**Contrato de cliente 2.1.0**: `AppointmentDetail` gana `cancelledBy` (`CUSTOMER` \| `OWNER` \| `null`). Es un cambio **compatible**, sólo añade un campo a una respuesta, y por eso sube la versión menor. Los cambios están en [contracts/http-api-changes.md](./contracts/http-api-changes.md); el `http-api.yaml` de la 001 se actualiza en la misma tarea que lo implementa, para que `npm run test:contract` compruebe siempre lo que hay.
+
+**Dónde vive cada cosa**: qué texto corresponde a cada valor es redacción y vive en `src/messages/es-ES.ts`; la pantalla elige el texto por el valor que le da el dominio, sin decidir nada (Principio I).
+
+**Rationale**: si la dueña cancela una cita online y no consigue hablar con el cliente, el enlace es lo único que el cliente va a mirar. «Esta cita está cancelada» sin más le haría pensar que la canceló él o que es un error; decir que fue el salón y darle el teléfono le dice qué hacer. Mostrar `cancelledBy` al cliente no expone nada de nadie: es un hecho de su propia cita, detrás de su propia credencial.
+
+**Fuera de esta decisión**: los defectos de texto de la 001 que el README lista —el aviso «Esta cita ya está cancelada…» que aparece justo después de cancelar y que se lee como un error— siguen siendo del paso 9 del roadmap. Esta decisión sólo cambia la frase que dice quién canceló.
+
+---
+
 ## Incógnitas resueltas — resumen
 
 | Incógnita de la especificación | Resuelta en | Valor |
@@ -345,3 +420,6 @@ Los formularios GET de navegación —cambiar de día en la agenda, los filtros 
 | Quién canceló una cita | D-032 | Columna `cancelled_by` (`CUSTOMER` \| `OWNER`), atada al estado |
 | Paginación y coste del listado de reservas | D-033 | 20 filas, una consulta, cursor por `(starts_at, id)` o `(created_at, id)` |
 | Responsive de las pantallas de la dueña | D-034 | Base de la 003, `NavForm` y los proyectos de Playwright por tamaño |
+| Editar los servicios y los datos de una cita | D-035 | `PATCH` con el protocolo de dos pasos; `planAppointmentEdit`; los snapshots que se quedan no se reescriben |
+| Búsqueda por nombre o teléfono | D-036 | Teléfono entero con `normalizePhone`; nombre por contenido sobre `customer_name_search`, normalizada en el dominio |
+| Quién canceló, visto por el cliente | D-037 | Texto según `cancelledBy`; contrato de cliente 2.1.0 |

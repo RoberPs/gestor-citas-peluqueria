@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: API de gestión del salón — cara a la dueña
-  version: 1.1.0
+  version: 1.2.0
   description: |
     Interfaz HTTP de la feature `002-salon-management`.
 
@@ -12,6 +12,11 @@ info:
     `PriceTotal`, `priceLabel`); cada cancelación dice quién la hizo
     (`cancelledBy`); y se añade `GET /gestion/reservas`, el listado de reservas de
     la Historia 10.
+
+    **Versión 1.2.0** (2026-11-03, todavía sin implementar): `PATCH
+    /gestion/citas/{id}` edita los servicios y los datos del cliente de una cita
+    (Historia 11, D-035), y `GET /gestion/reservas` admite `buscar`, por nombre o
+    por teléfono (D-036).
 
     Notas transversales, válidas para toda la API:
 
@@ -231,6 +236,18 @@ paths:
           required: false
           schema: { type: string, format: date }
           description: Día del salón, inclusivo. No puede ser anterior a `desde`.
+        - name: buscar
+          in: query
+          required: false
+          schema: { type: string, maxLength: 100 }
+          description: |
+            Nombre o teléfono del cliente (FR-069, D-036). Si sólo tiene cifras,
+            con o sin espacios, puntos, guiones y `+34` / `0034`, es un teléfono
+            y se compara entero; si no es un teléfono válido, `400` con
+            `code: INVALID_VALUE` y un `nextAction` que pide escribirlo completo.
+            Si no, es un nombre y se compara por cualquier parte, sin mayúsculas
+            ni acentos. Nunca encuentra una cita anonimizada (FR-070). Se
+            combina con los demás parámetros y se conserva al pasar de página.
         - name: despues
           in: query
           required: false
@@ -244,9 +261,10 @@ paths:
               schema: { $ref: '#/components/schemas/BookingListPage' }
         '400':
           description: |
-            Un parámetro con un valor no admitido, `hasta` anterior a `desde`, o un
-            cursor de otro orden. `nextAction` invita a volver a los filtros por
-            defecto.
+            Un parámetro con un valor no admitido, `hasta` anterior a `desde`, un
+            cursor de otro orden, o un `buscar` de sólo cifras que no es un
+            teléfono completo. `nextAction` dice qué corregir o invita a volver a
+            los filtros por defecto.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -291,6 +309,60 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
+  /gestion/citas/{id}:
+    patch:
+      tags: [Citas]
+      summary: Editar los servicios y los datos del cliente de una cita
+      description: |
+        Historia 11 (D-035). Sustituye a cancelar y apuntar otra. Sólo una cita
+        **confirmada** cuya hora de fin no ha pasado; una en curso se edita
+        (FR-071). La hora de inicio, el origen, el momento de la reserva y el
+        enlace de gestión no cambian (FR-073).
+
+        `serviceIds` es la lista **completa** de servicios que la cita tendrá.
+        Los que ya tenía conservan su snapshot aunque el catálogo haya cambiado
+        o el servicio se haya retirado; los nuevos tienen que estar activos y se
+        guardan con el nombre, la duración y el precio de este momento (FR-072,
+        BR-021). La duración es su suma y el fin se recalcula desde el inicio.
+
+        Mismo protocolo de dos pasos que crear y mover: si la cita se alarga y
+        pisa otra cita o un periodo, `409` nombrándolo; se repite con el
+        `stateToken` y una `resolution` (FR-074). Terminar fuera del horario de
+        apertura llega en `warnings` y se acusa con `acknowledgedWarnings`.
+        Cambiar sólo los datos del cliente nunca produce conflicto.
+
+        `customer` es completo: el email puede ir a `null` (FR-075). Si cambia el
+        teléfono o el email, se aplica el límite de 3 citas futuras al contacto
+        nuevo, sin contar esta cita.
+
+        La respuesta lleva `notifyCustomer` cuando la cita es online (FR-043).
+      parameters:
+        - $ref: '#/components/parameters/AppointmentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EditAppointmentRequest' }
+      responses:
+        '200':
+          description: Cita editada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OwnerAppointment' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422':
+          description: |
+            Bloqueado: la cita está cancelada (FR-042) o ya terminó (FR-071), un
+            dato de cliente está mal formado (FR-031), la selección está vacía,
+            repetida o añade un servicio retirado (FR-072), o el contacto nuevo
+            ya tiene 3 citas futuras (FR-075).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
   /gestion/citas/{id}/reprogramacion:
     post:
       tags: [Citas]
@@ -300,7 +372,7 @@ paths:
         duración total —la suma de sus snapshots, no la del catálogo de hoy—, los
         datos de cliente, el origen y —si la cita se reservó online— **su enlace de
         gestión en funcionamiento** (FR-039, FR-041, FR-025). No cambia servicios:
-        para eso se cancela y se apunta una cita nueva.
+        para eso está `PATCH /gestion/citas/{id}`.
 
         La respuesta lleva `notifyCustomer` cuando la cita era online: la pantalla
         debe recordar que el cliente no recibe ningún aviso y mostrar su teléfono
@@ -810,7 +882,8 @@ components:
         Algo estorba y hay que decidir antes de guardar (FR-032, FR-033).
 
         El cuerpo **nombra** cada elemento en conflicto: para una cita, el nombre del
-        cliente, el servicio y su franja; para un periodo, su franja y su motivo.
+        cliente, todos sus servicios y su franja; para un periodo, su franja y su
+        motivo.
         Nada se ha modificado: rechazar el aviso deja el sistema exactamente como
         estaba (FR-036, SC-006).
 
@@ -1026,7 +1099,7 @@ components:
           description: |
             La consulta ya normalizada por el dominio, con los valores por defecto
             puestos. La pantalla pinta los filtros a partir de esto, sin decidirlos.
-          required: [orden, estado, origen, desde, hasta]
+          required: [orden, estado, origen, desde, hasta, buscar]
           additionalProperties: false
           properties:
             orden: { type: string, enum: [proximas, recientes] }
@@ -1034,6 +1107,11 @@ components:
             origen: { type: string, enum: [online, mano, todos] }
             desde: { type: [string, 'null'], format: date }
             hasta: { type: [string, 'null'], format: date }
+            buscar:
+              type: [string, 'null']
+              description: |
+                El término tal como lo escribió la dueña, recortado, para
+                volver a pintarlo en el campo. `null` sin búsqueda.
         rows:
           type: array
           maxItems: 20
@@ -1166,6 +1244,36 @@ components:
             email:
               type: [string, 'null']
               description: Opcional. Una cita sin email es plenamente válida (FR-024).
+        stateToken: { type: string }
+        resolution: { $ref: '#/components/schemas/Resolution' }
+        acknowledgedWarnings:
+          type: array
+          items: { type: string }
+
+    EditAppointmentRequest:
+      type: object
+      required: [serviceIds, customer]
+      additionalProperties: false
+      properties:
+        serviceIds:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { type: string, format: uuid }
+          description: |
+            La lista completa de servicios que tendrá la cita (FR-072). Los que
+            ya tenía conservan su snapshot; los nuevos, del catálogo activo. El
+            orden no importa: se guardan en el del catálogo.
+        customer:
+          type: object
+          required: [name, phone]
+          additionalProperties: false
+          properties:
+            name: { type: string, minLength: 1 }
+            phone: { type: string, minLength: 1 }
+            email:
+              type: [string, 'null']
+              description: Opcional, también en una cita online (FR-075).
         stateToken: { type: string }
         resolution: { $ref: '#/components/schemas/Resolution' }
         acknowledgedWarnings:

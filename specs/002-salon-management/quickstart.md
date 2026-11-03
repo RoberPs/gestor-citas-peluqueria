@@ -27,7 +27,8 @@ npm install
 docker compose up -d db db-test
 
 # 6. Las migraciones nuevas (0004 a 0007): cuenta, sesión, periodos no
-#    disponibles, origen de la cita y quién la canceló, y configuración editable
+#    disponibles, origen de la cita, quién la canceló y nombre buscable, y
+#    configuración editable
 npm run db:migrate
 
 # 7. NUEVO: aprovisionar la credencial de la dueña, FUERA de la aplicación (FR-003)
@@ -68,7 +69,7 @@ La aplicación en marcha **no necesita ninguna variable nueva**. La sesión no l
 
 ---
 
-## Comprobación rápida (10 minutos)
+## Comprobación rápida (15 minutos)
 
 Con `npm run dev` levantado y la credencial aprovisionada:
 
@@ -95,9 +96,14 @@ Con `npm run dev` levantado y la credencial aprovisionada:
 | 19 | Elegir *Todas* | Aparecen la cancelada del paso 13 como «Cancelada por ti» y, si se canceló una desde un enlace, «Cancelada por el cliente», cada una con su fecha de cancelación | FR-062, FR-063, FR-040a |
 | 20 | Elegir *Últimas reservas recibidas* y pasar de página | Primero las apuntadas a mano en esta comprobación, la más reciente arriba; la página siguiente no repite ninguna fila | FR-061, FR-064 |
 | 21 | Activar una fila | Lleva a la agenda del día de esa cita | FR-065 |
-| 22 | Cerrar sesión y pulsar Atrás | No se ve ningún dato de gestión | FR-006 |
+| 22 | Buscar una parte del nombre de un cliente del seed, sin tildes y en mayúsculas | Aparecen sus citas; con *Todas*, también las canceladas | FR-069, SC-016 |
+| 23 | Buscar su teléfono con espacios y `+34`, y después sólo sus cuatro primeras cifras | Lo primero encuentra las mismas citas; lo segundo pide escribir el teléfono completo | FR-069 |
+| 24 | En la agenda, añadir un servicio a una cita que tiene libre el rato siguiente | Muestra la duración total y la nueva hora de fin antes de guardar; la cita se alarga y ese rato deja de ofrecerse en `/` | FR-072, FR-073, US11-1 |
+| 25 | Añadir un servicio a una cita que tiene otra justo detrás | Nombra la cita que estorba, como al mover; rechazar el aviso no cambia nada | FR-074, US11-3 |
+| 26 | Abrir el enlace de la cita online cancelada en el paso 13 | «El salón ha cancelado esta cita», con el teléfono del salón | FR-040b |
+| 27 | Cerrar sesión y pulsar Atrás | No se ve ningún dato de gestión | FR-006 |
 
-Los pasos 18 a 21 se repiten con la ventana a 1280 px de ancho: filtros a un lado y filas al otro, sin barra de desplazamiento horizontal (D-034).
+Los pasos 18 a 23 se repiten con la ventana a 1280 px de ancho: búsqueda y filtros a un lado y filas al otro, sin barra de desplazamiento horizontal (D-034).
 
 Los pasos 6, 7, 15 y 17 son los que demuestran lo que esta feature viene a resolver: **la configuración se edita en vivo y el cliente lo nota en la siguiente consulta, sin despliegue ni reinicio**.
 
@@ -133,9 +139,9 @@ npm run test:integration -- concurrent-conflict
 
 ### Cobertura mínima antes de dar la feature por terminada
 
-- Una historia de usuario, un archivo e2e: diez archivos, de `us1-access` a `us9-parameters` y `us10-bookings`, a 360 px y a 1280 px (proyectos `mobile-360` y `desktop-1280` de la 003), con la accesibilidad también a 768 px.
+- Una historia de usuario, un archivo e2e: once archivos, de `us1-access` a `us9-parameters`, `us10-bookings` y `us11-edit`, a 360 px y a 1280 px (proyectos `mobile-360` y `desktop-1280` de la 003), con la accesibilidad también a 768 px.
 - `@axe-core/playwright` sobre las siete pantallas de gestión, **incluido el diálogo de conflicto**, que es el elemento con más riesgo de trampa de foco de toda la feature.
-- Un test de regresión por cada garantía heredada que esta feature podría romper sin querer: que retirar un servicio no toca las citas (SC-008), que cambiar su duración no toca las ya confirmadas (FR-052), que reprogramar una cita online conserva su enlace vivo (FR-041), que el origen sobrevive a la reprogramación (FR-025), que mover una cita de varios servicios conserva todos y su duración total (FR-039) y que el cliente, al cancelar desde su enlace, queda registrado como quien canceló (FR-040a).
+- Un test de regresión por cada garantía heredada que esta feature podría romper sin querer: que retirar un servicio no toca las citas (SC-008), que cambiar su duración no toca las ya confirmadas (FR-052), que reprogramar una cita online conserva su enlace vivo (FR-041), que el origen sobrevive a la reprogramación (FR-025), que mover una cita de varios servicios conserva todos y su duración total (FR-039), que el cliente, al cancelar desde su enlace, queda registrado como quien canceló (FR-040a), y que editar una cita no reescribe los snapshots de los servicios que conserva (BR-021).
 - Cero tests saltados. La constitución no admite excepciones tácitas.
 
 ---

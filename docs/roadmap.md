@@ -62,17 +62,30 @@ verde, y es un punto donde se puede parar.
     sin N+1), a las citas a mano (elegir varios servicios, con la duración total), a
     mover citas (la duración es la suma de sus snapshots) y al catálogo de la US8
     (precio opcional, nunca 0).
-- [ ] **2b · Llevar a la 002 las decisiones del 2026-11-03 sobre su revisión**
+- [x] **2b · Llevar a la 002 las decisiones del 2026-11-03 sobre su revisión** — rama
+  `002-salon-management`, 2026-11-03
   - Ver las cuatro entradas del 2026-11-03 que empiezan por «002» en "Decisiones
     tomadas": editar cita, búsqueda, textos de cancelación y tamaño de página.
   - Spec (historia nueva de editar cita, requisito de búsqueda en la US10, texto de
     la cancelación en la pantalla del cliente; quitar de *Out of Scope* y de las
     *Assumptions* lo que estas decisiones contradicen), plan, modelo de datos,
     contratos y tareas. Cerrar con `/speckit-analyze`.
+    Resultado: la Historia 11 «Editar una cita» entra como Fase 8b; la búsqueda amplía
+    la Fase 4b y añade la columna `customer_name_search` a la migración `0006`, que
+    pasa a llamarse `0006_appointment_owner_fields.sql`; el cliente ve quién canceló, con
+    el contrato de cliente 2.1.0 (`specs/002-salon-management/contracts/http-api-changes.md`)
+    y el de gestión 1.2.0. Decisiones D-035 a D-037; tareas T188–T212 (212 en total);
+    `/speckit-analyze` sin problemas críticos.
+  - Concretado al bajarlo a la spec, a confirmar con la dueña del producto: un término
+    de sólo cifras que no es un teléfono completo se explica en vez de dar un listado
+    vacío; editar no cambia la hora (mover y editar son dos acciones); al editar, el
+    email puede quitarse también en una cita online, y un teléfono nuevo cuenta para el
+    límite de 3 citas futuras sin contar la propia cita.
   - Va antes del paso 3: la edición y los textos del cliente tocan el dominio y el
     contrato que el paso 3 empieza a construir.
 - [ ] **3 · 002, fases 1 y 2: setup y base común**
-  - Migraciones: cuenta de la dueña, sesión, periodos no disponibles, origen de la cita.
+  - Migraciones: cuenta de la dueña, sesión, periodos no disponibles, origen de la cita,
+    quién la canceló y nombre buscable.
   - Dominio: la disponibilidad resta intervalos en lugar de descartar días; email y
     enlace de gestión opcionales; antelación y plazo leídos de la configuración.
   - Configuración leída en vivo (sustituye la caché de D-003).
@@ -81,8 +94,9 @@ verde, y es un punto donde se puede parar.
   - Acceso de la dueña, agenda del día y listado de reservas.
   - Prueba manual en el navegador con la dueña del producto antes de seguir.
 - [ ] **5 · 002, US3:** bloquear ratos (comida, vacaciones, festivos).
-- [ ] **6 · 002, US4 + US5 + US6** → 🎯 **MVP completo**
-  - Citas a mano, mover y cancelar desde la agenda, aviso de conflicto atómico.
+- [ ] **6 · 002, US4 + US5 + US6 + US11** → 🎯 **MVP completo**
+  - Citas a mano, mover, editar y cancelar desde la agenda, aviso de conflicto atómico.
+  - El cliente ve en su enlace quién canceló su cita (contrato de cliente 2.1.0).
 - [ ] **7 · `004-notifications`:** avisos por email y, si se decide, SMS.
   Ver el apartado "Avisos" más abajo.
 - [ ] **8 · 002, US7 + US8 + US9:** editar horario, catálogo y parámetros desde la app.
@@ -160,9 +174,10 @@ Ninguna por ahora.
   desde su enlace o la dueña desde la gestión, y el listado lo muestra. Las
   cancelaciones anteriores se registran como del cliente, que era el único que podía
   cancelar.
-- 2026-11-03 · **002 · Servicios de una cita:** la dueña tampoco cambia los servicios
+- 2026-11-03 · ~~**002 · Servicios de una cita:** la dueña tampoco cambia los servicios
   de una cita confirmada en v1; mover sólo cambia la hora, como para el cliente en la
-  005. Para cambiarlos, cancela y apunta una nueva.
+  005. Para cambiarlos, cancela y apunta una nueva.~~ **Sustituida** el mismo día por
+  «002 · Editar una cita».
 
 - 2026-11-02 · **005 · Varios servicios por cita:** el cliente puede elegir varios. La
   cita dura la **suma** de sus servicios. Sin máximo y sin combinaciones prohibidas.

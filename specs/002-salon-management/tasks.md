@@ -10,10 +10,12 @@
 
 **Revisión del 2026-11-03**: las tareas se adaptan a la `005-multiple-services` (varios servicios por cita, precio opcional, migración `0003` ya ocupada) y a la `003-responsive-desktop`, y se añaden la Historia 10 (Fase 4b) y el registro de quién cancela. Las tareas nuevas van de la T165 a la T187 para no renumerar las existentes; T139 y T140 ya las cubrió la 005.
 
+**Segunda revisión del 2026-11-03**, con las decisiones de la dueña del producto: la Historia 11, «Editar una cita» (Fase 8b, D-035); la búsqueda en el listado (D-036), que amplía las tareas de la Fase 4b en su sitio y añade la columna `customer_name_search` a la Fase 2; y el texto de la cita cancelada que ve el cliente, con el contrato de cliente 2.1.0 (D-037), en la Fase 7. Las tareas nuevas van de la T188 a la T212.
+
 ## Format: `[ID] [P?] [Story] Description`
 
 - **[P]**: se puede ejecutar en paralelo (archivos distintos, sin dependencias pendientes)
-- **[Story]**: la historia a la que pertenece la tarea (US1 … US10)
+- **[Story]**: la historia a la que pertenece la tarea (US1 … US11)
 - Toda descripción lleva la ruta exacta del archivo
 
 ## Path Conventions
@@ -46,8 +48,11 @@ Proyecto único con arquitectura hexagonal, heredado de `001-client-appointment-
 
 - [ ] T006 [P] Test de regresión de la migración 0005 en `tests/integration/db/migration-0005-closures.test.ts`: carga cierres, migra y comprueba que los periodos resultantes cubren exactamente los mismos días, incluido uno en la semana del cambio de hora (data-model.md, "Migración desde `closure`")
 - [ ] T007 [P] Test de restricciones nuevas en `tests/integration/db/constraints.test.ts` (ampliar): `CHECK (ends_at > starts_at)` de `unavailable_period`, `EXCLUDE` de `opening_interval` y `CHECK` de rangos de `salon`. Los `CHECK` de `service` ya existen (0001 y 0003 de la 005) y ya tienen test
-- [ ] T008 [P] Test de la restricción `appointment_anonymization_is_atomic` reescrita en `tests/integration/db/constraints.test.ts`: cita manual sin email válida, cita manual con `token_hash` rechazada, cita online sin `token_hash` rechazada, anonimizada a medias rechazada (D-026)
-- [ ] T165 [P] Test de `appointment_cancelled_by_consistency` en `tests/integration/db/constraints.test.ts`: cancelada sin `cancelled_by` rechazada, confirmada con `cancelled_by` rechazada; y en `tests/integration/db/migration-0006-cancelled-by.test.ts`, que las canceladas existentes migran a `CUSTOMER` y las confirmadas a `NULL` (FR-040a, D-032)
+- [ ] T008 [P] Test de la restricción `appointment_anonymization_is_atomic` reescrita en `tests/integration/db/constraints.test.ts`: cita manual sin email válida, cita manual con `token_hash` rechazada, cita online sin `token_hash` rechazada, cita viva sin `customer_name_search` rechazada, anonimizada a medias —también con `customer_name_search` sin borrar— rechazada (D-026, D-036)
+- [ ] T165 [P] Test de `appointment_cancelled_by_consistency` en `tests/integration/db/constraints.test.ts`: cancelada sin `cancelled_by` rechazada, confirmada con `cancelled_by` rechazada; y en `tests/integration/db/migration-0006-owner-fields.test.ts`, que las canceladas existentes migran a `CUSTOMER` y las confirmadas a `NULL` (FR-040a, D-032)
+- [ ] T188 [P] Test unitario de `searchableName` en `tests/unit/domain/contact/contact.test.ts` (ampliar): tildes, diéresis, eñes, mayúsculas y espacios repetidos («José  NÚÑEZ» → «jose nunez»), y `validateContact` devuelve `searchName` (FR-069, D-036)
+- [ ] T189 [P] Test del relleno de `customer_name_search` en `tests/integration/db/migration-0006-owner-fields.test.ts`: carga citas con nombres con tildes, eñes y mayúsculas antes de la 0006, migra y exige que la columna valga **exactamente** lo que da `searchableName` para cada una, y `NULL` en las anonimizadas (D-036)
+- [ ] T190 [P] Test de regresión en `tests/integration/use-cases/purge-expired-personal-data.test.ts` (ampliar): anonimizar borra también `customer_name_search` (Principio III, D-036)
 - [ ] T166 [P] Test unitario en `tests/unit/domain/booking/cancel.test.ts` (ampliar): `applyCancellation` fija `cancelledBy: 'CUSTOMER'` junto a `cancelledAt` (FR-040a)
 - [ ] T167 [P] Test de regresión en `tests/integration/use-cases/cancel-appointment.test.ts` (ampliar): el cliente cancela desde su enlace y la cita queda con `cancelled_by = 'CUSTOMER'`; lo que ve el cliente no cambia (FR-040a)
 - [ ] T168 [P] Test en `tests/integration/repositories/appointment-repository.test.ts` (ampliar): las citas de un día se leen con **todos** sus servicios en el orden del catálogo, con una sola consulta, y devuelven `origin` y `cancelledBy` (FR-014, D-027)
@@ -63,7 +68,7 @@ La `0003_multiple_services.sql` es de la 005 y ya está en `main`: las de esta f
 
 - [ ] T014 Escribir a mano `src/infrastructure/db/migrations/0004_owner_account_and_session.sql`: `owner_account` con su índice único de fila única, `owner_session` con `token_hash` único y `ON DELETE CASCADE`, sin ninguna columna de IP ni de dispositivo (FR-009)
 - [ ] T015 Escribir a mano `src/infrastructure/db/migrations/0005_unavailable_period.sql`: crear la tabla, el `CHECK (ends_at > starts_at)`, el índice GiST sobre `tstzrange(starts_at, ends_at, '[)')`, convertir los cierres a instantes en la zona del salón y eliminar `closure` (D-019, D-027)
-- [ ] T016 Escribir a mano `src/infrastructure/db/migrations/0006_appointment_origin_and_cancellation.sql`: enums `appointment_origin` y `appointment_actor`, columna `origin NOT NULL` con `ONLINE` para lo existente, columna `cancelled_by` con `CUSTOMER` para las ya canceladas y su `CHECK` `appointment_cancelled_by_consistency`, reescritura de `appointment_anonymization_is_atomic`, e índices `appointment_starts_at_id_idx` y `appointment_created_at_id_idx` del listado (D-026, D-032, D-033)
+- [ ] T016 Escribir a mano `src/infrastructure/db/migrations/0006_appointment_owner_fields.sql`: enums `appointment_origin` y `appointment_actor`, columna `origin NOT NULL` con `ONLINE` para lo existente, columna `cancelled_by` con `CUSTOMER` para las ya canceladas y su `CHECK` `appointment_cancelled_by_consistency`, columna `customer_name_search` rellenada con el SQL de data-model.md, reescritura de `appointment_anonymization_is_atomic` con ella dentro, e índices `appointment_starts_at_id_idx` y `appointment_created_at_id_idx` del listado (D-026, D-032, D-033, D-036)
 - [ ] T017 Escribir a mano `src/infrastructure/db/migrations/0007_editable_configuration.sql`: columnas de política en `salon` con sus `CHECK` de rango y de horas completas, tipo `timerange` y `EXCLUDE` de `opening_interval` (D-022, FR-045). `service` no se toca: sus `CHECK` ya existen (D-031)
 - [ ] T018 Actualizar `src/infrastructure/db/schema.ts`: tablas `owner_account`, `owner_session` y `unavailable_period`, columnas nuevas de `salon` y de `appointment` (`origin`, `cancelled_by`), y retirada de `closure`
 
@@ -74,6 +79,7 @@ La `0003_multiple_services.sql` es de la 005 y ya está en `main`: las de esta f
 - [ ] T021 Generalizar `src/domain/availability/compute-day.ts`: `isClosed: boolean` → `unavailablePeriods`, concatenando citas y periodos **antes** de la única comprobación de solape (contracts/domain-api.md)
 - [ ] T022 Generalizar `src/domain/availability/compute-range.ts` con la regla `CLOSED`/`FULL` de D-020, apoyándose en `interval-math.ts`
 - [ ] T023 [P] Hacer opcional el email en `src/domain/contact/contact.ts`: `CustomerContact.email: string | null` y `validateContact` tratando la ausencia como válida (D-026)
+- [ ] T191 Añadir `searchableName` y `ValidatedContact.searchName` a `src/domain/contact/contact.ts`, como única definición de cómo se compara un nombre (D-036; después de T023, mismo archivo)
 - [ ] T024 Propagar el email opcional por los llamantes que el compilador señale en `src/domain/booking/`, `src/application/use-cases/` y `src/components/`, sin cambiar ningún comportamiento de la cara del cliente
 - [ ] T169 Añadir `origin` y `cancelledBy: CancellationActor | null` a `Appointment` en `src/domain/booking/appointment.ts`, y hacer que `applyCancellation` en `src/domain/booking/cancel.ts` fije `cancelledBy: 'CUSTOMER'` (D-032, contracts/domain-api.md)
 
@@ -83,12 +89,13 @@ La `0003_multiple_services.sql` es de la 005 y ya está en `main`: las de esta f
 - [ ] T026 Retirar el caché de proceso de `src/infrastructure/db/salon-config-repository.ts`, leer la política de la fila `salon` y borrar el comentario que dejó de ser cierto (D-021, D-022)
 - [ ] T027 [P] Implementar `src/infrastructure/db/unavailable-period-repository.ts` con `findOverlapping` apoyada en el índice GiST, `insert`, `shorten` y `delete`
 - [ ] T028 Añadir `origin`, `cancelled_by` y el email opcional a `src/infrastructure/db/appointment-repository.ts`; `cancel(id, at, by)` escribe `cancelled_by` en el mismo `UPDATE`; y una consulta de las citas de un día **con sus servicios** de `appointment_service`, en una sola consulta, con filtro de canceladas (FR-014, FR-015, FR-040a, D-027)
-- [ ] T170 Pasar `CUSTOMER` desde `src/application/use-cases/cancel-appointment.ts` al repositorio, sin cambiar nada de lo que ve el cliente (FR-040a)
+- [ ] T170 Pasar `CUSTOMER` desde `src/application/use-cases/cancel-appointment.ts` al repositorio, sin cambiar nada de lo que ve el cliente (FR-040a). El texto que el cliente ve según quién canceló es de la Fase 7 (T195)
+- [ ] T192 Escribir `customer_name_search` desde `ValidatedContact.searchName` en el `insert` de `src/infrastructure/db/appointment-repository.ts`, y ponerla a `NULL` en `anonymizeDueBefore` y `anonymizeOne` (D-036; después de T028, mismo archivo)
 - [ ] T029 [P] Cargar los festivos como `unavailable_period` de día completo y añadir la comida de un martes en `db/seed/seed.ts`; retirar toda referencia a `closure` en `db/seed/configuration.ts`, que comparten el fixture y la demo. En `db/seed/demo.ts` sólo cambia el nombre del campo (`closures: []` pasa a periodos vacíos): sus datos no se tocan
 - [ ] T030 [P] Crear el bloque `owner` de textos en `src/messages/es-ES.ts`, con los mensajes comunes de carga, éxito y error accionable (FR-059)
 - [ ] T031 Registrar los repositorios y puertos nuevos en `src/app/_lib/container.ts`
 
-**Checkpoint**: `npm run test:all` en verde con los cierres migrados, la configuración leída en vivo y las cancelaciones del cliente registradas como suyas. La 001 y la 005 siguen en verde sin cambiar de comportamiento. Las historias pueden empezar.
+**Checkpoint**: `npm run test:all` en verde con los cierres migrados, la configuración leída en vivo, las cancelaciones del cliente registradas como suyas y el nombre buscable guardado en cada cita. La 001 y la 005 siguen en verde sin cambiar de comportamiento. Las historias pueden empezar.
 
 ---
 
@@ -157,7 +164,7 @@ La `0003_multiple_services.sql` es de la 005 y ya está en `main`: las de esta f
 - [ ] T067 [P] [US2] Implementar `src/components/owner/timeline.tsx` como **lista** semántica, no rejilla absoluta: recorrible con teclado y legible con lector de pantalla (Principio VII). Cada cita muestra todos sus servicios y su precio total reutilizando `src/components/service-summary.tsx` de la 005 (FR-014)
 - [ ] T068 [US2] Implementar la pantalla `src/app/gestion/agenda/page.tsx` con la navegación a cualquier fecha y el atajo de hoy (FR-012), con `NavForm` para cambiar de día y la base responsive de la 003: línea temporal en `.col-main`, navegación en `.col-side` dentro de `.page--split` (D-034)
 - [ ] T069 [P] [US2] Añadir a `src/messages/es-ES.ts` los textos de origen de la cita, estado, estado vacío "sin citas" y "cerrado" (FR-013, FR-017)
-- [ ] T070 [P] [US2] Extender la redacción de Pino en `src/infrastructure/logging/logger.ts` a los cuerpos de agenda y conflicto, que llevan nombre y teléfono (FR-057)
+- [ ] T070 [P] [US2] Extender la redacción de Pino en `src/infrastructure/logging/logger.ts` a los cuerpos de agenda y conflicto y a los de crear y editar una cita (`POST /gestion/citas` y `PATCH /gestion/citas/{id}`), que llevan nombre, teléfono y email (FR-057)
 
 **Checkpoint**: la agenda sustituye al papel. Historias 1 y 2 funcionan por separado.
 
@@ -165,31 +172,32 @@ La `0003_multiple_services.sql` es de la 005 y ya está en `main`: las de esta f
 
 ## Phase 4b: User Story 10 - Consultar el listado de reservas (Priority: P1)
 
-**Goal**: la dueña ve sus reservas una debajo de otra, con los dos órdenes, los filtros de estado, origen y fechas, y quién canceló cada cancelada.
+**Goal**: la dueña ve sus reservas una debajo de otra, con los dos órdenes, los filtros de estado, origen y fechas, la búsqueda por nombre o teléfono, y quién canceló cada cancelada.
 
-**Independent Test**: con citas confirmadas y canceladas, online y a mano, en varios días, abrir el listado y comprobar el orden por defecto, cada filtro, el otro orden, la paginación y el enlace de cada fila a su día.
+**Independent Test**: con citas confirmadas y canceladas, online y a mano, en varios días, abrir el listado y comprobar el orden por defecto, cada filtro, el otro orden, la búsqueda, la paginación y el enlace de cada fila a su día.
 
 **Depende de**: US1 (el guardián) y la Fase 2 (`cancelled_by`, citas con servicios). Sólo el escenario 7 —ir a la agenda desde una fila— necesita la pantalla de US2 (T068).
 
 ### Tests de la Historia 10 ⚠️
 
-- [ ] T171 [P] [US10] Test unitario en `tests/unit/domain/owner/booking-list.test.ts`: valores por defecto `UPCOMING`, `CONFIRMED` y `ALL`; `notBefore` es el inicio de hoy en `Europe/Madrid` con el reloj inyectado, también un día de cambio de hora; `RANGE_REVERSED`; `INVALID_VALUE` por campo; `CURSOR_ORDER_MISMATCH` (FR-061, FR-062, D-033)
-- [ ] T172 [P] [US10] Test de contrato en `tests/contract/owner/reservas.test.ts` para `GET /gestion/reservas`: forma de `BookingListPage`, `query` normalizada en la respuesta, 400 con `nextAction` y 401 sin sesión
+- [ ] T171 [P] [US10] Test unitario en `tests/unit/domain/owner/booking-list.test.ts`: valores por defecto `UPCOMING`, `CONFIRMED` y `ALL`; `notBefore` es el inicio de hoy en `Europe/Madrid` con el reloj inyectado, también un día de cambio de hora; `RANGE_REVERSED`; `INVALID_VALUE` por campo; `CURSOR_ORDER_MISMATCH`; y la búsqueda: vacía es `null`, «600 11 22 33», «+34600112233» y «0034 600-112-233» son el mismo `PHONE`, «600 11» es `INVALID_VALUE` en `search`, «José NÚÑEZ» es `NAME` «jose nunez» (FR-061, FR-062, FR-069, D-033, D-036)
+- [ ] T172 [P] [US10] Test de contrato en `tests/contract/owner/reservas.test.ts` para `GET /gestion/reservas`: forma de `BookingListPage`, `query` normalizada en la respuesta con `buscar`, 400 con `nextAction` —también por un `buscar` de cifras incompleto— y 401 sin sesión
 - [ ] T173 [P] [US10] Test de integración en `tests/integration/use-cases/list-bookings.test.ts` contra PostgreSQL real: los dos órdenes, cada filtro y sus combinaciones, el rango sobre el día de la cita en los dos órdenes, una cita de varios servicios con todos en orden, una cancelada con su fecha y `cancelledBy`, una anonimizada sin datos personales (FR-060 a FR-063, FR-067)
-- [ ] T174 [P] [US10] Test de paginación en `tests/integration/use-cases/list-bookings.test.ts`: 45 citas en tres páginas sin repetir ni saltarse ninguna, también con una reserva insertada entre página y página (FR-064, D-033)
-- [ ] T175 [P] [US10] Test de rendimiento en `tests/integration/performance/booking-list-performance.test.ts`: **una** consulta por página, igual con la base vacía que con las 10.000 citas de `db:seed:history` y con cuatro servicios por cita (FR-066, SC-013)
-- [ ] T176 [P] [US10] E2E en `tests/e2e/us10-bookings.spec.ts`: los ocho escenarios de la historia y el escenario 6 de la US5 —una cita cancelada desde la gestión aparece como «Cancelada por ti» y una cancelada desde el enlace como «Cancelada por el cliente»—, con `clickAndNavigate` en cada cambio de filtro, de orden y de página, más axe; a 360 px y a 1280 px (D-034)
+- [ ] T193 [P] [US10] Test de integración de la búsqueda en `tests/integration/use-cases/list-bookings.test.ts`: por una parte del nombre con y sin acentos y mayúsculas, por el teléfono escrito de tres formas, combinada con el filtro *Canceladas* y con los dos órdenes, sin encontrar nunca una anonimizada, y un `%` o un `_` en el término tratados como letras (FR-069, FR-070, SC-016)
+- [ ] T174 [P] [US10] Test de paginación en `tests/integration/use-cases/list-bookings.test.ts`: 45 citas en tres páginas sin repetir ni saltarse ninguna, también con una reserva insertada entre página y página y con una búsqueda activa (FR-064, D-033)
+- [ ] T175 [P] [US10] Test de rendimiento en `tests/integration/performance/booking-list-performance.test.ts`: **una** consulta por página, igual con la base vacía que con las 10.000 citas de `db:seed:history`, con cuatro servicios por cita y con una búsqueda por nombre y otra por teléfono (FR-066, SC-013, SC-016)
+- [ ] T176 [P] [US10] E2E en `tests/e2e/us10-bookings.spec.ts`: los once escenarios de la historia y el escenario 6 de la US5 —una cita cancelada desde la gestión aparece como «Cancelada por ti» y una cancelada desde el enlace como «Cancelada por el cliente»—, con `clickAndNavigate` en cada cambio de filtro, de orden, de búsqueda y de página, *Volver al principio* incluido, más axe; a 360 px y a 1280 px (D-034)
 
 ### Implementación de la Historia 10
 
-- [ ] T177 [US10] Implementar `src/domain/owner/booking-list.ts`: `BOOKING_LIST_PAGE_SIZE` y `parseBookingListQuery` (contracts/domain-api.md)
-- [ ] T178 [US10] Declarar `BookingListReader` en `src/application/ports/index.ts` e implementarlo en `src/infrastructure/db/booking-list-reader.ts`: una consulta con los servicios agregados por `json_agg` en una subconsulta lateral, `LIMIT` de 21 y la clave del cursor según el orden (D-033)
+- [ ] T177 [US10] Implementar `src/domain/owner/booking-list.ts`: `BOOKING_LIST_PAGE_SIZE` y `parseBookingListQuery`, con la clasificación de la búsqueda apoyada en `normalizePhone` y `searchableName` (contracts/domain-api.md, D-036)
+- [ ] T178 [US10] Declarar `BookingListReader` en `src/application/ports/index.ts` e implementarlo en `src/infrastructure/db/booking-list-reader.ts`: una consulta con los servicios agregados por `json_agg` en una subconsulta lateral, `LIMIT` de 21, la clave del cursor según el orden y, si hay búsqueda, la igualdad sobre `customer_phone_normalized` o el `LIKE` con `%`, `_` y `\` escapados sobre `customer_name_search` (D-033, D-036)
 - [ ] T179 [US10] Implementar `src/application/use-cases/list-bookings.ts` y registrarlo en `src/app/_lib/container.ts`
-- [ ] T180 [US10] Implementar `src/app/api/gestion/reservas/route.ts` (`GET`) con el guardián de T050, validación Zod de los parámetros, la traducción de sus valores en español (`proximas`, `mano`…) a los del dominio (`UPCOMING`, `OWNER`…) y el cursor opaco codificado en la frontera HTTP
+- [ ] T180 [US10] Implementar `src/app/api/gestion/reservas/route.ts` (`GET`) con el guardián de T050, validación Zod de los parámetros —`buscar` incluido—, la traducción de sus valores en español (`proximas`, `mano`…) a los del dominio (`UPCOMING`, `OWNER`…) y el cursor opaco codificado en la frontera HTTP
 - [ ] T181 [P] [US10] Implementar `src/components/owner/booking-list.tsx`: una fila por cita con día y hora, servicios y precio (`service-summary.tsx`), nombre, teléfono, estado, origen y fecha de reserva; «Cancelada» con icono, fecha y «por el cliente» o «por ti»; origen y fecha de reserva en `.wide-only` a 1024 px; cada fila enlaza a `/gestion/agenda?fecha=…` (FR-060, FR-063, FR-065)
-- [ ] T182 [US10] Implementar la pantalla `src/app/gestion/reservas/page.tsx`: filtros y orden con `NavForm` en `.col-side`, filas en `.col-main` dentro de `.page--split`, *Página siguiente* y *Volver al principio*, estado vacío con vuelta a los filtros por defecto (FR-064, FR-068, D-034)
+- [ ] T182 [US10] Implementar la pantalla `src/app/gestion/reservas/page.tsx`: campo de búsqueda con su etiqueta, filtros y orden con `NavForm` en `.col-side`, filas en `.col-main` dentro de `.page--split`, *Página siguiente* y *Volver al principio* conservando filtros y búsqueda, estado vacío con vuelta a los filtros por defecto (FR-064, FR-068, FR-069, D-034)
 - [ ] T183 [P] [US10] Añadir el enlace al listado en la navegación de gestión, junto a la agenda
-- [ ] T184 [P] [US10] Añadir a `src/messages/es-ES.ts` los textos del listado: órdenes, filtros, «Cancelada por el cliente», «Cancelada por ti», datos borrados por antigüedad, estado vacío y paginación
+- [ ] T184 [P] [US10] Añadir a `src/messages/es-ES.ts` los textos del listado: órdenes, filtros, búsqueda —su etiqueta, su ayuda y el error de un teléfono incompleto—, «Cancelada por el cliente», «Cancelada por ti», datos borrados por antigüedad, estado vacío y paginación
 
 **Checkpoint**: 🎯 **MVP mínimo**. Con US1, US2 y US10 la dueña entra, ve su día y ve todas sus reservas, y nadie más puede verlos.
 
@@ -265,7 +273,9 @@ La `0003_multiple_services.sql` es de la 005 y ya está en `main`: las de esta f
 - [ ] T098 [P] [US5] Test de integración en `tests/integration/use-cases/cancel-appointment-as-owner.test.ts`: la dueña cancela dentro del plazo vedado al cliente, la cita queda con `cancelled_by = 'OWNER'`, y una cita cancelada no se reactiva ni se mueve (FR-040a, FR-042, BR-007, BR-008)
 - [ ] T185 [P] [US5] Test unitario en `tests/unit/domain/owner/cancellation.test.ts`: `applyOwnerCancellation` fija `cancelledBy: 'OWNER'`, no consulta el plazo, rechaza `ALREADY_CANCELLED` e `IN_THE_PAST` y deja cancelar una cita en curso (FR-016, FR-040a, BR-007)
 - [ ] T099 [P] [US5] Test de integración de que ni crear ni mover al pasado es posible, con una cita **en curso** que sí se mueve, en `tests/integration/use-cases/reschedule-appointment-as-owner.test.ts` (FR-030, BR-009)
-- [ ] T100 [P] [US5] E2E en `tests/e2e/us5-manage.spec.ts`: mover, cancelar con confirmación explícita que nombra la cita, y el recordatorio de FR-043 con el teléfono a la vista, más axe. El escenario 6 —la cancelada aparece en el listado como «Cancelada por ti»— lo comprueba T176, porque necesita la pantalla de la US10
+- [ ] T100 [P] [US5] E2E en `tests/e2e/us5-manage.spec.ts`: mover, cancelar con confirmación explícita que nombra la cita, el recordatorio de FR-043 con el teléfono a la vista y, en el escenario 7, abrir después el enlace de esa cita y leer «El salón ha cancelado esta cita» con el teléfono del salón, más axe. El escenario 6 —la cancelada aparece en el listado como «Cancelada por ti»— lo comprueba T176, porque necesita la pantalla de la US10
+- [ ] T194 [P] [US5] Ampliar el test de contrato de la vista de la cita en `tests/contract/` y pasar `specs/001-client-appointment-booking/contracts/http-api.yaml` a la **2.1.0** según `contracts/http-api-changes.md`: `AppointmentDetail` exige `cancelledBy`. Queda en rojo hasta T195 (D-037)
+- [ ] T196 [P] [US5] Ampliar `tests/e2e/us5-cancel.spec.ts` de la 001: tras cancelar desde el enlace, la pantalla dice «Has cancelado esta cita» y ya no «Esta cita está cancelada…» (FR-040b, D-037)
 
 ### Implementación de la Historia 5
 
@@ -276,6 +286,7 @@ La `0003_multiple_services.sql` es de la 005 y ya está en `main`: las de esta f
 - [ ] T104 [P] [US5] Implementar `src/app/api/gestion/citas/[id]/cancelacion/route.ts` (`POST`)
 - [ ] T105 [US5] Añadir a `src/app/gestion/agenda/page.tsx` las acciones de mover y cancelar, con confirmación explícita que nombra la cita concreta (FR-040)
 - [ ] T106 [P] [US5] Añadir el aviso de "el cliente no recibe ningún aviso" con su teléfono a `src/messages/es-ES.ts` y a la pantalla (FR-043)
+- [ ] T195 [US5] Devolver `cancelledBy` desde `src/application/use-cases/view-appointment.ts` y su Route Handler, y en `src/app/cita/[token]/page.tsx` elegir el texto según su valor: «Has cancelado esta cita» o «El salón ha cancelado esta cita» con el teléfono del salón, sustituyendo `cancelledNote` en `src/messages/es-ES.ts` (FR-040b, D-037)
 
 **Checkpoint**: todo cambio de última hora se resuelve dentro de la app.
 
@@ -307,7 +318,41 @@ La `0003_multiple_services.sql` es de la 005 y ya está en `main`: las de esta f
 - [ ] T117 [US6] Implementar `src/components/owner/conflict-dialog.tsx`: `dialog` modal accesible que nombra cada elemento en conflicto —con todos los servicios de una cita— y ofrece **sólo** salidas explícitas (FR-033, FR-034)
 - [ ] T118 [P] [US6] Añadir los textos del diálogo de conflicto a `src/messages/es-ES.ts`, con el nombre del cliente en pantalla y **nunca** en el log (FR-057)
 
-**Checkpoint**: las siete historias P1 —US1 a US6 y US10— están completas. La feature es usable de punta a punta; SC-004, SC-005 y SC-006 se cumplen.
+**Checkpoint**: crear, mover y cancelar con resolución de conflictos están completos; SC-004, SC-005 y SC-006 se cumplen. Falta la Historia 11 para cerrar la gestión manual.
+
+---
+
+## Phase 8b: User Story 11 - Editar una cita (Priority: P1)
+
+**Goal**: la dueña cambia los servicios y los datos del cliente de una cita sin cancelarla, con el mismo aviso de conflicto que al moverla, y sin tocar los snapshots que la cita ya tenía.
+
+**Independent Test**: añadir un servicio a una cita con hueco detrás y ver que se alarga y que el hueco deja de ofrecerse; añadir otro a una cita con otra detrás y ver el aviso de conflicto; corregir un teléfono y ver que el enlace del cliente sigue funcionando.
+
+**Depende de**: US6 (`buildResolutionPlan`, `applyPlan` y el diálogo de conflicto) y US5 (las acciones sobre una cita en la agenda).
+
+### Tests de la Historia 11 ⚠️
+
+- [ ] T197 [P] [US11] Test unitario de `mergeServiceSelection` en `tests/unit/domain/catalog/selection.test.ts` (ampliar): un servicio que se queda conserva su snapshot aunque esté retirado o haya cambiado de precio; uno nuevo toma el snapshot de hoy y tiene que estar activo (`UNKNOWN_SERVICE` si no); `EMPTY` y `DUPLICATE`; orden del catálogo con retirados incluidos (FR-072, BR-021)
+- [ ] T198 [P] [US11] Test unitario de `planAppointmentEdit` en `tests/unit/domain/owner/appointment-edit.test.ts`: el inicio no cambia; alargar sobre otra cita o un periodo da conflicto y acortar nunca; la propia cita no estorba; terminar tras el cierre avisa con `OUTSIDE_OPENING_HOURS`; `ALREADY_CANCELLED`; `IN_THE_PAST` con el fin actual, y una cita en curso se edita; `CONTACT_LIMIT_REACHED` sólo si cambia el contacto (FR-071 a FR-075)
+- [ ] T199 [P] [US11] Test unitario en `tests/unit/domain/owner/conflict.test.ts` (ampliar): `buildResolutionPlan` acepta `EditAppointment` con las mismas salidas y los mismos fallos que mover, y `computeStateToken` cambia cuando una cita en conflicto se alarga (FR-074, D-024)
+- [ ] T200 [P] [US11] Test de contrato en `tests/contract/owner/citas-edicion.test.ts` para `PATCH /gestion/citas/{id}`: 200, 409 con el conflicto, 422 por cada bloqueo, 404 y 401
+- [ ] T201 [P] [US11] Test de integración en `tests/integration/use-cases/edit-appointment-as-owner.test.ts` contra PostgreSQL real: las filas de `appointment_service` que se quedan no cambian ni de precio ni de duración; las nuevas llevan el snapshot de hoy; `position` sale en el orden del catálogo; `ends_at` es inicio más la suma; `id`, `starts_at`, `origin`, `created_at` y `token_hash` no cambian; `customer_name_search` sigue al nombre nuevo; el email puede quitarse en una cita online; el contacto nuevo con tres citas futuras se rechaza (FR-072, FR-073, FR-075, BR-021)
+- [ ] T202 [P] [US11] Test de concurrencia en `tests/integration/concurrency/concurrent-conflict.test.ts` (ampliar): una edición que alarga una cita y una reserva online sobre ese mismo rato, a la vez; exactamente una prospera y nunca queda un solape guardado (FR-038, SC-004)
+- [ ] T203 [P] [US11] Test de integración en `tests/integration/use-cases/view-appointment.test.ts` y `reschedule-appointment.test.ts` (ampliar): tras editar una cita online, su enlace muestra los servicios, la duración y el precio nuevos, y reprogramarla desde el enlace usa la duración nueva (FR-076)
+- [ ] T204 [P] [US11] E2E en `tests/e2e/us11-edit.spec.ts`: los ocho escenarios de la historia, con el diálogo de conflicto del escenario 3, más axe y la medición de SC-015; a 360 px y a 1280 px
+
+### Implementación de la Historia 11
+
+- [ ] T205 [US11] Implementar `mergeServiceSelection` en `src/domain/catalog/selection.ts`, junto a `selectServices` (contracts/domain-api.md)
+- [ ] T206 [US11] Implementar `src/domain/owner/appointment-edit.ts` con `planAppointmentEdit`, apoyada en `detectConflicts`, `isPastSlot` y `durationOfServices`, y añadir `EditAppointment` a `ResolutionIntent` en `src/domain/owner/conflict.ts` (D-035)
+- [ ] T207 [US11] Permitir excluir una cita en `countFutureByContact` de `src/infrastructure/db/appointment-repository.ts`, para el límite al editar el contacto (FR-075)
+- [ ] T208 [US11] Aplicar `EditAppointment` en `applyPlan` de `src/infrastructure/db/owner-appointment-writer.ts`: `UPDATE` de `ends_at` y de los datos del cliente con `customer_name_search`; `DELETE` de los servicios que salen, `INSERT` de los que entran y renumeración de `position` sin tocar nada más de las filas que se quedan, todo en la misma transacción (D-035, BR-021)
+- [ ] T209 [US11] Implementar `src/application/use-cases/edit-appointment-as-owner.ts`: carga la cita y el catálogo entero, `mergeServiceSelection`, `validateContact` con el email opcional, el recuento del contacto nuevo sólo si cambió, `planAppointmentEdit` y el protocolo de dos pasos; registrarlo en `src/app/_lib/container.ts`
+- [ ] T210 [US11] Implementar `PATCH` en `src/app/api/gestion/citas/[id]/route.ts` con validación Zod, el guardián y `notifyCustomer` en las citas online (FR-043)
+- [ ] T211 [P] [US11] Implementar `src/components/owner/appointment-edit-form.tsx`: los servicios con `service-picker.tsx` de la 005 y la duración total y la hora de fin a la vista, los datos del cliente con los mismos campos que `manual-booking-form.tsx`, y el diálogo de conflicto de T117 (FR-073, SC-015)
+- [ ] T212 [US11] Añadir la acción «Editar» a cada cita de `src/app/gestion/agenda/page.tsx`, sólo en las confirmadas no terminadas, y los textos de la edición a `src/messages/es-ES.ts`
+
+**Checkpoint**: 🎯 **MVP completo**. Las ocho historias P1 —US1 a US6, US10 y US11— están completas. La gestión manual funciona de punta a punta sin romper la garantía de no-superposición.
 
 ---
 
@@ -393,21 +438,21 @@ La `0003_multiple_services.sql` es de la 005 y ya está en `main`: las de esta f
 - [ ] T155 [US9] Implementar la pantalla `src/app/gestion/parametros/page.tsx`, que **recibe** los límites y no los reescribe (Principio I), en una columna con la base de la 003 (D-034)
 - [ ] T156 [P] [US9] Añadir los textos de parámetros a `src/messages/es-ES.ts`
 
-**Checkpoint**: las diez historias están completas.
+**Checkpoint**: las once historias están completas.
 
 ---
 
 ## Phase 12: Polish & Cross-Cutting Concerns
 
-- [ ] T157 [P] Auditoría de accesibilidad de las siete pantallas y del diálogo de conflicto en `tests/e2e/accessibility.spec.ts` (ampliar), sin ninguna incidencia AA y operable íntegramente con teclado, en los tres tamaños de la 003 (SC-011)
+- [ ] T157 [P] Auditoría de accesibilidad de las siete pantallas, del diálogo de conflicto y de los formularios de cita a mano y de edición en `tests/e2e/accessibility.spec.ts` (ampliar), sin ninguna incidencia AA y operable íntegramente con teclado, en los tres tamaños de la 003 (SC-011)
 - [ ] T187 [P] Ampliar `tests/e2e/responsive.spec.ts` con las pantallas de gestión a 1280 px —agenda y listado en dos columnas, el resto en una, sin desplazamiento horizontal— y comprobar que `tests/unit/ui/layout-breakpoints.test.ts` sigue en verde sin excepciones nuevas (FR-058, D-034)
-- [ ] T158 [P] Barrido manual de PII en los logs siguiendo `quickstart.md`, y ampliación de `tests/integration/logging/no-pii.test.ts` con los cuerpos de agenda y conflicto (FR-057)
+- [ ] T158 [P] Barrido manual de PII en los logs siguiendo `quickstart.md`, y ampliación de `tests/integration/logging/no-pii.test.ts` con los cuerpos de agenda, conflicto, cita a mano y edición, y con el parámetro `buscar` del listado, que lleva un nombre o un teléfono en la URL: ni su valor ni la URL completa pueden llegar a ningún log ni traza (FR-057, D-036)
 - [ ] T159 [P] Revisar que ningún texto de gestión vive fuera de `src/messages/es-ES.ts` con un test en `tests/unit/messages/actionable-errors.test.ts` (ampliar)
-- [ ] T160 [P] Actualizar `CLAUDE.md`: los cierres pasan a periodos no disponibles, la configuración deja de ser precargada, aparece `owner:provision` y cada cancelación guarda quién la hizo
+- [ ] T160 [P] Actualizar `CLAUDE.md`: los cierres pasan a periodos no disponibles, la configuración deja de ser precargada, aparece `owner:provision`, cada cancelación guarda quién la hizo, la dueña puede editar los servicios de una cita y el contrato HTTP vivo de cliente es el 2.1.0
 - [ ] T161 [P] Actualizar `README.md` (estado del producto, features y checks) y `docs/roadmap.md` con el estado de la feature 002
 - [ ] T162 Verificar el despliegue según `quickstart.md`: aprovisionar, retirar `OWNER_INITIAL_PASSWORD` del entorno y comprobar que la cookie `__Host-` exige HTTPS
 - [ ] T163 Ejecutar `npm run test:all`, `npm run lint` y `npm run check:layers` en verde, con cero tests saltados
-- [ ] T164 Recorrer los 22 pasos de la comprobación rápida de `quickstart.md` a mano, y los del listado otra vez a 1280 px
+- [ ] T164 Recorrer los 27 pasos de la comprobación rápida de `quickstart.md` a mano, y los del listado otra vez a 1280 px
 
 ---
 
@@ -431,6 +476,8 @@ La `0003_multiple_services.sql` es de la 005 y ya está en `main`: las de esta f
 - **US5**: depende de US1 y de US2 (T068), por la misma razón: **T105 requiere que T068 exista**, porque
   añade las acciones de mover y cancelar a la propia línea temporal.
 - **US6**: depende de US4 (`detectConflicts`) y de US5 (las mutaciones sobre las que monta el protocolo de dos pasos). Es la única dependencia entre historias que no se puede evitar: el protocolo de conflicto no tiene sentido sin una mutación que proteger.
+- **US11**: depende de US6 (`buildResolutionPlan`, `applyPlan`, el diálogo de conflicto) y de US5 (las acciones sobre una cita en la agenda). Su dominio puro —T197, T198, T205 y T206— puede adelantarse en cuanto exista `detectConflicts` (US4).
+- **Texto de la cancelación del cliente (T194–T196)**: va en US5 porque el caso que importa, «El salón ha cancelado esta cita», sólo existe cuando la dueña puede cancelar. Depende de `cancelled_by` (Fase 2).
 - **Polish (Fase 12)**: depende de todas las historias que se quieran entregar.
 
 ### Within Each User Story
@@ -489,7 +536,7 @@ El MVP de esta feature **no es una sola historia**: es US1, US2 y US10. Un acces
 1. Setup + Foundational → los cierres migrados, la configuración editable en vivo y quién canceló registrado
 2. US1 + US2 + US10 → MVP mínimo desplegable
 3. US3 → el hueco fantasma resuelto
-4. US4 + US5 + US6 → la gestión manual completa, con la garantía de no-superposición intacta
+4. US4 + US5 + US6 + US11 → la gestión manual completa, con la garantía de no-superposición intacta
 5. US7 + US8 + US9 → la autonomía de configuración
 6. Fase 12 → pulido y validación final
 

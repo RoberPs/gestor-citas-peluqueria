@@ -1,6 +1,6 @@
 # Contratos de la capa de dominio — gestión del salón
 
-**Feature**: `002-salon-management` | **Date**: 2026-09-16 | **Revised**: 2026-11-03 (005, quién canceló y listado de reservas)
+**Feature**: `002-salon-management` | **Date**: 2026-09-16 | **Revised**: 2026-11-03 (005, quién canceló y listado de reservas; después, editar una cita y búsqueda en el listado)
 
 Continúa [`../../001-client-appointment-booking/contracts/domain-api.md`](../../001-client-appointment-booking/contracts/domain-api.md) y usa tal cual lo que añadió la [`005-multiple-services`](../../005-multiple-services/contracts/): `NonEmptyServiceList`, `selectServices`, `durationOfServices`, `durationOf` y `totalPriceOf` de `catalog/selection.ts`. Las dos reglas transversales de la 001 siguen intactas:
 
@@ -67,6 +67,28 @@ Unas vacaciones de una semana se ven como cerradas, no como llenas (escenario 3 
 **Contrato de `validateContact`**: cuando el email está ausente (`null` o cadena vacía tras recortar), no es un fallo de formato; es un contacto válido sin email. Cuando está presente, se valida exactamente con las mismas reglas que antes (FR-031). El nombre y el teléfono siguen siendo obligatorios en los dos orígenes: son la vía de contacto real del salón (BR-011).
 
 El tipo obliga a cada lector a hacerse cargo del caso ausente, igual que `customer: CustomerContact | null` ya obligaba con la anonimización. No hay ninguna lectura de `.email` que el compilador deje pasar sin tratar.
+
+### `searchableName` — el nombre tal como se busca
+
+```typescript
+declare const searchableNameBrand: unique symbol;
+export type SearchableName = string & { readonly [searchableNameBrand]: true };
+
+export function searchableName(raw: string): SearchableName;
+```
+
+```diff
+ export type ValidatedContact = {
+   readonly name: CustomerName;
++  readonly searchName: SearchableName;   // D-036
+   readonly phone: string;
+   readonly normalizedPhone: NormalizedPhone;
+   readonly email: string | null;
+   readonly normalizedEmail: NormalizedEmail | null;
+ };
+```
+
+**Contrato**: NFD, sin las marcas U+0300–U+036F, en minúsculas, con los espacios recortados y colapsados. «José  NÚÑEZ» → «jose nunez». Es **la única** definición de cómo se compara un nombre (FR-069): la usan `validateContact`, para que cada cita guarde su `customer_name_search`, y `parseBookingListQuery`, para el término buscado. Función total, sin `Result`: cualquier cadena tiene su forma buscable.
 
 ### `confirmBooking` — el servicio puede haberse retirado mientras tanto
 
@@ -187,6 +209,77 @@ No hay función nueva para la duración: mover usa `durationOf(appointment)`, la
 
 ---
 
+## `catalog/selection` — los servicios de una cita editada
+
+### `mergeServiceSelection`
+
+```typescript
+export function mergeServiceSelection(input: {
+  /** El catálogo entero, activos y retirados, ordenado por `displayOrder`. */
+  readonly catalogue: readonly Service[];
+  readonly current: NonEmptyServiceList;
+  readonly requestedIds: readonly ServiceId[];
+}): Result<NonEmptyServiceList, SelectionError>;
+```
+
+**Contrato** (FR-072, BR-021, D-035): la misma `SelectionError` de `selectServices` y las mismas reglas —`EMPTY`, `DUPLICATE`, `UNKNOWN_SERVICE`—, con una diferencia que es toda la razón de la función:
+
+- Un identificador que **ya está** en `current` conserva **su** snapshot, tal cual, aunque el servicio esté retirado o haya cambiado de precio o duración.
+- Un identificador **nuevo** tiene que ser de un servicio activo; si no, `UNKNOWN_SERVICE`. Su snapshot es `snapshotOf(service)` en ese instante.
+- El resultado sale en el orden del catálogo (`displayOrder`), retirados incluidos, como al reservar (FR-014).
+
+Vive junto a `selectServices` y no en `owner/`: es una regla del catálogo sobre qué snapshot vale, y la dueña es sólo quien la usa.
+
+---
+
+## `owner/appointment-edit` — editar una cita
+
+### `planAppointmentEdit`
+
+```typescript
+export function planAppointmentEdit(input: {
+  readonly appointment: Appointment;
+  /** De `mergeServiceSelection` (D-035). */
+  readonly services: NonEmptyServiceList;
+  /** De `validateContact`, con el email opcional (FR-075). */
+  readonly contact: ValidatedContact;
+  readonly openingIntervals: readonly OpeningInterval[];
+  readonly appointments: readonly Appointment[];          // las que tocan la nueva franja
+  readonly unavailablePeriods: readonly UnavailablePeriod[];
+  /** Sólo si cambió el teléfono o el email; sin contar la propia cita. */
+  readonly futureCountsForNewContact: { readonly byPhone: number;
+                                        readonly byEmail: number } | null;
+  readonly now: Temporal.Instant;
+  readonly policy: BookingPolicy;
+  readonly timezone: string;
+}): Result<AppointmentEditPlan, AppointmentEditBlocker>;
+
+export type AppointmentEditBlocker =
+  | 'ALREADY_CANCELLED'        // FR-042, BR-008
+  | 'IN_THE_PAST'              // su fin ACTUAL ya pasó: isPastSlot (FR-071, BR-009)
+  | 'CONTACT_LIMIT_REACHED';   // FR-075, FR-029
+
+export type AppointmentEditPlan = {
+  readonly appointmentId: AppointmentId;
+  readonly startsAt: Temporal.Instant;     // el de la cita: editar no mueve (FR-073)
+  readonly endsAt: Temporal.Instant;       // inicio + durationOfServices(services)
+  readonly services: NonEmptyServiceList;
+  readonly contact: ValidatedContact;
+  readonly conflicts: readonly Conflict[]; // detectConflicts, excluyendo la propia cita
+  readonly warnings: readonly ManualBookingWarning[];  // OUTSIDE_OPENING_HOURS
+};
+```
+
+**Contrato**: la tabla de D-025 aplicada a una franja que empieza donde ya empezaba la cita.
+
+- Bloquea lo mismo que mover, salvo el pasado, que aquí se mide con el **fin actual** de la cita: una cita en curso se edita (FR-071). No hay `INVALID_START_GRANULARITY`, porque el inicio no cambia.
+- `conflicts` sólo puede salir no vacía si la cita **se alarga**: acortarla o dejarla igual nunca pisa nada que antes no pisara, y la propia cita está excluida. Es la misma `detectConflicts`, sin una regla de solape propia (Principio I).
+- `warnings` lleva `OUTSIDE_OPENING_HOURS` si el **nuevo** fin queda fuera del tramo de apertura, igual que al mover. Como al mover, la antelación mínima, el horizonte y el plazo de cancelación no se miran (BR-007).
+- `futureCountsForNewContact` es `null` cuando el contacto no cambió: entonces el límite no se evalúa, porque la cita ya contaba y sigue contando lo mismo.
+- No produce ninguna escritura. El plan entra en `buildResolutionPlan` como `EditAppointment` y lo aplica `OwnerAppointmentWriter.applyPlan`, como los demás (D-023).
+
+---
+
 ## `owner/cancellation` — la dueña cancela
 
 ```typescript
@@ -232,7 +325,7 @@ export function computeStateToken(
 ): string;
 ```
 
-**Contrato**: determinista y estable frente al orden —ordena antes de hashear— y sensible a **cualquier** cambio en los elementos en conflicto. El hash se inyecta porque `node:crypto` está prohibido en el dominio; el adaptador vive en `infrastructure/security`.
+**Contrato**: determinista y estable frente al orden —ordena antes de hashear— y sensible a **cualquier** cambio en los elementos en conflicto. Hashea todo lo que cada `Conflict` enseña —tipo, `id`, franja y, según el tipo, nombre del cliente y servicios o motivo—, no una marca de modificación: el esquema no tiene ninguna, y no le hace falta (D-024). Una cita que otra pantalla acaba de editar y alargar cambia su franja, y con ella la huella. El hash se inyecta porque `node:crypto` está prohibido en el dominio; el adaptador vive en `infrastructure/security`.
 
 No es un secreto y no autoriza nada. Es la huella que FR-038 compara.
 
@@ -244,6 +337,12 @@ export function buildResolutionPlan(input: {
   readonly conflicts: readonly Conflict[];
   readonly resolution: Resolution;     // lo que la dueña eligió
 }): Result<ResolutionPlan, ResolutionError>;
+
+export type ResolutionIntent =
+  | CreateAppointment        // de planManualBooking
+  | RescheduleAppointment    // de planManualBooking sobre la propia cita
+  | EditAppointment          // de planAppointmentEdit (D-035)
+  | CreatePeriod;
 
 export type ResolutionError =
   | 'UNRESOLVED_CONFLICT'      // queda algo sin resolver: FR-034, FR-035
@@ -357,13 +456,19 @@ export function parseBookingListQuery(input: {
   readonly origin?: string;         // 'ONLINE' | 'OWNER' | 'ALL'
   readonly from?: string;           // YYYY-MM-DD, día del salón
   readonly to?: string;
+  readonly search?: string;         // nombre o teléfono (FR-069)
   readonly after?: BookingListCursor;
   readonly now: Temporal.Instant;
   readonly timezone: string;
 }): Result<BookingListQuery, BookingListQueryError>;
 
+export type BookingListSearch =
+  | { readonly kind: 'PHONE'; readonly phone: NormalizedPhone }      // igualdad
+  | { readonly kind: 'NAME'; readonly fragment: SearchableName };    // por contenido
+
 export type BookingListQueryError =
-  | { readonly kind: 'INVALID_VALUE'; readonly field: 'order' | 'status' | 'origin' | 'from' | 'to' }
+  | { readonly kind: 'INVALID_VALUE';
+      readonly field: 'order' | 'status' | 'origin' | 'from' | 'to' | 'search' }
   | { readonly kind: 'RANGE_REVERSED' }                // from > to
   | { readonly kind: 'CURSOR_ORDER_MISMATCH' };       // cursor de un orden con el otro
 ```
@@ -374,6 +479,8 @@ export type BookingListQueryError =
 - Con `UPCOMING`, `notBefore` es el inicio de **hoy** en la zona del salón, calculado con el `now` del reloj inyectado, nunca con el del dispositivo. Con `RECENT` es `null`: el orden por fecha de reserva incluye las citas pasadas.
 - `from` y `to` son días del salón, inclusivos, sobre el **día de la cita** en los dos órdenes.
 - El cursor de un orden no vale para el otro: cambiar de orden vuelve a la primera página.
+- **Búsqueda** (FR-069, D-036): un término vacío tras recortarlo es «sin búsqueda». Si, sin espacios, puntos ni guiones, sólo tiene cifras y como mucho un `+` inicial, es un teléfono: `normalizePhone` lo convierte en `PHONE`, o falla con `INVALID_VALUE` en `search`. Cualquier otro término es `NAME` con `searchableName`. La pantalla no adivina qué tipo es: lo decide aquí.
+- La búsqueda se combina con todo lo demás y viaja con el cursor: pasar de página no la pierde. Las anonimizadas nunca casan (FR-070), porque sus columnas de búsqueda son nulas.
 
 Leer la página no es dominio: lo hace el puerto `BookingListReader` con la consulta ya normalizada, en **una** consulta (FR-066, D-033). El dominio no sabe que existen `LIMIT` ni `json_agg`.
 
@@ -476,7 +583,10 @@ export interface OwnerAppointmentWriter {
   /**
    * FR-037: el plan entero en UNA transacción, o nada (D-023). Una cita nueva
    * se escribe con sus filas de appointment_service en esa misma transacción;
-   * una cancelación del plan, con cancelled_by = OWNER (FR-040a).
+   * una cancelación del plan, con cancelled_by = OWNER (FR-040a). Una edición
+   * (D-035) actualiza ends_at y los datos del cliente, borra las filas de
+   * appointment_service que salen e inserta las que entran, sin reescribir
+   * ninguna de las que se quedan (BR-021).
    */
   applyPlan(plan: ResolutionPlan, expectedStateToken: string):
     Promise<Result<AppliedPlan, 'STATE_CHANGED' | 'SLOT_TAKEN'>>;
@@ -491,7 +601,9 @@ export interface BookingListReader {
 }
 ```
 
-**Cambios en `AppointmentRepository`** (de la 001): `cancel(id, at)` pasa a `cancel(id, at, by: CancellationActor)` y escribe `cancelled_by` en el mismo `UPDATE` que el estado. Las lecturas devuelven `origin` y `cancelledBy`. Las citas de un día para la agenda se leen con sus servicios en una sola consulta, igual que la disponibilidad (D-027).
+**Cambios en `AppointmentRepository`** (de la 001): `cancel(id, at)` pasa a `cancel(id, at, by: CancellationActor)` y escribe `cancelled_by` en el mismo `UPDATE` que el estado. Las lecturas devuelven `origin` y `cancelledBy`. Las citas de un día para la agenda se leen con sus servicios en una sola consulta, igual que la disponibilidad (D-027). El `insert` escribe `customer_name_search` desde `ValidatedContact.searchName`, y la anonimización la pone a `NULL` con los demás datos personales (D-036). `countFutureByContact` admite excluir una cita, para el límite al editar el contacto (FR-075).
+
+**Cambio en la vista de la cita del cliente** (D-037): la lectura por token devuelve también `cancelledBy`, y `AppointmentDetail` del contrato de cliente lo expone en su versión 2.1.0. Ninguna regla del cliente cambia: sólo el texto que la pantalla elige.
 
 **`SalonConfigWriter` es un puerto aparte de `SalonConfigRepository`**, que sigue siendo de sólo lectura. Los casos de uso del cliente dependen únicamente del de lectura, y el compilador garantiza que ninguno de ellos pueda escribir configuración.
 

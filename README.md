@@ -58,7 +58,7 @@ salón la ve sin consultarla a mano.
 | Feature | Estado | Tareas | Rama | En `main` |
 |---|---|---|---|---|
 | [001 · Reserva del cliente](specs/001-client-appointment-booking/spec.md) | Implementada | 118 / 118 | `001-client-appointment-booking` | Sí (PR #1) |
-| [002 · Gestión del salón](specs/002-salon-management/spec.md) | Spec, plan y tareas revisados el 2026-11-03 (005 y US10); sin código | 2 / 187 (T139 y T140 las cubrió la 005) | `002-salon-management` | Sólo la documentación de antes de la revisión (PR #4) |
+| [002 · Gestión del salón](specs/002-salon-management/spec.md) | Spec, plan y tareas revisados el 2026-11-03 (005, US10, y US11 «Editar una cita», búsqueda y textos de cancelación); sin código | 2 / 212 (T139 y T140 las cubrió la 005) | `002-salon-management` | Sólo la documentación de antes de la revisión (PR #4) |
 | [003 · Versión responsive para tablet y ordenador](specs/003-responsive-desktop/spec.md) | Implementada | 35 / 35 | `003-responsive-desktop` | Sí (PR #3) |
 | 004 · Avisos por email y SMS | Planificada, sin spec | — | — | — |
 | [005 · Varios servicios por cita y precio opcional](specs/005-multiple-services/spec.md) | Implementada | 55 / 55 | `005-multiple-services` | Sí (PR #6) |
@@ -66,7 +66,9 @@ salón la ve sin consultarla a mano.
 `main` contiene la 001, la 003 y la 005 completas, la enmienda 1.1.0 de la constitución
 y la primera documentación de la 002 (spec, plan y tareas). La rama
 `002-salon-management` ya tiene la 003 y la 005 incorporadas y su documentación
-revisada con ellas y con la US10 «Listado de reservas». El código de cada feature se
+revisada con ellas, con la US10 «Listado de reservas» y con las decisiones de la dueña
+del producto del 2026-11-03: la US11 «Editar una cita», la búsqueda por nombre o
+teléfono en el listado y el texto que ve el cliente según quién canceló. El código de cada feature se
 fusiona a `main` al cerrarla, con la CI en verde. La 002 se implementa en su rama a
 partir del paso 3 del [roadmap](docs/roadmap.md).
 
