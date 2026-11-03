@@ -1,13 +1,21 @@
+import { createAuthorizeOwnerSession } from '@/application/use-cases/authorize-owner-session';
 import { createCancelAppointment } from '@/application/use-cases/cancel-appointment';
+import { createChangeOwnerPassword } from '@/application/use-cases/change-owner-password';
 import { createConfirmBooking } from '@/application/use-cases/confirm-booking';
+import { createGetAgendaDay } from '@/application/use-cases/get-agenda-day';
 import { createGetAvailability } from '@/application/use-cases/get-availability';
 import { createListServices } from '@/application/use-cases/list-services';
 import { createRescheduleAppointment } from '@/application/use-cases/reschedule-appointment';
+import { createSignInOwner } from '@/application/use-cases/sign-in-owner';
+import { createSignOutOwner } from '@/application/use-cases/sign-out-owner';
 import { createViewAppointment } from '@/application/use-cases/view-appointment';
 import { createAppointmentRepository } from '@/infrastructure/db/appointment-repository';
 import { pool } from '@/infrastructure/db/client';
+import { createOwnerAccountRepository } from '@/infrastructure/db/owner-account-repository';
+import { createOwnerSessionRepository } from '@/infrastructure/db/owner-session-repository';
 import { createSalonConfigRepository } from '@/infrastructure/db/salon-config-repository';
 import { createUnavailablePeriodRepository } from '@/infrastructure/db/unavailable-period-repository';
+import { passwordHasher } from '@/infrastructure/security/password';
 import { tokenGenerator } from '@/infrastructure/security/token';
 import { systemClock } from '@/infrastructure/time/system-clock';
 
@@ -26,6 +34,15 @@ function build() {
   const config = createSalonConfigRepository(pool);
   const appointments = createAppointmentRepository(pool);
   const periods = createUnavailablePeriodRepository(pool);
+  // 002: the owner's side. Sessions reuse the management link's generator —
+  // 32 bytes of CSPRNG and their SHA-256 (D-005, D-015).
+  const owner = {
+    accounts: createOwnerAccountRepository(pool),
+    sessions: createOwnerSessionRepository(pool),
+    passwords: passwordHasher,
+    tokens: tokenGenerator,
+    clock: systemClock,
+  };
 
   return {
     config,
@@ -52,6 +69,11 @@ function build() {
       tokens: tokenGenerator,
       clock: systemClock,
     }),
+    signInOwner: createSignInOwner(owner),
+    signOutOwner: createSignOutOwner(owner),
+    authorizeOwnerSession: createAuthorizeOwnerSession(owner),
+    changeOwnerPassword: createChangeOwnerPassword(owner),
+    getAgendaDay: createGetAgendaDay({ config, appointments, periods, clock: systemClock }),
     rescheduleAppointment: createRescheduleAppointment({
       config,
       appointments,

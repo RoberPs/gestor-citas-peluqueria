@@ -122,6 +122,116 @@ select {
   color: var(--accent-ink);
 }
 
+/* The owner's sections (002). The current one is underlined and bold, and
+ * says so with aria-current: never colour alone. */
+.owner-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin-top: 8px;
+}
+
+.owner-nav ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.owner-nav a {
+  display: inline-block;
+  min-height: 44px;
+  padding-block: 10px;
+}
+
+.owner-nav a[aria-current='page'] {
+  font-weight: 700;
+  text-decoration-thickness: 3px;
+}
+
+.owner-nav-signout {
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-ink);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* The owner's agenda (002). A list, read in order; states in words. */
+.h1-sub {
+  display: block;
+  font-size: 1rem;
+  font-weight: 400;
+}
+
+.timeline {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.timeline-time {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.timeline-free,
+.timeline-unavailable {
+  padding: 8px 12px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+}
+
+.timeline-unavailable {
+  border-style: solid;
+  background: var(--surface-sunken);
+}
+
+.timeline-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.timeline-customer {
+  margin-bottom: 8px;
+}
+
+.agenda-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.agenda-steps a {
+  display: inline-block;
+  min-height: 44px;
+  padding-block: 10px;
+}
+
+.touch-link {
+  display: inline-block;
+  min-height: 44px;
+  padding-block: 10px;
+}
+
+.agenda-steps a[aria-current='date'] {
+  font-weight: 700;
+}
+
 /* Layout --------------------------------------------------------------- */
 
 /*

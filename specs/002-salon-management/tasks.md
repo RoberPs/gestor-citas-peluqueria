@@ -31,8 +31,8 @@ Proyecto único con arquitectura hexagonal, heredado de `001-client-appointment-
 **Purpose**: dejar el proyecto listo para la feature. Sin lógica de negocio.
 
 - [x] T001 Elevar el mínimo declarado de `next` a `^15.2.3` en `package.json`, verificar con `npm ls next` que el lockfile resuelve 15.2.3 o superior y actualizar `package-lock.json` (D-018, CVE-2025-29927)
-- [ ] T002 [P] Añadir el script `owner:provision` (`tsx scripts/provision-owner.ts`) a `package.json`, junto a `db:seed`. *Se hace con T056*: el script no puede apuntar a un archivo que todavía no existe
-- [ ] T003 [P] Documentar `OWNER_USERNAME` y `OWNER_INITIAL_PASSWORD` en `.env.example`, con la nota de que son de un solo uso y no las lee la aplicación en marcha. *Se hace con T056*, cuando exista el comando que las usa
+- [x] T002 [P] Añadir el script `owner:provision` (`tsx scripts/provision-owner.ts`) a `package.json`, junto a `db:seed`. *Se hace con T056*: el script no puede apuntar a un archivo que todavía no existe
+- [x] T003 [P] Documentar `OWNER_USERNAME` y `OWNER_INITIAL_PASSWORD` en `.env.example`, con la nota de que son de un solo uso y no las lee la aplicación en marcha. *Se hace con T056*, cuando exista el comando que las usa
 - [x] T004 [P] Parametrizar `tests/contract/helpers/openapi.ts` para que acepte la ruta del contrato en vez de tenerla empotrada, sin duplicar el ayudante (D-028)
 - [x] T005 [P] Actualizar las rutas de tests en `vitest.config.ts` / `package.json` para que `tests/unit/domain/owner/`, `tests/integration/security/` y `tests/integration/concurrency/` entren en las suites correspondientes — sin cambios: los `include` ya son `tests/unit/**` y `tests/integration/**`
 
@@ -91,8 +91,8 @@ La `0003_multiple_services.sql` es de la 005 y ya está en `main`: las de esta f
 - [x] T028 Añadir `origin`, `cancelled_by` y el email opcional a `src/infrastructure/db/appointment-repository.ts`; `cancel(id, at, by)` escribe `cancelled_by` en el mismo `UPDATE`; y una consulta de las citas de un día **con sus servicios** de `appointment_service`, en una sola consulta, con filtro de canceladas (FR-014, FR-015, FR-040a, D-027)
 - [x] T170 Pasar `CUSTOMER` desde `src/application/use-cases/cancel-appointment.ts` al repositorio, sin cambiar nada de lo que ve el cliente (FR-040a). El texto que el cliente ve según quién canceló es de la Fase 7 (T195)
 - [x] T192 ~~Escribir `customer_name_search` desde `ValidatedContact.searchName` en el `insert` y ponerla a `NULL` al anonimizar~~ — innecesaria: la columna es generada desde el nombre (D-036, revisado al implementar). T189 y T190 vigilan que siga al nombre
-- [ ] T029 [P] Cargar los festivos como `unavailable_period` de día completo y añadir la comida de un martes en `db/seed/seed.ts`; retirar toda referencia a `closure` en `db/seed/configuration.ts`, que comparten el fixture y la demo. En `db/seed/demo.ts` sólo cambia el nombre del campo (`closures: []` pasa a periodos vacíos): sus datos no se tocan. *Hecho salvo la comida del martes, que se añade con la US2 (T063): el fixture lo usan los e2e de la 001 y una hora bloqueada nueva cambiaría sus huecos sin que ninguna historia la necesite todavía*
-- [ ] T030 [P] Crear el bloque `owner` de textos en `src/messages/es-ES.ts`, con los mensajes comunes de carga, éxito y error accionable (FR-059). *Se hace con T058, la primera pantalla que los muestra: `actionable-errors.test.ts` no puede comprobar textos que nadie usa*
+- [x] T029 [P] Cargar los festivos como `unavailable_period` de día completo y añadir la comida de un martes en `db/seed/seed.ts`; retirar toda referencia a `closure` en `db/seed/configuration.ts`, que comparten el fixture y la demo. En `db/seed/demo.ts` sólo cambia el nombre del campo (`closures: []` pasa a periodos vacíos): sus datos no se tocan. *Hecho sin la comida del martes: `us2-agenda.spec.ts` escribe la hora bloqueada que necesita y la borra después, y el fixture de la 001 no cambia*
+- [x] T030 [P] Crear el bloque `owner` de textos en `src/messages/es-ES.ts`, con los mensajes comunes de carga, éxito y error accionable (FR-059). *Se hace con T058, la primera pantalla que los muestra: `actionable-errors.test.ts` no puede comprobar textos que nadie usa*
 - [ ] T031 Registrar los repositorios y puertos nuevos en `src/app/_lib/container.ts`. *Registrado `createUnavailablePeriodRepository` en la Fase 2; cada historia registra los suyos*
 
 **Checkpoint**: `npm run test:all` en verde con los cierres migrados, la configuración leída en vivo, las cancelaciones del cliente registradas como suyas y el nombre buscable guardado en cada cita. La 001 y la 005 siguen en verde sin cambiar de comportamiento. Las historias pueden empezar.
@@ -107,36 +107,36 @@ La `0003_multiple_services.sql` es de la 005 y ya está en `main`: las de esta f
 
 ### Tests de la Historia 1 ⚠️ (escribir primero, deben fallar)
 
-- [ ] T032 [P] [US1] Test unitario del bloqueo en `tests/unit/domain/owner/account.test.ts`: cinco fallos en quince minutos bloquean, la ventana caduca, un acceso correcto durante el bloqueo **no** lo levanta (D-017)
-- [ ] T033 [P] [US1] Test unitario de la sesión en `tests/unit/domain/owner/session.test.ts`: viva dentro de 12 h, caducada fuera, `shouldTouchSession` sólo cada 5 min, todo sobre reloj inyectado (D-015)
-- [ ] T034 [P] [US1] Test unitario de `scrypt` en `tests/unit/infrastructure/password.test.ts`: formato `scrypt$N$r$p$salt$hash`, verificación correcta e incorrecta, comparación en tiempo constante, rechazo por debajo de 12 caracteres (D-016)
-- [ ] T035 [P] [US1] Test de barrido de acceso en `tests/integration/security/access-sweep.test.ts`: enumera **desde el enrutador** todas las rutas de `/gestion` y `/api/gestion` y exige que ninguna, sin cookie, devuelva contenido de gestión (SC-001, D-018, D-029)
-- [ ] T036 [P] [US1] Test de indistinguibilidad en `tests/integration/security/sign-in-indistinguishability.test.ts`: código, cuerpo y cabeceras idénticos para usuario inexistente, contraseña incorrecta y cuenta bloqueada, sin `Retry-After` (FR-008, FR-009, D-017)
-- [ ] T037 [P] [US1] Test de contrato en `tests/contract/owner/sesion.test.ts` para `POST /gestion/sesion`, `DELETE /gestion/sesion` y `PUT /gestion/cuenta/contrasena` contra `contracts/owner-api.yaml`
-- [ ] T038 [P] [US1] Test de integración del caso de uso en `tests/integration/use-cases/sign-in-owner.test.ts` contra PostgreSQL real: contador a cero al acertar, bloqueo persistido entre reinicios simulados
-- [ ] T039 [P] [US1] Test de que la contraseña no llega a los logs en `tests/integration/logging/no-pii.test.ts` (ampliar) (FR-010)
-- [ ] T040 [P] [US1] E2E en `tests/e2e/us1-access.spec.ts`: acceso válido, acceso sin sesión, mensaje idéntico en los dos fallos, cierre de sesión con Atrás del navegador, más `@axe-core/playwright` sobre el formulario de acceso
+- [x] T032 [P] [US1] Test unitario del bloqueo en `tests/unit/domain/owner/account.test.ts`: cinco fallos en quince minutos bloquean, la ventana caduca, un acceso correcto durante el bloqueo **no** lo levanta (D-017)
+- [x] T033 [P] [US1] Test unitario de la sesión en `tests/unit/domain/owner/session.test.ts`: viva dentro de 12 h, caducada fuera, `shouldTouchSession` sólo cada 5 min, todo sobre reloj inyectado (D-015)
+- [x] T034 [P] [US1] Test unitario de `scrypt` en `tests/unit/infrastructure/password.test.ts`: formato `scrypt$N$r$p$salt$hash`, verificación correcta e incorrecta, comparación en tiempo constante, rechazo por debajo de 12 caracteres (D-016)
+- [x] T035 [P] [US1] Test de barrido de acceso en `tests/integration/security/access-sweep.test.ts`: enumera **desde el enrutador** todas las rutas de `/gestion` y `/api/gestion` y exige que ninguna, sin cookie, devuelva contenido de gestión (SC-001, D-018, D-029)
+- [x] T036 [P] [US1] Test de indistinguibilidad en `tests/integration/security/sign-in-indistinguishability.test.ts`: código, cuerpo y cabeceras idénticos para usuario inexistente, contraseña incorrecta y cuenta bloqueada, sin `Retry-After` (FR-008, FR-009, D-017)
+- [x] T037 [P] [US1] Test de contrato en `tests/contract/owner/sesion.test.ts` para `POST /gestion/sesion`, `DELETE /gestion/sesion` y `PUT /gestion/cuenta/contrasena` contra `contracts/owner-api.yaml`
+- [x] T038 [P] [US1] Test de integración del caso de uso en `tests/integration/use-cases/sign-in-owner.test.ts` contra PostgreSQL real: contador a cero al acertar, bloqueo persistido entre reinicios simulados
+- [x] T039 [P] [US1] Test de que la contraseña no llega a los logs en `tests/integration/logging/no-pii.test.ts` (ampliar) (FR-010)
+- [x] T040 [P] [US1] E2E en `tests/e2e/us1-access.spec.ts`: acceso válido, acceso sin sesión, mensaje idéntico en los dos fallos, cierre de sesión con Atrás del navegador, más `@axe-core/playwright` sobre el formulario de acceso
 
 ### Implementación de la Historia 1
 
-- [ ] T041 [P] [US1] Implementar `src/domain/owner/account.ts`: `LOCKOUT_POLICY`, `evaluateLockout` y `registerFailure`, puras sobre el reloj inyectado
-- [ ] T042 [P] [US1] Implementar `src/domain/owner/session.ts`: `SESSION_IDLE_TIMEOUT_HOURS`, `SESSION_TOUCH_INTERVAL_MINUTES`, `isSessionAlive` y `shouldTouchSession`
-- [ ] T043 [P] [US1] Implementar `src/infrastructure/security/password.ts` con `scrypt` (`N=2^17, r=8, p=1`, sal de 16 B, `maxmem` elevado), `verify` con `timingSafeEqual` y `verifyDecoy` contra un hash señuelo fijo (D-016, D-017)
-- [ ] T044 [P] [US1] Implementar `src/infrastructure/security/session-token.ts`: 32 bytes de CSPRNG y su hash SHA-256, siguiendo el patrón de `token.ts` (D-005, D-015)
-- [ ] T045 [US1] Implementar `src/infrastructure/db/owner-account-repository.ts` y `src/infrastructure/db/owner-session-repository.ts` sobre los puertos de T025
-- [ ] T046 [US1] Implementar `src/application/use-cases/sign-in-owner.ts`: deriva siempre un hash —señuelo si el usuario no existe o la cuenta está bloqueada— y devuelve `Result` con un único modo de fallo indistinguible (FR-008, FR-009)
-- [ ] T047 [P] [US1] Implementar `src/application/use-cases/sign-out-owner.ts`, que **borra** la fila de sesión (FR-006)
-- [ ] T048 [P] [US1] Implementar `src/application/use-cases/change-owner-password.ts`: acredita la contraseña actual, exige 12 caracteres y avanza `password_changed_at` (FR-004)
-- [ ] T049 [US1] Implementar `src/application/use-cases/authorize-owner-session.ts`: el guardián que resuelve la sesión, refresca `last_seen_at` como mucho cada 5 min y aborta si no hay sesión viva (FR-002, FR-007)
-- [ ] T050 [US1] Implementar el envoltorio `requireOwnerSession()` en `src/app/api/gestion/_lib/require-owner-session.ts`, que **todo** handler y toda pantalla de gestión usará (D-018)
-- [ ] T051 [US1] Implementar `src/app/api/gestion/sesion/route.ts` (`POST` y `DELETE`) con validación Zod y la cookie `__Host-owner_session` (`HttpOnly`, `Secure`, `SameSite=Strict`, `Path=/`, sin `Max-Age`)
-- [ ] T052 [P] [US1] Implementar `src/app/api/gestion/cuenta/contrasena/route.ts` (`PUT`)
-- [ ] T053 [P] [US1] Implementar `src/middleware.ts` que **sólo redirige** a `/gestion/acceso` y no autoriza nada (D-018)
-- [ ] T054 [P] [US1] Implementar la pantalla `src/app/gestion/acceso/page.tsx`: formulario accesible a 360 px, en una columna con la base de la 003 (D-034), mensaje de error único y la indicación de qué hacer si se olvida la contraseña, sin detalles operativos (FR-005)
-- [ ] T055 [P] [US1] Implementar la pantalla `src/app/gestion/cuenta/page.tsx` con el cambio de contraseña y el cierre de sesión, en una columna con la base de la 003 (D-034)
-- [ ] T056 [P] [US1] Implementar `scripts/provision-owner.ts`: lee el entorno, rechaza contraseñas cortas, avisa cuando sobrescribe, cierra todas las sesiones vivas y no registra la contraseña en ningún log (quickstart.md)
-- [ ] T057 [P] [US1] Borrar las sesiones caducadas en `scripts/retention-purge.ts` (data-model.md, "Limpieza")
-- [ ] T058 [US1] Añadir los textos de acceso, cuenta y errores de sesión al bloque `owner` de `src/messages/es-ES.ts`
+- [x] T041 [P] [US1] Implementar `src/domain/owner/account.ts`: `LOCKOUT_POLICY`, `evaluateLockout` y `registerFailure`, puras sobre el reloj inyectado
+- [x] T042 [P] [US1] Implementar `src/domain/owner/session.ts`: `SESSION_IDLE_TIMEOUT_HOURS`, `SESSION_TOUCH_INTERVAL_MINUTES`, `isSessionAlive` y `shouldTouchSession`
+- [x] T043 [P] [US1] Implementar `src/infrastructure/security/password.ts` con `scrypt` (`N=2^17, r=8, p=1`, sal de 16 B, `maxmem` elevado), `verify` con `timingSafeEqual` y `verifyDecoy` contra un hash señuelo fijo (D-016, D-017)
+- [x] T044 [P] [US1] Implementar `src/infrastructure/security/session-token.ts`: 32 bytes de CSPRNG y su hash SHA-256, siguiendo el patrón de `token.ts` (D-005, D-015). *Hecho reutilizando `tokenGenerator` de `token.ts`, que ya hace exactamente eso: un segundo archivo idéntico sería la misma regla dos veces*
+- [x] T045 [US1] Implementar `src/infrastructure/db/owner-account-repository.ts` y `src/infrastructure/db/owner-session-repository.ts` sobre los puertos de T025
+- [x] T046 [US1] Implementar `src/application/use-cases/sign-in-owner.ts`: deriva siempre un hash —señuelo si el usuario no existe o la cuenta está bloqueada— y devuelve `Result` con un único modo de fallo indistinguible (FR-008, FR-009)
+- [x] T047 [P] [US1] Implementar `src/application/use-cases/sign-out-owner.ts`, que **borra** la fila de sesión (FR-006)
+- [x] T048 [P] [US1] Implementar `src/application/use-cases/change-owner-password.ts`: acredita la contraseña actual, exige 12 caracteres y avanza `password_changed_at` (FR-004)
+- [x] T049 [US1] Implementar `src/application/use-cases/authorize-owner-session.ts`: el guardián que resuelve la sesión, refresca `last_seen_at` como mucho cada 5 min y aborta si no hay sesión viva (FR-002, FR-007)
+- [x] T050 [US1] Implementar el envoltorio `requireOwnerSession()` en `src/app/api/gestion/_lib/require-owner-session.ts`, que **todo** handler y toda pantalla de gestión usará (D-018)
+- [x] T051 [US1] Implementar `src/app/api/gestion/sesion/route.ts` (`POST` y `DELETE`) con validación Zod y la cookie `__Host-owner_session` (`HttpOnly`, `Secure`, `SameSite=Strict`, `Path=/`, sin `Max-Age`)
+- [x] T052 [P] [US1] Implementar `src/app/api/gestion/cuenta/contrasena/route.ts` (`PUT`)
+- [x] T053 [P] [US1] Implementar `src/middleware.ts` que **sólo redirige** a `/gestion/acceso` y no autoriza nada (D-018)
+- [x] T054 [P] [US1] Implementar la pantalla `src/app/gestion/acceso/page.tsx`: formulario accesible a 360 px, en una columna con la base de la 003 (D-034), mensaje de error único y la indicación de qué hacer si se olvida la contraseña, sin detalles operativos (FR-005)
+- [x] T055 [P] [US1] Implementar la pantalla `src/app/gestion/cuenta/page.tsx` con el cambio de contraseña y el cierre de sesión, en una columna con la base de la 003 (D-034)
+- [x] T056 [P] [US1] Implementar `scripts/provision-owner.ts`: lee el entorno, rechaza contraseñas cortas, avisa cuando sobrescribe, cierra todas las sesiones vivas y no registra la contraseña en ningún log (quickstart.md)
+- [x] T057 [P] [US1] Borrar las sesiones caducadas en `scripts/retention-purge.ts` (data-model.md, "Limpieza")
+- [x] T058 [US1] Añadir los textos de acceso, cuenta y errores de sesión al bloque `owner` de `src/messages/es-ES.ts`
 
 **Checkpoint**: la frontera de acceso está establecida y el barrido de SC-001 pasa. Las historias 2 a 9 pueden construirse encima.
 
@@ -150,21 +150,21 @@ La `0003_multiple_services.sql` es de la 005 y ya está en `main`: las de esta f
 
 ### Tests de la Historia 2 ⚠️
 
-- [ ] T059 [P] [US2] Test unitario en `tests/unit/domain/owner/agenda.test.ts`: `entries` ordenadas y sin `FREE` solapado, cita y periodo sí pueden solaparse, `isClosed` según D-020, distinción "sin citas" vs "cerrado" (FR-011, FR-017)
-- [ ] T060 [P] [US2] Test unitario de `isPastSlot` en `tests/unit/domain/owner/agenda.test.ts`: el corte es la **hora de fin**; una cita en curso no es pasado (FR-016, BR-009)
-- [ ] T061 [P] [US2] Test de contrato en `tests/contract/owner/agenda.test.ts` para `GET /gestion/agenda`
-- [ ] T062 [P] [US2] Test de rendimiento en `tests/integration/performance/agenda-performance.test.ts`: número **fijo** de consultas al abrir un día, igual con la base vacía que con las 10.000 citas de `db:seed:history`, y sin aumentar cuando cada cita del día tiene cuatro servicios (SC-010, D-027, FR-014)
-- [ ] T063 [P] [US2] E2E en `tests/e2e/us2-agenda.spec.ts`: tres citas en orden, origen por texto e icono, periodo con su motivo, atajo de hoy, día pasado de sólo lectura, día vacío, una cita de dos servicios con los dos a la vista (US2-7), más axe; a 360 px y a 1280 px
+- [x] T059 [P] [US2] Test unitario en `tests/unit/domain/owner/agenda.test.ts`: `entries` ordenadas y sin `FREE` solapado, cita y periodo sí pueden solaparse, `isClosed` según D-020, distinción "sin citas" vs "cerrado" (FR-011, FR-017)
+- [x] T060 [P] [US2] Test unitario de `isPastSlot` en `tests/unit/domain/owner/agenda.test.ts`: el corte es la **hora de fin**; una cita en curso no es pasado (FR-016, BR-009)
+- [x] T061 [P] [US2] Test de contrato en `tests/contract/owner/agenda.test.ts` para `GET /gestion/agenda`
+- [x] T062 [P] [US2] Test de rendimiento en `tests/integration/performance/agenda-performance.test.ts`: número **fijo** de consultas al abrir un día, igual con la base vacía que con las 10.000 citas de `db:seed:history`, y sin aumentar cuando cada cita del día tiene cuatro servicios (SC-010, D-027, FR-014)
+- [x] T063 [P] [US2] E2E en `tests/e2e/us2-agenda.spec.ts`: tres citas en orden, origen por texto e icono, periodo con su motivo, atajo de hoy, día pasado de sólo lectura, día vacío, una cita de dos servicios con los dos a la vista (US2-7), más axe; a 360 px y a 1280 px
 
 ### Implementación de la Historia 2
 
-- [ ] T064 [US2] Implementar `src/domain/owner/agenda.ts`: `buildAgendaDay` e `isPastSlot`, funciones puras apoyadas en `interval-math.ts` (contracts/domain-api.md)
-- [ ] T065 [US2] Implementar `src/application/use-cases/get-agenda-day.ts`: tres consultas de coste acotado y el filtro de canceladas según lo que la dueña pidió (FR-015, D-027)
-- [ ] T066 [US2] Implementar `src/app/api/gestion/agenda/route.ts` (`GET`) con el guardián de T050, devolviendo la línea temporal completa en una sola respuesta
-- [ ] T067 [P] [US2] Implementar `src/components/owner/timeline.tsx` como **lista** semántica, no rejilla absoluta: recorrible con teclado y legible con lector de pantalla (Principio VII). Cada cita muestra todos sus servicios y su precio total reutilizando `src/components/service-summary.tsx` de la 005 (FR-014)
-- [ ] T068 [US2] Implementar la pantalla `src/app/gestion/agenda/page.tsx` con la navegación a cualquier fecha y el atajo de hoy (FR-012), con `NavForm` para cambiar de día y la base responsive de la 003: línea temporal en `.col-main`, navegación en `.col-side` dentro de `.page--split` (D-034)
-- [ ] T069 [P] [US2] Añadir a `src/messages/es-ES.ts` los textos de origen de la cita, estado, estado vacío "sin citas" y "cerrado" (FR-013, FR-017)
-- [ ] T070 [P] [US2] Extender la redacción de Pino en `src/infrastructure/logging/logger.ts` a los cuerpos de agenda y conflicto y a los de crear y editar una cita (`POST /gestion/citas` y `PATCH /gestion/citas/{id}`), que llevan nombre, teléfono y email (FR-057)
+- [x] T064 [US2] Implementar `src/domain/owner/agenda.ts`: `buildAgendaDay` e `isPastSlot`, funciones puras apoyadas en `interval-math.ts` (contracts/domain-api.md)
+- [x] T065 [US2] Implementar `src/application/use-cases/get-agenda-day.ts`: tres consultas de coste acotado y el filtro de canceladas según lo que la dueña pidió (FR-015, D-027)
+- [x] T066 [US2] Implementar `src/app/api/gestion/agenda/route.ts` (`GET`) con el guardián de T050, devolviendo la línea temporal completa en una sola respuesta
+- [x] T067 [P] [US2] Implementar `src/components/owner/timeline.tsx` como **lista** semántica, no rejilla absoluta: recorrible con teclado y legible con lector de pantalla (Principio VII). Cada cita muestra todos sus servicios y su precio total reutilizando `src/components/service-summary.tsx` de la 005 (FR-014)
+- [x] T068 [US2] Implementar la pantalla `src/app/gestion/agenda/page.tsx` con la navegación a cualquier fecha y el atajo de hoy (FR-012), con `NavForm` para cambiar de día y la base responsive de la 003: línea temporal en `.col-main`, navegación en `.col-side` dentro de `.page--split` (D-034)
+- [x] T069 [P] [US2] Añadir a `src/messages/es-ES.ts` los textos de origen de la cita, estado, estado vacío "sin citas" y "cerrado" (FR-013, FR-017)
+- [ ] T070 [P] [US2] Extender la redacción de Pino en `src/infrastructure/logging/logger.ts` a los cuerpos de agenda y conflicto y a los de crear y editar una cita. *Pendiente para la US6: en el paso 4 ningún código registra esos cuerpos; las contraseñas ya se redactan (T039)*. Se extiende (`POST /gestion/citas` y `PATCH /gestion/citas/{id}`), que llevan nombre, teléfono y email (FR-057)
 
 **Checkpoint**: la agenda sustituye al papel. Historias 1 y 2 funcionan por separado.
 

@@ -9,8 +9,19 @@ import pino, { type DestinationStream, type Logger } from 'pino';
  * `appointmentId`, which is internal and appears in no client URL.
  */
 
-/** The three personal fields plus the management token, which is a credential. */
-const SENSITIVE = ['name', 'phone', 'email', 'token'] as const;
+/**
+ * The three personal fields, the management token, which is a credential, and
+ * the owner's password under every name it travels by (002, FR-010).
+ */
+const SENSITIVE = [
+  'name',
+  'phone',
+  'email',
+  'token',
+  'password',
+  'currentPassword',
+  'newPassword',
+] as const;
 
 /**
  * Pino matches one level per `*`, so the depths that can actually occur are

@@ -8,6 +8,7 @@ import type {
 import type { SalonConfiguration, UnavailablePeriod } from '@/domain/catalog/salon';
 import type { NonEmptyServiceList } from '@/domain/catalog/selection';
 import type { NormalizedEmail, NormalizedPhone, ValidatedContact } from '@/domain/contact/contact';
+import type { LockoutState } from '@/domain/owner/account';
 import type { Result } from '@/domain/shared/result';
 
 /**
@@ -104,6 +105,72 @@ export interface UnavailablePeriodRepository {
     from: Temporal.Instant,
     to: Temporal.Instant,
   ): Promise<readonly UnavailablePeriod[]>;
+}
+
+/** The owner's password (002, D-016). Implemented with scrypt; nothing here logs. */
+export interface PasswordHasher {
+  /** `scrypt$N$r$p$salt$hash`: the parameters travel with the hash. */
+  hash(password: string): Promise<string>;
+  verify(password: string, encoded: string): Promise<boolean>;
+  /**
+   * A verification against a fixed decoy with the same parameters, for when
+   * there is no account or it is locked: the answer must not come back faster
+   * and give that away (D-017).
+   */
+  verifyDecoy(password: string): Promise<void>;
+}
+
+export type OwnerAccountRecord = {
+  readonly id: string;
+  readonly username: string;
+  readonly passwordHash: string;
+  readonly lockout: LockoutState;
+};
+
+/** The one staff account (002, FR-001). It holds nothing about any client. */
+export interface OwnerAccountRepository {
+  findByUsername(username: string): Promise<OwnerAccountRecord | null>;
+  findById(id: string): Promise<OwnerAccountRecord | null>;
+  saveLockout(id: string, state: LockoutState): Promise<void>;
+  updatePassword(id: string, encoded: string, at: Temporal.Instant): Promise<void>;
+  /**
+   * FR-003: provisioning, outside the application. Replaces whatever account
+   * there was — and with it, by cascade, every session — in one transaction.
+   * Returns whether there was one.
+   */
+  replace(account: {
+    readonly id: string;
+    readonly username: string;
+    readonly passwordHash: string;
+    readonly at: Temporal.Instant;
+  }): Promise<{ readonly replaced: boolean }>;
+}
+
+export type OwnerSession = {
+  readonly id: string;
+  readonly accountId: string;
+  readonly lastSeenAt: Temporal.Instant;
+};
+
+/**
+ * The owner's live sessions (002, D-015). Found by the SHA-256 of the cookie,
+ * never by the token itself. Whether one is still alive is the domain's call
+ * (`isSessionAlive`), not this port's.
+ */
+export interface OwnerSessionRepository {
+  create(session: {
+    readonly id: string;
+    readonly accountId: string;
+    readonly tokenHash: Uint8Array;
+    readonly at: Temporal.Instant;
+  }): Promise<void>;
+  findByTokenHash(hash: Uint8Array): Promise<OwnerSession | null>;
+  touch(id: string, at: Temporal.Instant): Promise<void>;
+  /** FR-006: signing out deletes the row; nothing marks it. Idempotent. */
+  deleteByTokenHash(hash: Uint8Array): Promise<void>;
+  deleteAllExcept(accountId: string, keepHash: Uint8Array): Promise<void>;
+  /** The retention sweep's tidying: rows idle since before `cutoff`. */
+  deleteIdleSince(cutoff: Temporal.Instant): Promise<number>;
 }
 
 export interface TokenGenerator {

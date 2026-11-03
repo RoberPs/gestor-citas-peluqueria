@@ -287,6 +287,108 @@ export const messages = {
       nextAction: `Vuelve a intentarlo dentro de un rato o llama al salón al ${SALON_PHONE_PLACEHOLDER} y te damos la cita por teléfono.`,
     },
   },
+
+  /**
+   * The owner's side (002). She is spoken to as «tú», like the client, and
+   * every error says what to do next (FR-059).
+   */
+  owner: {
+    title: 'Gestión del salón',
+    nav: {
+      label: 'Gestión del salón',
+      agenda: 'Agenda',
+      bookings: 'Reservas',
+      account: 'Tu cuenta',
+      signOut: 'Cerrar sesión',
+    },
+    busy: 'Un momento…',
+
+    signIn: {
+      title: 'Entrar en la gestión del salón',
+      username: 'Usuario',
+      password: 'Contraseña',
+      submit: 'Entrar',
+      submitting: 'Entrando…',
+      /** FR-005: what to do, with no operational detail. */
+      forgotten:
+        'Si has olvidado la contraseña, no se puede recuperar desde aquí: pide que te den una nueva.',
+    },
+
+    agenda: {
+      title: 'Agenda',
+      dayPicker: 'Elegir el día',
+      dateLabel: 'Día',
+      go: 'Ver ese día',
+      previous: 'Día anterior',
+      next: 'Día siguiente',
+      today: 'Hoy',
+      showCancelled: 'Mostrar también las canceladas',
+      hideCancelled: 'Ocultar las canceladas',
+      /** FR-017: closed and empty are different things, and say so. */
+      closed: 'El salón está cerrado este día.',
+      noAppointments: 'No hay ninguna cita este día.',
+      readOnly: 'Este día ya ha pasado: puedes consultarlo, pero no cambiar nada.',
+      free: 'Libre',
+      unavailable: 'No disponible',
+      past: 'Ya ha terminado',
+      phone: 'Teléfono',
+      email: 'Email',
+      anonymized: 'Datos del cliente borrados por antigüedad',
+    },
+
+    /** FR-013: the origin with text and an icon, never colour alone. */
+    origin: {
+      ONLINE: { label: 'Reservada online', icon: '@' },
+      OWNER: { label: 'Apuntada por ti', icon: '✎' },
+    },
+
+    /** FR-063, D-037: who cancelled, as the owner reads it. */
+    cancelledBy: {
+      CUSTOMER: 'Cancelada por el cliente',
+      OWNER: 'Cancelada por ti',
+    },
+
+    account: {
+      title: 'Tu cuenta',
+      changePassword: 'Cambiar la contraseña',
+      current: 'Contraseña actual',
+      next: 'Contraseña nueva',
+      /** `{min}` comes from the domain's MIN_PASSWORD_LENGTH (D-016). */
+      nextHint: 'Al menos {min} caracteres. No hace falta que lleve números ni símbolos.',
+      submit: 'Guardar la contraseña nueva',
+      saved: 'Contraseña cambiada. Si tenías la gestión abierta en otro aparato, allí tendrás que volver a entrar.',
+      signOutHint: 'Cierra la sesión si dejas este aparato al alcance de otras personas.',
+    },
+
+    errors: {
+      /** FR-008, FR-009: one answer for an unknown user, a wrong password and a lock. */
+      signInRejected: {
+        message: 'El usuario o la contraseña no son correctos.',
+        nextAction: 'Revisa los dos datos y vuelve a intentarlo.',
+      },
+      /** FR-002, FR-007: no session, or an idle one. Nothing else is said. */
+      unauthenticated: {
+        message: 'Tienes que entrar en la gestión del salón.',
+        nextAction: 'Vuelve a entrar con tu usuario y tu contraseña.',
+      },
+      badRequest: {
+        message: 'No hemos entendido la petición.',
+        nextAction: 'Vuelve a la pantalla anterior y repite la operación.',
+      },
+      wrongCurrentPassword: {
+        message: 'La contraseña actual no es correcta.',
+        nextAction: 'Escribe la contraseña con la que has entrado hoy.',
+      },
+      passwordTooShort: {
+        message: 'La contraseña nueva es demasiado corta.',
+        nextAction: 'Escribe una de al menos {min} caracteres.',
+      },
+      unexpected: {
+        message: 'No hemos podido completar la operación.',
+        nextAction: 'Vuelve a intentarlo en unos segundos.',
+      },
+    },
+  },
 } as const;
 
 /** `Corte`, `Corte y Lavado`, `Corte, Color y Lavado`: how a list is said in Spanish. */
@@ -298,6 +400,11 @@ function listOf(items: readonly string[]): string {
 /** Fills the salon phone into a message that offers it as the way out (FR-028). */
 export function withPhone(text: string, phone: string): string {
   return text.replaceAll(SALON_PHONE_PLACEHOLDER, phone);
+}
+
+/** Fills a minimum the domain owns into its message, so the copy never restates it. */
+export function withMin(text: string, min: number): string {
+  return text.replaceAll('{min}', String(min));
 }
 
 export type Messages = typeof messages;
