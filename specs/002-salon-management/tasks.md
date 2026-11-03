@@ -30,11 +30,11 @@ Proyecto único con arquitectura hexagonal, heredado de `001-client-appointment-
 
 **Purpose**: dejar el proyecto listo para la feature. Sin lógica de negocio.
 
-- [ ] T001 Elevar el mínimo declarado de `next` a `^15.2.3` en `package.json`, verificar con `npm ls next` que el lockfile resuelve 15.2.3 o superior y actualizar `package-lock.json` (D-018, CVE-2025-29927)
-- [ ] T002 [P] Añadir el script `owner:provision` (`tsx scripts/provision-owner.ts`) a `package.json`, junto a `db:seed`
-- [ ] T003 [P] Documentar `OWNER_USERNAME` y `OWNER_INITIAL_PASSWORD` en `.env.example`, con la nota de que son de un solo uso y no las lee la aplicación en marcha
-- [ ] T004 [P] Parametrizar `tests/contract/helpers/openapi.ts` para que acepte la ruta del contrato en vez de tenerla empotrada, sin duplicar el ayudante (D-028)
-- [ ] T005 [P] Actualizar las rutas de tests en `vitest.config.ts` / `package.json` para que `tests/unit/domain/owner/`, `tests/integration/security/` y `tests/integration/concurrency/` entren en las suites correspondientes
+- [x] T001 Elevar el mínimo declarado de `next` a `^15.2.3` en `package.json`, verificar con `npm ls next` que el lockfile resuelve 15.2.3 o superior y actualizar `package-lock.json` (D-018, CVE-2025-29927)
+- [ ] T002 [P] Añadir el script `owner:provision` (`tsx scripts/provision-owner.ts`) a `package.json`, junto a `db:seed`. *Se hace con T056*: el script no puede apuntar a un archivo que todavía no existe
+- [ ] T003 [P] Documentar `OWNER_USERNAME` y `OWNER_INITIAL_PASSWORD` en `.env.example`, con la nota de que son de un solo uso y no las lee la aplicación en marcha. *Se hace con T056*, cuando exista el comando que las usa
+- [x] T004 [P] Parametrizar `tests/contract/helpers/openapi.ts` para que acepte la ruta del contrato en vez de tenerla empotrada, sin duplicar el ayudante (D-028)
+- [x] T005 [P] Actualizar las rutas de tests en `vitest.config.ts` / `package.json` para que `tests/unit/domain/owner/`, `tests/integration/security/` y `tests/integration/concurrency/` entren en las suites correspondientes — sin cambios: los `include` ya son `tests/unit/**` y `tests/integration/**`
 
 ---
 
