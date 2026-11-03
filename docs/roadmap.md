@@ -62,6 +62,15 @@ verde, y es un punto donde se puede parar.
     sin N+1), a las citas a mano (elegir varios servicios, con la duración total), a
     mover citas (la duración es la suma de sus snapshots) y al catálogo de la US8
     (precio opcional, nunca 0).
+- [ ] **2b · Llevar a la 002 las decisiones del 2026-11-03 sobre su revisión**
+  - Ver las cuatro entradas del 2026-11-03 que empiezan por «002» en "Decisiones
+    tomadas": editar cita, búsqueda, textos de cancelación y tamaño de página.
+  - Spec (historia nueva de editar cita, requisito de búsqueda en la US10, texto de
+    la cancelación en la pantalla del cliente; quitar de *Out of Scope* y de las
+    *Assumptions* lo que estas decisiones contradicen), plan, modelo de datos,
+    contratos y tareas. Cerrar con `/speckit-analyze`.
+  - Va antes del paso 3: la edición y los textos del cliente tocan el dominio y el
+    contrato que el paso 3 empieza a construir.
 - [ ] **3 · 002, fases 1 y 2: setup y base común**
   - Migraciones: cuenta de la dueña, sesión, periodos no disponibles, origen de la cita.
   - Dominio: la disponibilidad resta intervalos en lugar de descartar días; email y
@@ -127,6 +136,25 @@ un proveedor de pago cuando se decida el presupuesto.
 Ninguna por ahora.
 
 ## Decisiones tomadas
+
+- 2026-11-03 · **002 · Editar una cita:** la dueña puede editar una cita confirmada y
+  no pasada: sus **servicios** (añadir, quitar, cambiar) y los **datos del cliente**
+  (nombre, teléfono, email). Sustituye a "cancelar y apuntar otra". Si la cita se
+  alarga y pisa algo, sale el mismo aviso de conflicto que al moverla. Los servicios
+  añadidos se guardan con el precio y la duración del momento. Una cita online
+  conserva su enlace, que pasa a mostrar los servicios nuevos. El cliente sigue sin
+  poder cambiar los servicios.
+- 2026-11-03 · **002 · Buscar en el listado:** la US10 permite buscar por **nombre o
+  teléfono**, combinable con los filtros. El teléfono se compara sin espacios ni
+  prefijo; el nombre, sin mayúsculas ni acentos y por una parte. Las citas
+  anonimizadas no aparecen al buscar. Deja de estar fuera de alcance.
+- 2026-11-03 · **002 · Textos de la cancelación:** en la pantalla del cliente (su
+  enlace), «Has cancelado esta cita» si la canceló él y «El salón ha cancelado esta
+  cita», con el teléfono del salón, si la canceló la dueña. En el listado de la
+  dueña, «Cancelada por el cliente» y «Cancelada por ti».
+- 2026-11-03 · **002 · Listado:** 20 citas por página con *Página siguiente* y
+  *Volver al principio*; el filtro de fechas se aplica al día de la cita en los dos
+  órdenes.
 
 - 2026-11-03 · **US10 · Quién canceló:** cada cancelación guarda si la hizo el cliente
   desde su enlace o la dueña desde la gestión, y el listado lo muestra. Las
