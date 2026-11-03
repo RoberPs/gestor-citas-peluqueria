@@ -47,7 +47,7 @@ function validate(options: Options = {}) {
     // The salon's calendar date of the requested start, as the Route Handler
     // derives it rather than taking the client's word for it.
     date: localDateOf(requestedStart, MADRID),
-    service: options.service ?? CORTE,
+    services: [options.service ?? CORTE],
     contact: options.contact ?? GOOD_CONTACT,
     openingIntervals: options.openingIntervals ?? [interval(5, '10:00', '20:00')],
     isClosed: options.isClosed ?? false,

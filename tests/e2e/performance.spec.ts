@@ -5,7 +5,7 @@ import {
   seedAppointment,
   slotDaysFromNow,
 } from './helpers/appointments';
-import { DAY_GRID, SLOT_LIST, clickAndNavigate } from './helpers/booking';
+import { DAY_GRID, SLOT_LIST, chooseOnlyService, clickAndNavigate } from './helpers/booking';
 import { useOwnClientIp } from './helpers/client-ip';
 
 /**
@@ -138,6 +138,53 @@ test('SC-004 — no step of the booking flow takes more than 2 s on 4G', async (
   }
 });
 
+test('005 SC-004 — four services chosen, and still no step over 2 s', async ({ page }) => {
+  await throttle(page);
+
+  const openBooking = await timeOf(() => page.goto('/', { waitUntil: 'load' }));
+  record('open the booking screen', openBooking);
+
+  // Corte comes chosen; each of the other three is one more press and one more
+  // recalculation of the 14 days for a longer selection (FR-009).
+  const steps: Record<string, number> = { openBooking };
+  for (const name of ['Color', 'Peinado', 'Lavado']) {
+    steps[`add ${name}`] = await timeOf(async () => {
+      await clickAndNavigate(
+        page.locator('section[aria-labelledby="service-heading"] button.service-option', {
+          hasText: name,
+        }),
+      );
+      await page.locator(DAY_GRID).waitFor();
+    });
+    record(`add ${name}`, steps[`add ${name}`] ?? 0);
+  }
+
+  steps['chooseDay'] = await timeOf(async () => {
+    await clickAndNavigate(page.locator(`${DAY_GRID} button.is-available`).last());
+    await page.locator(SLOT_LIST).waitFor();
+  });
+  record('choose a day', steps['chooseDay'] ?? 0);
+
+  steps['chooseSlot'] = await timeOf(async () => {
+    await page.locator(`${SLOT_LIST} button`).first().click();
+    await page.getByLabel('Nombre').waitFor();
+  });
+  record('choose an hour', steps['chooseSlot'] ?? 0);
+
+  steps['confirm'] = await timeOf(async () => {
+    await page.getByLabel('Nombre').fill('Ana López');
+    await page.getByLabel('Teléfono').fill('600112233');
+    await page.getByLabel('Email').fill('ana@example.com');
+    await page.getByRole('button', { name: 'Confirmar la cita' }).click();
+    await page.waitForURL(/\/cita\//);
+  });
+  record('confirm', steps['confirm'] ?? 0);
+
+  for (const [step, ms] of Object.entries(steps)) {
+    expect(ms, `${step} took ${ms} ms`).toBeLessThan(PERCEIVED_LIMIT_MS);
+  }
+});
+
 test('SC-004 — the management screens answer inside 2 s too', async ({ page }) => {
   await throttle(page);
 
@@ -165,7 +212,7 @@ test('the booking route stays inside its JavaScript budget', async ({ page }) =>
   const bookingScreen = scripts.total();
 
   scripts.reset();
-  await clickAndNavigate(page.getByRole('button', { name: /^Corte/ }));
+  await chooseOnlyService(page, 'Corte');
   await clickAndNavigate(page.locator(`${DAY_GRID} button.is-available`).last());
   await page.locator(`${SLOT_LIST} button`).first().click();
   await page.getByLabel('Nombre').waitFor();

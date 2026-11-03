@@ -28,7 +28,7 @@ function appointment(overrides: Partial<Appointment> = {}): Appointment {
     status: 'CONFIRMED',
     startsAt: at('2026-09-18', '11:30'),
     endsAt: at('2026-09-18', '13:00'),
-    service: COLOR_SNAPSHOT,
+    services: [COLOR_SNAPSHOT],
     customer: { name: 'Ana', phone: '600112233', email: 'ana@example.com' },
     createdAt: at('2026-09-15', '10:00'),
     cancelledAt: null,
@@ -100,7 +100,7 @@ describe('MOVED — the appointment changes slot', () => {
     if (!result.ok || result.value.kind !== 'MOVED') throw new Error('unreachable');
     // 90 minutes, as agreed when it was booked.
     expect(result.value.appointment.endsAt.equals(at('2026-09-18', '17:30'))).toBe(true);
-    expect(result.value.appointment.service).toEqual(COLOR_SNAPSHOT);
+    expect(result.value.appointment.services).toEqual([COLOR_SNAPSHOT]);
   });
 
   it('leaves the original value untouched', () => {
@@ -246,5 +246,48 @@ describe('the new slot answers to the same four conditions as a booking (FR-003)
     });
 
     expect(error.kind).toBe('TOO_LATE_TO_BOOK');
+  });
+});
+
+describe('an appointment of several services (005, Historia 2)', () => {
+  const CORTE_SNAPSHOT = {
+    serviceId: '00000000-0000-4000-8000-000000000011',
+    name: 'Corte',
+    durationMinutes: 30,
+    priceCents: 1800,
+  };
+  const LAVADO_SNAPSHOT = {
+    serviceId: '00000000-0000-4000-8000-000000000014',
+    name: 'Lavado',
+    durationMinutes: 30,
+    priceCents: null,
+  };
+
+  /** Friday 2026-09-18, 11:30 to 12:30: two services of half an hour. */
+  const twoServices = () =>
+    appointment({
+      endsAt: at('2026-09-18', '12:30'),
+      services: [CORTE_SNAPSHOT, LAVADO_SNAPSHOT],
+    });
+
+  it('cannot move to a start where only half an hour fits (FR-017)', () => {
+    // 19:30 would hold a single service; the appointment needs the whole hour.
+    expect(failure({ appointment: twoServices(), newStart: at('2026-09-18', '19:30') })).toEqual({
+      kind: 'OUTSIDE_OPENING_HOURS',
+    });
+  });
+
+  it('keeps its services and its total duration when it moves', () => {
+    const result = reschedule({ appointment: twoServices(), newStart: at('2026-09-18', '19:00') });
+
+    if (!result.ok || result.value.kind !== 'MOVED') throw new Error('unreachable');
+    expect(result.value.appointment.services).toEqual([CORTE_SNAPSHOT, LAVADO_SNAPSHOT]);
+    expect(result.value.appointment.endsAt.equals(at('2026-09-18', '20:00'))).toBe(true);
+  });
+
+  it('still reports its own hour as unchanged', () => {
+    expect(reschedule({ appointment: twoServices(), newStart: at('2026-09-18', '11:30') })).toEqual(
+      { ok: true, value: { kind: 'UNCHANGED' } },
+    );
   });
 });

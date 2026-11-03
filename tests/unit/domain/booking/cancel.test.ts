@@ -15,7 +15,7 @@ function appointment(overrides: Partial<Appointment> = {}): Appointment {
     status: 'CONFIRMED',
     startsAt: at('2026-09-18', '11:30'),
     endsAt: at('2026-09-18', '12:00'),
-    service: { serviceId: 's1', name: 'Corte', durationMinutes: 30, priceCents: 1800 },
+    services: [{ serviceId: 's1', name: 'Corte', durationMinutes: 30, priceCents: 1800 }],
     customer: { name: 'Ana', phone: '600112233', email: 'ana@example.com' },
     createdAt: at('2026-09-15', '10:00'),
     cancelledAt: null,
@@ -44,7 +44,7 @@ describe('applyCancellation', () => {
     if (!result.ok) throw new Error('unreachable');
     expect(result.value.id).toBe(original.id);
     expect(result.value.startsAt.equals(original.startsAt)).toBe(true);
-    expect(result.value.service).toEqual(original.service);
+    expect(result.value.services).toEqual(original.services);
   });
 
   it('leaves the original untouched: the result is a new value', () => {

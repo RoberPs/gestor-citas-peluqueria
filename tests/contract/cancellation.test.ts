@@ -33,7 +33,7 @@ async function book(startsAt = FRIDAY_1130): Promise<string> {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        serviceId: CORTE,
+        serviceIds: [CORTE],
         startsAt,
         customer: { name: 'Ana López', phone: '600112233', email: 'ana@example.com' },
       }),
@@ -103,7 +103,7 @@ describe('200 — the appointment comes back updated', () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          serviceId: CORTE,
+          serviceIds: [CORTE],
           startsAt: FRIDAY_1130,
           customer: { name: 'Otro', phone: '700112233', email: 'otro@example.com' },
         }),
@@ -117,7 +117,8 @@ describe('200 — the appointment comes back updated', () => {
     await cancelRequest(await book());
 
     const { rows } = await testPool().query<{ status: string; service_name: string }>(
-      'SELECT status, service_name FROM appointment',
+      `SELECT a.status, s.name AS service_name
+         FROM appointment a JOIN appointment_service s ON s.appointment_id = a.id`,
     );
 
     expect(rows).toHaveLength(1);

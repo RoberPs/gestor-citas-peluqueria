@@ -3,6 +3,7 @@ import { Temporal } from '@js-temporal/polyfill';
 import { openingOf } from '@/domain/availability/compute-range';
 import type { Appointment } from '@/domain/booking/appointment';
 import { validateBookingRequest, type BookingRejection } from '@/domain/booking/confirm';
+import { selectServices } from '@/domain/catalog/selection';
 import type { Clock } from '@/domain/shared/clock';
 import type { RawContact } from '@/domain/contact/contact';
 import { err, ok, type Result } from '@/domain/shared/result';
@@ -23,14 +24,20 @@ import type { AppointmentRepository, SalonConfigRepository, TokenGenerator } fro
  */
 
 export type ConfirmBookingInput = {
-  readonly serviceId: string;
+  readonly serviceIds: readonly string[];
   /** The absolute instant, exactly as `/availability` handed it out. */
   readonly startsAt: string;
   readonly contact: RawContact;
 };
 
 export type ConfirmBookingFailure =
-  | { readonly kind: 'UNKNOWN_SERVICE' }
+  | { readonly kind: 'EMPTY_SELECTION' }
+  | { readonly kind: 'DUPLICATE_SERVICE' }
+  /**
+   * A service that is not, or is no longer, on offer. To the client a retired
+   * service and one that never existed are the same news (FR-015).
+   */
+  | { readonly kind: 'SERVICE_UNAVAILABLE'; readonly serviceIds: readonly string[] }
   | { readonly kind: 'INVALID_START' }
   | { readonly kind: 'REJECTED'; readonly rejection: BookingRejection }
   | { readonly kind: 'CONTACT_LIMIT_REACHED'; readonly limit: number };
@@ -67,8 +74,19 @@ export function createConfirmBooking(deps: {
     const timezone = salon.timezone;
     const now = deps.clock.now();
 
-    const service = configuration.services.find((candidate) => candidate.id === input.serviceId);
-    if (service === undefined) return err({ kind: 'UNKNOWN_SERVICE' });
+    // The services are checked against today's catalogue before the slot:
+    // the slot is measured with their total duration (FR-015).
+    const selection = selectServices(configuration.services, input.serviceIds);
+    if (!selection.ok) {
+      switch (selection.error.kind) {
+        case 'EMPTY':
+          return err({ kind: 'EMPTY_SELECTION' });
+        case 'DUPLICATE':
+          return err({ kind: 'DUPLICATE_SERVICE' });
+        case 'UNKNOWN_SERVICE':
+          return err({ kind: 'SERVICE_UNAVAILABLE', serviceIds: selection.error.serviceIds });
+      }
+    }
 
     const requestedStart = parseInstant(input.startsAt);
     if (requestedStart === null) return err({ kind: 'INVALID_START' });
@@ -92,12 +110,7 @@ export function createConfirmBooking(deps: {
     const validated = validateBookingRequest({
       requestedStart,
       date,
-      service: {
-        serviceId: service.id,
-        name: service.name,
-        durationMinutes: service.durationMinutes,
-        priceCents: service.priceCents,
-      },
+      services: selection.value.services,
       contact: input.contact,
       openingIntervals: opening.openingIntervals,
       isClosed: opening.isClosed,
@@ -126,7 +139,7 @@ export function createConfirmBooking(deps: {
       id: randomUUID(),
       startsAt: validated.value.startsAt,
       endsAt: validated.value.endsAt,
-      service: validated.value.service,
+      services: validated.value.services,
       contact: validated.value.contact,
       tokenHash: hash,
       createdAt: now,

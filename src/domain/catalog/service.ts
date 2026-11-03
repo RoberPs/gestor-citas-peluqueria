@@ -5,8 +5,11 @@ export type Service = {
   readonly id: ServiceId;
   readonly name: string;
   readonly durationMinutes: number;
-  /** Cents as an integer, never a float. Informative: v1 charges nothing. */
-  readonly priceCents: number;
+  /**
+   * Cents as an integer, never a float. Informative: v1 charges nothing.
+   * `null` is a service with no price yet, which is not a free one (FR-018).
+   */
+  readonly priceCents: number | null;
   readonly isActive: boolean;
   readonly displayOrder: number;
 };
@@ -21,7 +24,7 @@ export type ServiceSnapshot = {
   readonly serviceId: ServiceId;
   readonly name: string;
   readonly durationMinutes: number;
-  readonly priceCents: number;
+  readonly priceCents: number | null;
 };
 
 export function snapshotOf(service: Service): ServiceSnapshot {

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Temporal } from '@js-temporal/polyfill';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import type { Pool } from 'pg';
 import type { NewAppointment } from '@/application/ports';
 import { validateContact } from '@/domain/contact/contact';
 import { createAppointmentRepository } from '@/infrastructure/db/appointment-repository';
@@ -9,6 +10,15 @@ import { generate } from '@/infrastructure/security/token';
 import { closeTestDb, ensureSchema, testPool, truncateAll } from '../helpers/test-db';
 
 const SERVICE_ID = '00000000-0000-4000-8000-000000000011';
+const PEINADO_ID = '00000000-0000-4000-8000-000000000013';
+
+const CORTE_SNAPSHOT = { serviceId: SERVICE_ID, name: 'Corte', durationMinutes: 30, priceCents: 1800 };
+const PEINADO_SNAPSHOT = {
+  serviceId: PEINADO_ID,
+  name: 'Peinado',
+  durationMinutes: 45,
+  priceCents: null,
+};
 const NOW = Temporal.Instant.from('2026-09-15T08:00:00Z');
 
 function contact(phone = '600112233', email = 'ana@example.com') {
@@ -23,7 +33,7 @@ function newAppointment(overrides: Partial<NewAppointment> = {}): NewAppointment
     id: randomUUID(),
     startsAt,
     endsAt: overrides.endsAt ?? startsAt.add({ minutes: 30 }),
-    service: { serviceId: SERVICE_ID, name: 'Corte', durationMinutes: 30, priceCents: 1800 },
+    services: [CORTE_SNAPSHOT],
     contact: overrides.contact ?? contact(),
     tokenHash: overrides.tokenHash ?? generate().hash,
     createdAt: overrides.createdAt ?? NOW,
@@ -32,6 +42,27 @@ function newAppointment(overrides: Partial<NewAppointment> = {}): NewAppointment
 }
 
 const repo = createAppointmentRepository(() => testPool());
+
+/** Records the SQL that reaches the pool, so a second round trip cannot hide. */
+function spyingPool(pool: Pool): { pool: Pool; statements: string[] } {
+  const statements: string[] = [];
+
+  const proxy = new Proxy(pool, {
+    get(target, property, receiver) {
+      if (property !== 'query') return Reflect.get(target, property, receiver);
+
+      return (...args: unknown[]) => {
+        const first = args[0];
+        statements.push(
+          typeof first === 'string' ? first : String((first as { text?: string })?.text ?? ''),
+        );
+        return (target.query as (...rest: unknown[]) => unknown)(...args);
+      };
+    },
+  });
+
+  return { pool: proxy, statements };
+}
 
 beforeAll(async () => {
   await ensureSchema();
@@ -55,6 +86,15 @@ beforeEach(async () => {
   );
 });
 
+/** A second service, with no price, for the appointments of more than one. */
+async function addPeinado(): Promise<void> {
+  await testPool().query(
+    `INSERT INTO service (id, name, duration_minutes, price_cents, is_active, display_order)
+     VALUES ($1, 'Peinado', 45, NULL, true, 3)`,
+    [PEINADO_ID],
+  );
+}
+
 describe('insert', () => {
   it('stores the appointment and returns it as a domain object', async () => {
     const created = await repo.insert(newAppointment());
@@ -62,12 +102,14 @@ describe('insert', () => {
     expect(created.ok).toBe(true);
     if (!created.ok) throw new Error('unreachable');
     expect(created.value.status).toBe('CONFIRMED');
-    expect(created.value.service).toEqual({
-      serviceId: SERVICE_ID,
-      name: 'Corte',
-      durationMinutes: 30,
-      priceCents: 1800,
-    });
+    expect(created.value.services).toEqual([
+      {
+        serviceId: SERVICE_ID,
+        name: 'Corte',
+        durationMinutes: 30,
+        priceCents: 1800,
+      },
+    ]);
     expect(created.value.customer).toEqual({
       name: 'Ana',
       phone: '600112233',
@@ -109,6 +151,55 @@ describe('insert', () => {
     expect(second.error).toBe('SLOT_TAKEN');
   });
 
+  it('stores one row per service, in the order it was given (005, D-001)', async () => {
+    await addPeinado();
+    const start = Temporal.Instant.from('2026-09-18T08:00:00Z');
+    const created = await repo.insert(
+      newAppointment({
+        startsAt: start,
+        endsAt: start.add({ minutes: 75 }),
+        services: [CORTE_SNAPSHOT, PEINADO_SNAPSHOT],
+      }),
+    );
+    if (!created.ok) throw new Error('unreachable');
+
+    const { rows } = await testPool().query<{
+      position: number;
+      service_id: string;
+      price_cents: number | null;
+    }>(
+      `SELECT position, service_id, price_cents FROM appointment_service
+        WHERE appointment_id = $1 ORDER BY position`,
+      [created.value.id],
+    );
+
+    expect(rows).toEqual([
+      { position: 1, service_id: SERVICE_ID, price_cents: 1800 },
+      { position: 2, service_id: PEINADO_ID, price_cents: null },
+    ]);
+    expect(created.value.services).toEqual([CORTE_SNAPSHOT, PEINADO_SNAPSHOT]);
+  });
+
+  it('leaves no service row behind when the exclusion constraint refuses the appointment (D-011)', async () => {
+    await addPeinado();
+    const start = Temporal.Instant.from('2026-09-18T08:00:00Z');
+    await repo.insert(newAppointment({ startsAt: start, endsAt: start.add({ minutes: 30 }) }));
+
+    const refused = await repo.insert(
+      newAppointment({
+        startsAt: start,
+        endsAt: start.add({ minutes: 75 }),
+        services: [CORTE_SNAPSHOT, PEINADO_SNAPSHOT],
+      }),
+    );
+
+    expect(refused.ok).toBe(false);
+    const { rows } = await testPool().query<{ count: string }>(
+      'SELECT count(*) AS count FROM appointment_service',
+    );
+    expect(Number(rows[0]?.count)).toBe(1);
+  });
+
   it('accepts an appointment starting exactly when the previous ends (BR-013)', async () => {
     const start = Temporal.Instant.from('2026-09-18T08:00:00Z');
     await repo.insert(newAppointment({ startsAt: start, endsAt: start.add({ minutes: 90 }) }));
@@ -131,6 +222,26 @@ describe('findByTokenHash', () => {
 
     expect(found?.id).toBe(created.value.id);
     expect(token).toHaveLength(43);
+  });
+
+  it('reads the appointment and its services in order, in one query (D-011)', async () => {
+    await addPeinado();
+    const { hash } = generate();
+    const start = Temporal.Instant.from('2026-09-18T08:00:00Z');
+    await repo.insert(
+      newAppointment({
+        startsAt: start,
+        endsAt: start.add({ minutes: 75 }),
+        services: [CORTE_SNAPSHOT, PEINADO_SNAPSHOT],
+        tokenHash: hash,
+      }),
+    );
+
+    const spy = spyingPool(testPool());
+    const found = await createAppointmentRepository(() => spy.pool).findByTokenHash(hash);
+
+    expect(found?.services).toEqual([CORTE_SNAPSHOT, PEINADO_SNAPSHOT]);
+    expect(spy.statements).toHaveLength(1);
   });
 
   it('returns null for a hash that matches nothing', async () => {

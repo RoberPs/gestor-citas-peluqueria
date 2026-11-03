@@ -23,9 +23,10 @@ const querySchema = z.object({
  * The hours this appointment can move to (Historia 6).
  *
  * Same shape as `/availability`, with the two differences the story imposes:
- * the service is **not** a parameter — it comes from the appointment's frozen
- * snapshot (FR-024, D-011) — and the slot the appointment already holds is
- * offered, marked, and not counted as busy (FR-027).
+ * the services are **not** a parameter — they come from the appointment's
+ * frozen snapshots, and so does the total duration (FR-024, D-011; 005,
+ * FR-017) — and the slot the appointment already holds is offered, marked,
+ * and not counted as busy (FR-027).
  */
 export async function GET(
   request: Request,
@@ -64,11 +65,10 @@ export async function GET(
   }
 
   const result = await container().getAvailability({
-    serviceId: detail.appointment.service.serviceId,
     rangeStart: parsed.data.rangeStart,
     selectedDate: parsed.data.selectedDate,
     currentAppointment: {
-      service: detail.appointment.service,
+      services: detail.appointment.services,
       startsAt: detail.appointment.startsAt,
     },
   });

@@ -18,7 +18,7 @@ export default async function globalSetup(): Promise<void> {
   const client = new Client({ connectionString });
   await client.connect();
   try {
-    await client.query('TRUNCATE appointment RESTART IDENTITY');
+    await client.query('TRUNCATE appointment, appointment_service RESTART IDENTITY');
   } finally {
     await client.end();
   }

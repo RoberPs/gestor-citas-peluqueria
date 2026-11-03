@@ -26,6 +26,8 @@ const SERVICES = [
     cents: 2500,
     order: 3,
   },
+  // No price: the service the 005 suites use for "Precio a consultar" (D-010).
+  { id: '00000000-0000-4000-8000-000000000014', name: 'Lavado', minutes: 30, cents: null, order: 4 },
 ] as const;
 
 /**
@@ -76,6 +78,7 @@ export const SEED_IDS = {
   corte: SERVICES[0].id,
   color: SERVICES[1].id,
   peinado: SERVICES[2].id,
+  lavado: SERVICES[3].id,
   closure: CLOSURE_ID,
 } as const;
 
@@ -87,5 +90,5 @@ if (process.argv[1]?.endsWith('seed.ts') === true) {
   }
 
   await seed(connectionString, process.env['SALON_TIMEZONE'] ?? 'Europe/Madrid');
-  console.log('Seeded: salon, opening hours, three services and one closure.');
+  console.log('Seeded: salon, opening hours, four services and one closure.');
 }

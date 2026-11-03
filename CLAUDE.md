@@ -23,6 +23,12 @@ y cancela su cita desde el móvil, sin cuenta de usuario.
   días, huecos del día y siguiente día libre se derivan en memoria. Nunca N+1.
 - **El enlace de gestión es la credencial**: 32 bytes aleatorios; la BD guarda sólo
   su hash SHA-256. Sin sesiones ni cookies.
+- **Una cita lleva uno o varios servicios** en `appointment_service`, cada uno con su
+  snapshot (nombre, duración y precio al reservar). Dura la suma y se lee en una sola
+  consulta. Un precio puede ser `NULL` («Precio a consultar en el salón»), nunca 0.
+- **El contrato HTTP vivo** es el 2.0.0 de
+  `specs/001-client-appointment-booking/contracts/http-api.yaml`, el que comprueba
+  `npm run test:contract`.
 - **Tiempo**: siempre el reloj del servidor y `Europe/Madrid` (`SALON_TIMEZONE`),
   nunca el del dispositivo. El dominio recibe un puerto `Clock` inyectado.
 - **v1 no envía SMS ni email**, ni siquiera la confirmación.
@@ -44,7 +50,7 @@ Tests y checks:
 ```bash
 npm test                 # unitarios (dominio puro)
 npm run test:integration # casos de uso contra PostgreSQL real
-npm run test:contract    # Route Handlers contra contracts/http-api.yaml
+npm run test:contract    # Route Handlers contra specs/001-…/contracts/http-api.yaml
 npm run test:e2e         # Playwright + axe
 npm run test:all         # todo, en ese orden
 npm run lint             # ESLint + tsc --noEmit

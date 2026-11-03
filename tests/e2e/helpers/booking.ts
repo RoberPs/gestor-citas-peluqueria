@@ -26,6 +26,24 @@ export async function clickAndNavigate(target: Locator): Promise<void> {
   await page.waitForURL((url) => url.href !== before);
 }
 
+/**
+ * Leaves exactly that service chosen (005). Services are marked and unmarked,
+ * so pressing the first one — already chosen on arrival — would unmark it:
+ * this presses only what has to change, one navigation per press.
+ */
+export async function chooseOnlyService(page: Page, name: string): Promise<void> {
+  const options = page.locator('section[aria-labelledby="service-heading"] button.service-option');
+  const target = options.filter({ hasText: name });
+
+  if ((await target.getAttribute('aria-pressed')) !== 'true') await clickAndNavigate(target);
+
+  for (;;) {
+    const other = options.and(page.locator('[aria-pressed="true"]')).filter({ hasNotText: name });
+    if ((await other.count()) === 0) return;
+    await clickAndNavigate(other.first());
+  }
+}
+
 export type BookedAppointment = {
   readonly token: string;
   readonly url: string;
@@ -44,7 +62,7 @@ export async function bookAppointment(
   };
 
   await page.goto('/');
-  await clickAndNavigate(page.getByRole('button', { name: new RegExp(`^${service}`) }));
+  await chooseOnlyService(page, service);
 
   // The last day with room in the range: comfortably past the 24 hour deadline.
   const day = page.locator(`${DAY_GRID} button.is-available`).last();

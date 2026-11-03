@@ -58,7 +58,7 @@ function bookingRequest(body: unknown): Request {
 
 function validBody(overrides: Record<string, unknown> = {}) {
   return {
-    serviceId: CORTE,
+    serviceIds: [CORTE],
     startsAt: '2026-09-18T09:30:00Z',
     customer: { name: NAME, phone: PHONE, email: EMAIL },
     ...overrides,

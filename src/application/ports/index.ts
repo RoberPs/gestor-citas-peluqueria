@@ -5,7 +5,7 @@ import type {
   BusyInterval,
 } from '@/domain/booking/appointment';
 import type { SalonConfiguration } from '@/domain/catalog/salon';
-import type { ServiceSnapshot } from '@/domain/catalog/service';
+import type { NonEmptyServiceList } from '@/domain/catalog/selection';
 import type { NormalizedEmail, NormalizedPhone, ValidatedContact } from '@/domain/contact/contact';
 import type { Result } from '@/domain/shared/result';
 
@@ -20,7 +20,8 @@ export type NewAppointment = {
   readonly id: AppointmentId;
   readonly startsAt: Temporal.Instant;
   readonly endsAt: Temporal.Instant;
-  readonly service: ServiceSnapshot;
+  /** In catalogue order: the order is kept as each row's position. */
+  readonly services: NonEmptyServiceList;
   readonly contact: ValidatedContact;
   readonly tokenHash: Uint8Array;
   readonly createdAt: Temporal.Instant;
@@ -49,7 +50,8 @@ export interface AppointmentRepository {
   ): Promise<{ readonly byPhone: number; readonly byEmail: number }>;
 
   /**
-   * Inserts. Translates the 23P01 violation of the EXCLUDE constraint into
+   * Inserts the appointment and its services in one transaction (005, D-011).
+   * Translates the 23P01 violation of the EXCLUDE constraint into
    * `SLOT_TAKEN`, which is how FR-012 becomes observable without leaking
    * database detail upwards.
    */

@@ -38,23 +38,28 @@ export async function seedHistory(
 
     // One statement. Ten thousand round trips would make seeding slower than
     // the thing being measured.
+    // Each appointment with its service row, in the same statement (005, D-001).
     const inserted = await pool.query(
-      `INSERT INTO appointment (
-         id, status, starts_at, ends_at, service_id, service_name,
-         service_duration_minutes, service_price_cents,
-         customer_name, customer_phone, customer_email,
-         customer_phone_normalized, customer_email_normalized, token_hash, created_at
+      `WITH inserted AS (
+         INSERT INTO appointment (
+           id, status, starts_at, ends_at,
+           customer_name, customer_phone, customer_email,
+           customer_phone_normalized, customer_email_normalized, token_hash, created_at
+         )
+         SELECT gen_random_uuid(), 'CONFIRMED',
+                date_trunc('day', $3::timestamptz) - (n * interval '2 hours'),
+                date_trunc('day', $3::timestamptz) - (n * interval '2 hours') + interval '30 minutes',
+                'Cliente ' || n, '600112233', 'cliente@example.com',
+                '+34600112233', 'cliente@example.com',
+                decode(md5(random()::text || n::text), 'hex')
+                  || decode(md5(random()::text || n::text), 'hex'),
+                now()
+           FROM generate_series(1, $2) AS n
+         RETURNING id
        )
-       SELECT gen_random_uuid(), 'CONFIRMED',
-              date_trunc('day', $3::timestamptz) - (n * interval '2 hours'),
-              date_trunc('day', $3::timestamptz) - (n * interval '2 hours') + interval '30 minutes',
-              $1, 'Corte', 30, 1800,
-              'Cliente ' || n, '600112233', 'cliente@example.com',
-              '+34600112233', 'cliente@example.com',
-              decode(md5(random()::text || n::text), 'hex')
-                || decode(md5(random()::text || n::text), 'hex'),
-              now()
-         FROM generate_series(1, $2) AS n`,
+       INSERT INTO appointment_service
+         (appointment_id, position, service_id, name, duration_minutes, price_cents)
+       SELECT id, 1, $1, 'Corte', 30, 1800 FROM inserted`,
       [serviceId, count, before],
     );
 

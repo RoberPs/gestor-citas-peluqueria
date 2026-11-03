@@ -17,9 +17,8 @@ vi.mock('@/infrastructure/security/rate-limiter', () => ({
   }),
 }));
 
-const { GET: rescheduleAvailability } = await import(
-  '@/app/api/appointments/[token]/availability/route'
-);
+const { GET: rescheduleAvailability } =
+  await import('@/app/api/appointments/[token]/availability/route');
 const { POST: reschedule } = await import('@/app/api/appointments/[token]/reschedule/route');
 const { POST: create } = await import('@/app/api/appointments/route');
 
@@ -34,14 +33,14 @@ const FRIDAY_1600 = '2026-09-18T14:00:00Z';
 
 async function book(
   startsAt = FRIDAY_1130,
-  serviceId = COLOR,
+  serviceIds: string | readonly string[] = COLOR,
   customer = { name: 'Ana López', phone: '600112233', email: 'ana@example.com' },
 ): Promise<string> {
   const response = await create(
     new Request('http://localhost/api/appointments', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ serviceId, startsAt, customer }),
+      body: JSON.stringify({ serviceIds: [serviceIds].flat(), startsAt, customer }),
     }),
   );
 
@@ -90,16 +89,16 @@ describe('GET /api/appointments/{token}/availability', () => {
     expectMatchesContract(availabilitySchema, await response.json());
   });
 
-  it('forces the service of the appointment: it takes no serviceId (FR-024)', async () => {
+  it('forces the services of the appointment: it takes no serviceIds (FR-024)', async () => {
     const token = await book(FRIDAY_1130, COLOR);
 
-    const body = (await (await availabilityFor(token, { serviceId: CORTE })).json()) as {
-      serviceId: string;
+    const body = (await (await availabilityFor(token, { serviceIds: CORTE })).json()) as {
+      serviceIds: string[];
       slots: { localTime: string; endsLocalTime: string }[];
     };
 
     // The query parameter is ignored: Color it was and Color it stays.
-    expect(body.serviceId).toBe(COLOR);
+    expect(body.serviceIds).toEqual([COLOR]);
     // 90 minutes, the frozen duration, not the 30 of Corte.
     expect(body.slots[0]?.endsLocalTime).not.toBe(body.slots[0]?.localTime);
   });
@@ -107,9 +106,9 @@ describe('GET /api/appointments/{token}/availability', () => {
   it('marks the slot the appointment already holds (FR-027)', async () => {
     const token = await book();
 
-    const body = (await (
-      await availabilityFor(token, { selectedDate: '2026-09-18' })
-    ).json()) as { slots: { localTime: string; isCurrentAppointment?: boolean }[] };
+    const body = (await (await availabilityFor(token, { selectedDate: '2026-09-18' })).json()) as {
+      slots: { localTime: string; isCurrentAppointment?: boolean }[];
+    };
 
     const own = body.slots.find((slot) => slot.localTime === '11:30');
     expect(own?.isCurrentAppointment).toBe(true);
@@ -118,9 +117,9 @@ describe('GET /api/appointments/{token}/availability', () => {
   it('offers the own slot rather than hiding it as busy', async () => {
     const token = await book();
 
-    const body = (await (
-      await availabilityFor(token, { selectedDate: '2026-09-18' })
-    ).json()) as { slots: { localTime: string; isCurrentAppointment?: boolean }[] };
+    const body = (await (await availabilityFor(token, { selectedDate: '2026-09-18' })).json()) as {
+      slots: { localTime: string; isCurrentAppointment?: boolean }[];
+    };
 
     const marked = body.slots.filter((slot) => slot.isCurrentAppointment === true);
     expect(marked).toHaveLength(1);
@@ -136,9 +135,9 @@ describe('GET /api/appointments/{token}/availability', () => {
       email: 'otro@example.com',
     });
 
-    const body = (await (
-      await availabilityFor(token, { selectedDate: '2026-09-18' })
-    ).json()) as { slots: { localTime: string }[] };
+    const body = (await (await availabilityFor(token, { selectedDate: '2026-09-18' })).json()) as {
+      slots: { localTime: string }[];
+    };
 
     expect(body.slots.map((slot) => slot.localTime)).not.toContain('16:00');
   });
@@ -260,7 +259,9 @@ describe('POST /api/appointments/{token}/reschedule', () => {
     const response = await move(token, FRIDAY_1600);
 
     expect(response.status).toBe(404);
-    const { rows } = await testPool().query<{ starts_at: Date }>('SELECT starts_at FROM appointment');
+    const { rows } = await testPool().query<{ starts_at: Date }>(
+      'SELECT starts_at FROM appointment',
+    );
     expect(rows[0]?.starts_at.toISOString()).toBe(new Date(FRIDAY_1130).toISOString());
   });
 
@@ -273,5 +274,25 @@ describe('POST /api/appointments/{token}/reschedule', () => {
     };
 
     expect(body.nextAction.length).toBeGreaterThan(0);
+  });
+});
+
+describe('an appointment of several services (005, FR-017)', () => {
+  it('offers the hours for the total duration of the appointment, and its services', async () => {
+    const token = await book(FRIDAY_1130, [COLOR, CORTE]);
+
+    const response = await availabilityFor(token, { selectedDate: '2026-09-18' });
+    const body = (await response.clone().json()) as {
+      serviceIds: string[];
+      durationMinutes: number;
+      slots: { localTime: string }[];
+    };
+
+    expect(response.status).toBe(200);
+    expectMatchesContract(availabilitySchema, await response.json());
+    expect(body.serviceIds).toEqual([CORTE, COLOR]);
+    expect(body.durationMinutes).toBe(120);
+    // Two hours in a 10:00 to 20:00 day: 18:00 is the last start that holds them.
+    expect(body.slots.at(-1)?.localTime).toBe('18:00');
   });
 });

@@ -7,7 +7,7 @@ import { createAppointmentRepository } from '@/infrastructure/db/appointment-rep
 import { createSalonConfigRepository } from '@/infrastructure/db/salon-config-repository';
 import { tokenGenerator } from '@/infrastructure/security/token';
 import { closeTestDb, ensureSchema, testPool, truncateAppointments } from '../helpers/test-db';
-import { COLOR, seedContractDatabase } from '../../contract/helpers/seed-contract-db';
+import { COLOR, CORTE, seedContractDatabase } from '../../contract/helpers/seed-contract-db';
 
 /**
  * The link resolves to that appointment and to nothing else (FR-018, BR-009),
@@ -35,7 +35,7 @@ let useCases: ReturnType<typeof build>;
 
 async function bookColor(): Promise<string> {
   const result = await useCases.confirmBooking({
-    serviceId: COLOR,
+    serviceIds: [COLOR],
     startsAt: FRIDAY_1130,
     contact: { name: 'Ana López', phone: '600112233', email: 'ana@example.com' },
   });
@@ -109,12 +109,14 @@ describe('what the link shows', () => {
     // A fresh use case, so nothing is being served from a warm cache.
     const detail = await build().viewAppointment(token);
 
-    expect(detail?.appointment.service).toEqual({
-      serviceId: COLOR,
-      name: 'Color',
-      durationMinutes: 90,
-      priceCents: 5500,
-    });
+    expect(detail?.appointment.services).toEqual([
+      {
+        serviceId: COLOR,
+        name: 'Color',
+        durationMinutes: 90,
+        priceCents: 5500,
+      },
+    ]);
   });
 
   it('carries the salon details every screen shows (FR-014)', async () => {
@@ -140,7 +142,7 @@ describe('the link gives access to that appointment and no other (BR-009)', () =
   it('never returns another client appointment', async () => {
     const mine = await bookColor();
     const theirs = await useCases.confirmBooking({
-      serviceId: COLOR,
+      serviceIds: [COLOR],
       startsAt: '2026-09-18T12:00:00Z',
       contact: { name: 'Otro', phone: '700112233', email: 'otro@example.com' },
     });
@@ -150,5 +152,24 @@ describe('the link gives access to that appointment and no other (BR-009)', () =
 
     expect(detail?.appointment.id).not.toBe(theirs.value.appointment.id);
     expect(detail?.appointment.customer?.name).toBe('Ana López');
+  });
+});
+
+describe('an appointment of several services (005, Historia 2)', () => {
+  it('shows every service in catalogue order, as each was booked (FR-006, FR-014)', async () => {
+    const result = await useCases.confirmBooking({
+      serviceIds: [COLOR, CORTE],
+      startsAt: FRIDAY_1130,
+      contact: { name: 'Ana López', phone: '600112233', email: 'ana@example.com' },
+    });
+    if (!result.ok) throw new Error('the fixture booking was rejected');
+
+    const detail = await build().viewAppointment(result.value.token);
+
+    // By id: an earlier test in this file renames Color in the catalogue.
+    expect(detail?.appointment.services.map((service) => service.serviceId)).toEqual([
+      CORTE,
+      COLOR,
+    ]);
   });
 });

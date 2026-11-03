@@ -13,14 +13,15 @@ import { messages } from '@/messages/es-ES';
  */
 export function SlotList({
   availability,
-  serviceId,
+  serviceIds,
   action = '/reservar',
   browseAction = '/',
   selectedStartsAt,
   live = true,
 }: {
   readonly availability: AvailabilityDto;
-  readonly serviceId: string;
+  /** The selection in view, carried with the chosen hour (005, D-004). */
+  readonly serviceIds: readonly string[];
   /** Where a chosen hour goes. */
   readonly action?: string;
   /** Where the jump to the next free day goes. */
@@ -50,7 +51,7 @@ export function SlotList({
             <p className="visually-hidden">{messages.availability.slotCountSummary(slots.length)}</p>
 
             <NavForm action={action}>
-              <input type="hidden" name="serviceId" value={serviceId} />
+              <input type="hidden" name="serviceIds" value={serviceIds.join(',')} />
               {/* The range and day in view travel with the hour, so a screen
                   that keeps them on display knows which ones to draw. */}
               <input type="hidden" name="rangeStart" value={availability.range.start} />
@@ -109,7 +110,7 @@ export function SlotList({
               <p>{messages.availability.noneInHorizon}</p>
             ) : (
               <NavForm action={browseAction}>
-                <input type="hidden" name="serviceId" value={serviceId} />
+                <input type="hidden" name="serviceIds" value={serviceIds.join(',')} />
                 <input type="hidden" name="selectedDate" value={nextAvailableDate} />
                 <button type="submit" name="rangeStart" value={nextAvailableDate} className="button">
                   {messages.availability.jumpToNext(longDateLabel(nextAvailableDate))}

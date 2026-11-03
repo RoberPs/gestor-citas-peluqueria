@@ -97,6 +97,16 @@ export function violations(schemaNode: unknown, value: unknown, at = '$'): reado
     for (const part of allOf) problems.push(...violations(part, value, at));
   }
 
+  // Exactly one branch must fit: a body that fits two is as ambiguous as one
+  // that fits none.
+  const oneOf = schema['oneOf'];
+  if (Array.isArray(oneOf)) {
+    const fitting = oneOf.filter((branch) => violations(branch, value, at).length === 0);
+    if (fitting.length !== 1) {
+      problems.push(`${at}: expected exactly one of ${oneOf.length} schemas to match, ${fitting.length} did`);
+    }
+  }
+
   const declaredType = schema['type'];
   if (declaredType !== undefined) {
     const types = Array.isArray(declaredType) ? declaredType : [declaredType];
@@ -137,6 +147,10 @@ export function violations(schemaNode: unknown, value: unknown, at = '$'): reado
     }
     if (typeof maxItems === 'number' && value.length > maxItems) {
       problems.push(`${at}: expected at most ${maxItems} items, got ${value.length}`);
+    }
+    if (schema['uniqueItems'] === true) {
+      const seen = new Set(value.map((item) => JSON.stringify(item)));
+      if (seen.size !== value.length) problems.push(`${at}: expected unique items`);
     }
     const items = schema['items'];
     if (items !== undefined) {

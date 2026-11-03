@@ -48,7 +48,7 @@ test.afterAll(async () => {
 
 /** A free hour for Corte, in the URL shape `/reservar` receives it. */
 function freeSlotUrl(): string {
-  return `/reservar?serviceId=${SERVICE_ID}&startsAt=${slotDaysFromNow(5).toISOString()}`;
+  return `/reservar?serviceIds=${SERVICE_ID}&startsAt=${slotDaysFromNow(5).toISOString()}`;
 }
 
 /** The salon's calendar day of an instant. */
@@ -233,7 +233,7 @@ test.describe('US1 — reserva en ordenador', () => {
   });
 
   test('escenario 6 — un día cerrado ofrece el siguiente con huecos', async ({ page }) => {
-    await page.goto(`/?serviceId=${SERVICE_ID}&selectedDate=${nextSunday()}`);
+    await page.goto(`/?serviceIds=${SERVICE_ID}&selectedDate=${nextSunday()}`);
 
     const slots = page.locator(SLOTS);
     await expect(slots.getByText('El salón está cerrado este día.')).toBeVisible();
@@ -355,7 +355,7 @@ test.describe('US1 — reserva en ordenador', () => {
     const other = await context?.newPage();
     if (other === undefined || context === undefined) throw new Error('no second browser context');
     await other.setExtraHTTPHeaders({ 'x-forwarded-for': '198.51.100.78' });
-    await other.goto(`/reservar?serviceId=${SERVICE_ID}&startsAt=${startsAt}`);
+    await other.goto(`/reservar?serviceIds=${SERVICE_ID}&startsAt=${startsAt}`);
     await fillContact(other, { name: 'Otro', phone: '700112233', email: 'otro@example.com' });
     await other.getByRole('button', { name: 'Confirmar la cita' }).click();
     await other.waitForURL(/\/cita\//);
@@ -397,7 +397,7 @@ test.describe('US1 — reserva en ordenador', () => {
   test('Principio V — parámetros inválidos caen al rango por defecto', async ({ page }) => {
     const at = slotDaysFromNow(5);
     const response = await page.goto(
-      `/reservar?serviceId=${SERVICE_ID}&startsAt=${at.toISOString()}` +
+      `/reservar?serviceIds=${SERVICE_ID}&startsAt=${at.toISOString()}` +
         '&rangeStart=xx&selectedDate=2999-01-01',
     );
 

@@ -1,7 +1,7 @@
 import type { Temporal } from '@js-temporal/polyfill';
 import type { BookingPolicy, OpeningInterval } from '../catalog/salon';
 import { ok, type Result } from '../shared/result';
-import type { Appointment, BusyInterval } from './appointment';
+import { durationOf, type Appointment, type BusyInterval } from './appointment';
 import { validateSlot, type BookingRejection } from './confirm';
 import { canReschedule, type ModificationBlock } from './modification-rules';
 
@@ -10,10 +10,10 @@ import { canReschedule, type ModificationBlock } from './modification-rules';
  *
  * Three things this signature settles before any code runs:
  *
- * - **The service cannot change.** No new one can be passed in, so FR-024 is
+ * - **The services cannot change.** No new ones can be passed in, so FR-017 is
  *   not a rule to enforce but a state that cannot be expressed. The duration
- *   comes from the appointment's own snapshot, so a catalogue change since the
- *   booking cannot silently lengthen it (D-011).
+ *   is the sum of the appointment's own snapshots, so a catalogue change since
+ *   the booking cannot silently lengthen it (D-011, 005/D-008).
  * - **The appointment's own slot does not block it** (FR-027).
  * - **Picking the hour already held is `UNCHANGED`, not a failure** (escenario 5).
  *
@@ -54,7 +54,7 @@ export function applyReschedule(
   const slot = validateSlot({
     requestedStart: input.newStart,
     date: input.date,
-    service: input.appointment.service,
+    durationMinutes: durationOf(input.appointment),
     openingIntervals: input.openingIntervals,
     isClosed: input.isClosed,
     confirmedAppointments: input.confirmedAppointments,

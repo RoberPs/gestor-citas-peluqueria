@@ -30,10 +30,13 @@ Tests: `npm run test:all`. Checks: `npm run lint` y `npm run check:layers`.
 17:00–20:00; sábados 10:00–14:00) y sus cuatro servicios. Datos provisionales hasta
 acordarlos con el cliente:
 
-- Todos los servicios duran 30 minutos; la reserva sigue siendo cada media hora.
-- Los precios están a 0 y la pantalla muestra «0,00 €». La feature 005 los hará
-  opcionales.
+- Todos los servicios duran 30 minutos; la reserva sigue siendo cada media hora. Se
+  pueden elegir varios en una cita: «Corte de pelo» + «Diseño y corte de barba» = 1 h.
+- Ningún servicio tiene precio: la pantalla dice «Precio a consultar en el salón», nunca
+  «0,00 €».
 - No hay cierres por festivo.
+
+La configuración se cachea al arrancar: tras `npm run db:seed:demo`, reinicia la app.
 
 Los servicios de prueba quedan desactivados, no borrados, porque puede haber citas que
 los referencian. Para volver a los datos de prueba, `npm run db:seed`. Los tests usan
@@ -41,7 +44,7 @@ siempre `db-test` con su propio seed, así que cambiar la demo nunca los rompe.
 
 ## Estado del producto
 
-Última revisión: **2026-11-02**.
+Última revisión: **2026-11-03**.
 
 ### Resumen
 
@@ -58,6 +61,7 @@ salón la ve sin consultarla a mano.
 | [002 · Gestión del salón](specs/002-salon-management/spec.md) | Spec, plan y tareas; sin código | 0 / 164 | `002-salon-management` | Sólo la documentación (PR #4) |
 | [003 · Versión responsive para tablet y ordenador](specs/003-responsive-desktop/spec.md) | Implementada | 35 / 35 | `003-responsive-desktop` | Sí (PR #3) |
 | 004 · Avisos por email y SMS | Planificada, sin spec | — | — | — |
+| [005 · Varios servicios por cita y precio opcional](specs/005-multiple-services/spec.md) | Implementada | 55 / 55 | `005-multiple-services` | Pendiente de fusionar (PR) |
 
 `main` contiene la 001 y la 003 completas, la enmienda 1.1.0 de la constitución y la
 documentación de la 002 (spec, plan y tareas), con la 003 ya incorporada a su rama para
@@ -65,18 +69,25 @@ que sus pantallas nazcan responsive. El código de cada feature se fusiona a `ma
 con la CI en verde. La 002 se implementa en su rama `002-salon-management` a partir del
 paso 2 del [roadmap](docs/roadmap.md).
 
-### Qué puede hacer hoy la app (001)
+### Qué puede hacer hoy la app (001, 003 y 005)
 
-Probado a mano el 2026-11-02:
+Probado a mano el 2026-11-02, y la 005 el 2026-11-03:
 
-- Elegir servicio y ver 14 días marcados como *con huecos*, *lleno* o *cerrado*, con
-  avance por rangos hasta 60 días.
+- Elegir uno o varios servicios y ver la duración total; la cita dura la suma. Con cada
+  cambio se recalculan los 14 días, marcados como *con huecos*, *lleno* o *cerrado*,
+  con avance por rangos hasta 60 días. Sólo se ofrecen horas donde cabe la cita entera.
+- Un servicio sin precio dice «Precio a consultar en el salón». El resumen, la
+  confirmación y el enlace muestran cada servicio con su precio y el precio total, que
+  suma los conocidos y añade «+ precio a consultar en el salón» si falta alguno.
 - Ver las horas libres del día respetando la antelación mínima de 2 h y los tramos
   de apertura.
 - Reservar con nombre, teléfono y email, con validación por campo que conserva lo escrito.
 - Pantalla de confirmación con el enlace de gestión y el aviso de guardarlo.
-- Desde el enlace: consultar, reprogramar (misma URL, hora actual marcada) y cancelar
-  con confirmación explícita.
+- Desde el enlace: consultar, reprogramar (misma URL, hora actual marcada, mismos
+  servicios y misma duración total) y cancelar con confirmación explícita. Para cambiar
+  los servicios se cancela y se reserva de nuevo.
+- Las citas anteriores a la 005 se ven igual que antes: un servicio, «Servicio» en
+  singular.
 - Enlace inexistente o malformado: mensaje neutro.
 - Borrado de datos personales a los 12 meses (`npm run retention:purge`).
 
@@ -89,21 +100,24 @@ Con la 003, todo lo anterior se adapta a tres tamaños:
   formulario, a la derecha.
 - Elegir día u hora no recarga la página: lo escrito se conserva sin guardarse nunca en
   el navegador. Atrás deshace la última elección y recargar la mantiene.
+- En ordenador, cambiar los servicios con una hora ya elegida la conserva si la cita
+  sigue cabiendo; si no, vuelve a las horas de ese día con un aviso, sin perder lo
+  escrito.
 
 ### Estado de los checks
 
-En `main` tras la 003, el 2026-11-02 (CI del PR #3 en verde). Playwright tiene tres proyectos,
-uno por tamaño (ver `playwright.config.ts`).
+En la rama `005-multiple-services`, el 2026-11-03. Playwright tiene tres proyectos, uno
+por tamaño (ver `playwright.config.ts`).
 
 | Check | Resultado |
 |---|---|
-| `npm test` (unitarios) | 264 / 264 ✅ |
-| `npm run test:integration` | 114 / 114 ✅ |
-| `npm run test:contract` | 80 / 80 ✅ |
-| `npm run test:e2e` | 159 / 159 ✅ |
-| · proyecto `mobile-360` (la suite de la 001) | 61 / 61 ✅ |
-| · proyecto `desktop-1280` (la 001 sin rendimiento, más `responsive.spec.ts`) | 90 / 90 ✅ |
-| · proyecto `tablet-768` (accesibilidad) | 8 / 8 ✅ |
+| `npm test` (unitarios) | 303 / 303 ✅ |
+| `npm run test:integration` | 135 / 135 ✅ |
+| `npm run test:contract` | 94 / 94 ✅ |
+| `npm run test:e2e` | 210 / 210 ✅ |
+| · proyecto `mobile-360` (la suite de la 001 y la 005) | 85 / 85 ✅ |
+| · proyecto `desktop-1280` (lo mismo sin rendimiento, más `responsive.spec.ts`) | 115 / 115 ✅ |
+| · proyecto `tablet-768` (accesibilidad) | 10 / 10 ✅ |
 | `npm run lint` | ✅ |
 | `npm run check:layers` | ✅ |
 
@@ -121,6 +135,11 @@ horaria de la máquina**, no defectos de la app:
 
 `performance.spec.ts` (SC-004) va justo en el límite: con `TZ=UTC` midió una vez 2017 ms
 frente a 2000 ms y pasó al repetirlo. Si falla de forma intermitente en la CI, es esto.
+Con cuatro servicios elegidos (005) ningún paso pasa de 1 s en local, igual que con uno.
+
+El 2026-11-03 el helper de axe pasó a esperar al `<title>` antes de analizar: justo
+después de una server action que redirige, React cambia el `<head>` y por un instante
+no hay título, y `us5-cancel` fallaba de forma intermitente por eso.
 
 ### Defectos menores de experiencia de uso (001)
 

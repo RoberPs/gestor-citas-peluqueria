@@ -5,7 +5,13 @@ import {
   seedAppointment,
 } from './helpers/appointments';
 import { expectNoAccessibilityViolations, expectNoHorizontalScroll } from './helpers/axe';
-import { bookAppointment, DAY_GRID, SLOT_LIST, clickAndNavigate } from './helpers/booking';
+import {
+  bookAppointment,
+  chooseOnlyService,
+  clickAndNavigate,
+  DAY_GRID,
+  SLOT_LIST,
+} from './helpers/booking';
 import { useOwnClientIp } from './helpers/client-ip';
 
 /**
@@ -115,7 +121,7 @@ test('escenario 5 — another client can book the freed hour with no fuss', asyn
   await other.setExtraHTTPHeaders({ 'x-forwarded-for': '198.51.100.42' });
 
   await other.goto('/');
-  await clickAndNavigate(other.getByRole('button', { name: /^Corte/ }));
+  await chooseOnlyService(other, 'Corte');
   await clickAndNavigate(other.locator(`${DAY_GRID} button.is-available`).last());
   await other.getByRole('button', { name: new RegExp(`^${localTime}`) }).click();
   await other.getByLabel('Nombre').fill('Otro Cliente');

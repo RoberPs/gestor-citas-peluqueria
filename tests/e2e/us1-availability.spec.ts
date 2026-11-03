@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { salonTimeLabel } from './helpers/appointments';
 import { expectNoAccessibilityViolations, expectNoHorizontalScroll } from './helpers/axe';
-import { clickAndNavigate } from './helpers/booking';
+import { chooseOnlyService, clickAndNavigate } from './helpers/booking';
 import { useOwnClientIp } from './helpers/client-ip';
 
 /**
@@ -14,7 +14,7 @@ const DAY_GRID = 'ul[aria-label="Días disponibles"]';
 const SLOT_LIST = 'ul[aria-label="Horas disponibles"]';
 
 async function chooseService(page: Page, name: string): Promise<void> {
-  await clickAndNavigate(page.getByRole('button', { name: new RegExp(`^${name}`) }));
+  await chooseOnlyService(page, name);
   await expect(page.locator('.service-option.is-selected')).toContainText(name);
 }
 
@@ -32,7 +32,7 @@ test('escenario 8 — catalogue, 14 day grid and the slots of the selected day',
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Reserva tu cita');
 
   // FR-001: name, duration and price for each service.
-  await expect(page.locator('.service-option')).toHaveCount(3);
+  await expect(page.locator('.service-option')).toHaveCount(4);
   await expect(page.locator('.service-option').first()).toContainText('30 min');
   await expect(page.locator('.service-option').first()).toContainText('18,00 €');
 

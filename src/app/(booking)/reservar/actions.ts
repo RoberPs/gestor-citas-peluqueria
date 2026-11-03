@@ -52,8 +52,9 @@ export async function submitBooking(
     };
   }
 
+  const serviceIds = text(formData, 'serviceIds');
   const result = await container().confirmBooking({
-    serviceId: text(formData, 'serviceId'),
+    serviceIds: serviceIds === '' ? [] : serviceIds.split(','),
     startsAt: text(formData, 'startsAt'),
     contact: values,
   });
@@ -77,7 +78,15 @@ export async function submitBooking(
     };
   }
 
-  if (failure.kind === 'UNKNOWN_SERVICE' || failure.kind === 'INVALID_START') {
+  if (failure.kind === 'SERVICE_UNAVAILABLE') {
+    // A service went out of the catalogue while the form was being filled in
+    // (FR-015). Like a lost hour, the screen is drawn again so the client
+    // decides on what is really on offer, with what they typed kept.
+    revalidatePath('/reservar');
+    return { fieldErrors: {}, summaryError: messages.errors.serviceUnavailable, values };
+  }
+
+  if (failure.kind !== 'REJECTED') {
     return { fieldErrors: {}, summaryError: messages.booking.missingSlot, values };
   }
 

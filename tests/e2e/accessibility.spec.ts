@@ -6,7 +6,13 @@ import {
   slotDaysFromNow,
 } from './helpers/appointments';
 import { expectNoAccessibilityViolations, expectNoHorizontalScroll } from './helpers/axe';
-import { bookAppointment, DAY_GRID, SLOT_LIST, clickAndNavigate } from './helpers/booking';
+import {
+  bookAppointment,
+  chooseOnlyService,
+  clickAndNavigate,
+  DAY_GRID,
+  SLOT_LIST,
+} from './helpers/booking';
 import { useOwnClientIp } from './helpers/client-ip';
 
 /**
@@ -117,11 +123,31 @@ test('ruta 1 — la pantalla de reservas', async ({ page }) => {
 
 test('ruta 2 — la pantalla de datos', async ({ page }) => {
   await page.goto('/');
-  await clickAndNavigate(page.getByRole('button', { name: /^Corte/ }));
+  await chooseOnlyService(page, 'Corte');
   await clickAndNavigate(page.locator(`${DAY_GRID} button.is-available`).last());
   await page.locator(`${SLOT_LIST} button`).first().click();
 
   await expect(page.getByLabel('Nombre')).toBeVisible();
+  await checkScreen(page, 4);
+});
+
+test('ruta 1b — la pantalla de reservas con dos servicios elegidos (005)', async ({ page }) => {
+  await page.goto('/');
+  await clickAndNavigate(page.getByRole('button', { name: /^Peinado/ }));
+
+  // The total is announced where it changes, without moving the focus (FR-023).
+  const selection = page.locator('section[aria-labelledby="service-heading"] [aria-live="polite"]');
+  await expect(selection).toContainText('Duración total: 1 h 15 min');
+  await expect(page.locator(DAY_GRID)).toBeVisible();
+  await checkScreen(page, 10);
+});
+
+test('ruta 1c — la pantalla de reservas sin ningún servicio elegido (005)', async ({ page }) => {
+  await page.goto('/?serviceIds=');
+
+  await expect(
+    page.getByText('Elige al menos un servicio para ver los días y las horas libres.'),
+  ).toBeVisible();
   await checkScreen(page, 4);
 });
 

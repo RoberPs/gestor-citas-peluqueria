@@ -40,14 +40,35 @@ export const messages = {
       'diciembre',
     ],
     minutesSuffix: 'min',
+    hoursSuffix: 'h',
+    /** FR-019: a service with no price yet. Never "0,00 €", which reads as free. */
+    priceOnRequest: 'Precio a consultar en el salón',
+    /** FR-020: after the sum of the prices that are known, when some are not. */
+    partialPriceSuffix: '+ precio a consultar en el salón',
     loading: 'Cargando…',
     back: 'Volver',
   },
 
   availability: {
     title: 'Reserva tu cita',
-    serviceSectionTitle: 'Elige el servicio',
-    serviceSectionHint: 'Duración y precio orientativos.',
+    serviceSectionTitle: 'Elige los servicios',
+    serviceSectionHint: 'Puedes elegir uno o varios. Duración y precio orientativos.',
+    /** FR-023: a chosen service says so in words and a mark, never by colour alone. */
+    selectedServiceMark: 'Elegido',
+    selectedServicesLabel: 'Servicios elegidos',
+    totalDurationLabel: 'Duración total',
+    /** FR-004: in place of the days and hours while nothing is chosen. */
+    emptySelection: 'Elige al menos un servicio para ver los días y las horas libres.',
+    /** FR-010, D-007: no opening stretch of the week is long enough. */
+    selectionTooLong: {
+      message: 'Los servicios que has elegido duran {duration}, más que cualquier franja del salón.',
+      nextAction: `Quita alguno o llama al salón al ${SALON_PHONE_PLACEHOLDER} y buscamos cómo hacerlo.`,
+    },
+    /** FR-011, D-005: the chosen hour no longer fits the new selection. */
+    hourRemoved: {
+      message: 'La hora que habías elegido ya no cabe con los servicios nuevos.',
+      nextAction: 'Elige otra hora de ese día; lo que escribiste en el formulario se conserva.',
+    },
     daySectionTitle: 'Elige el día',
     dayGridLabel: 'Días disponibles',
     slotSectionTitle: 'Elige la hora',
@@ -73,12 +94,11 @@ export const messages = {
           }`
         : `${parts.weekday} ${parts.day} de ${parts.month}, ${parts.status}`,
 
-    selectedService: (name: string) => `Servicio elegido: ${name}`,
-    noSlotsToday: 'Este día no queda ninguna hora libre para el servicio elegido.',
+    noSlotsToday: 'Este día no queda ninguna hora libre para lo que has elegido.',
     dayClosed: 'El salón está cerrado este día.',
     jumpToNext: (date: string) => `Ir al ${date}, el siguiente día con huecos`,
     noneInHorizon:
-      'No queda ningún hueco para este servicio en los próximos 60 días. Llama al salón y buscamos una fecha.',
+      'No queda ningún hueco para lo que has elegido en los próximos 60 días. Llama al salón y buscamos una fecha.',
     slotCountSummary: (count: number) =>
       count === 1 ? 'Queda 1 hora libre.' : `Quedan ${count} horas libres.`,
     /** 003, FR-010: on desktop, what appears beside the hours once one is chosen. */
@@ -98,6 +118,8 @@ export const messages = {
     pageTitle: 'Tus datos · Reserva tu cita',
     summaryTitle: 'Lo que vas a reservar',
     summaryService: 'Servicio',
+    /** 005: with more than one service the label goes plural; with one, as in 001. */
+    summaryServices: 'Servicios',
     summaryDate: 'Día',
     summaryTime: 'Hora',
     summaryDuration: 'Duración',
@@ -173,9 +195,14 @@ export const messages = {
 
   reschedule: {
     title: 'Cambiar de hora',
-    /** FR-024: the service is fixed; only the hour is on the table. */
-    sameServiceNotice: (service: string) =>
-      `Estás cambiando la hora de tu ${service}. El servicio no cambia; si quieres otro, cancela esta cita y reserva una nueva.`,
+    /**
+     * FR-024, 005 FR-017: the services are fixed; only the hour is on the
+     * table. With one service it reads as in 001.
+     */
+    sameServiceNotice: (services: readonly string[]) =>
+      services.length === 1
+        ? `Estás cambiando la hora de tu ${services[0] ?? ''}. El servicio no cambia; si quieres otro, cancela esta cita y reserva una nueva.`
+        : `Estás cambiando la hora de tu cita (${listOf(services)}). Los servicios no cambian; si quieres otros, cancela esta cita y reserva una nueva.`,
     /** FR-027: the slot the appointment already holds, offered and marked. */
     currentSlot: 'tu hora actual',
     confirmTitle: '¿Cambias tu cita a esta hora?',
@@ -208,6 +235,16 @@ export const messages = {
     unknownService: {
       message: 'Ese servicio ya no está disponible.',
       nextAction: 'Elige otro servicio del catálogo para ver sus horas libres.',
+    },
+    /** 005, FR-015: withdrawn between choosing it and confirming. */
+    serviceUnavailable: {
+      message: 'Uno de los servicios que habías elegido ha dejado de ofrecerse.',
+      nextAction: 'Revisa los servicios elegidos, ya sin ese, y vuelve a confirmar.',
+    },
+    /** 005, FR-004: no days or hours until at least one service is chosen. */
+    emptySelection: {
+      message: 'No has elegido ningún servicio.',
+      nextAction: 'Elige al menos un servicio para ver los días y las horas libres.',
     },
     rangeOutOfBounds: {
       message: 'Esas fechas están fuera de la agenda abierta.',
@@ -251,6 +288,12 @@ export const messages = {
     },
   },
 } as const;
+
+/** `Corte`, `Corte y Lavado`, `Corte, Color y Lavado`: how a list is said in Spanish. */
+function listOf(items: readonly string[]): string {
+  const last = items.at(-1) ?? '';
+  return items.length < 2 ? last : `${items.slice(0, -1).join(', ')} y ${last}`;
+}
 
 /** Fills the salon phone into a message that offers it as the way out (FR-028). */
 export function withPhone(text: string, phone: string): string {

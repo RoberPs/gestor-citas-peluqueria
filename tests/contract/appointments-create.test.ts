@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { CONTRACT_NOW, CORTE, seedContractDatabase } from './helpers/seed-contract-db';
+import { COLOR, CONTRACT_NOW, CORTE, seedContractDatabase } from './helpers/seed-contract-db';
+import { testPool } from '../integration/helpers/test-db';
 import { expectMatchesContract, responseSchema } from './helpers/openapi';
 import { closeTestDb, truncateAppointments } from '../integration/helpers/test-db';
 
@@ -42,15 +43,23 @@ function bookingRequest(body: unknown): Request {
 
 function validBody(overrides: Record<string, unknown> = {}) {
   return {
-    serviceId: CORTE,
+    serviceIds: [CORTE],
     startsAt: FRIDAY_1130,
     customer: { name: 'Ana López', phone: '600 11 22 33', email: 'ana@example.com' },
     ...overrides,
   };
 }
 
+/** In the catalogue, but no longer offered (FR-015). */
+const RETIRED = '00000000-0000-4000-8000-000000000016';
+
 beforeAll(async () => {
   await seedContractDatabase();
+  await testPool().query(
+    `INSERT INTO service (id, name, duration_minutes, price_cents, is_active, display_order)
+     VALUES ($1, 'Retirado', 30, 1000, false, 9)`,
+    [RETIRED],
+  );
 });
 
 afterAll(async () => {
@@ -133,8 +142,15 @@ describe('400 — contact data to correct (FR-009)', () => {
     expect(response.status).toBe(400);
   });
 
-  it('rejects a service that is not on offer', async () => {
-    const response = await POST(bookingRequest(validBody({ serviceId: randomUUID() })));
+  it('rejects an empty selection (FR-004)', async () => {
+    const response = await POST(bookingRequest(validBody({ serviceIds: [] })));
+
+    expect(response.status).toBe(400);
+    expectMatchesContract(validationSchema, await response.json());
+  });
+
+  it('rejects the same service twice (FR-003)', async () => {
+    const response = await POST(bookingRequest(validBody({ serviceIds: [CORTE, CORTE] })));
 
     expect(response.status).toBe(400);
     expectMatchesContract(validationSchema, await response.json());
@@ -158,15 +174,13 @@ describe('409 — the slot is no longer bookable', () => {
     const body = await response.json();
     expectMatchesContract(conflictSchema, body);
     expect((body as { code: string }).code).toBe('SLOT_TAKEN');
-    expect((body as { availability: { slots: unknown[] } }).availability.slots.length).toBeGreaterThan(
-      0,
-    );
+    expect(
+      (body as { availability: { slots: unknown[] } }).availability.slots.length,
+    ).toBeGreaterThan(0);
   });
 
   it('answers TOO_LATE_TO_BOOK when the start fell inside the two hour lead time', async () => {
-    const response = await POST(
-      bookingRequest(validBody({ startsAt: '2026-09-15T09:00:00Z' })),
-    );
+    const response = await POST(bookingRequest(validBody({ startsAt: '2026-09-15T09:00:00Z' })));
 
     expect(response.status).toBe(409);
     const body = await response.json();
@@ -176,9 +190,7 @@ describe('409 — the slot is no longer bookable', () => {
 
   it('answers OUTSIDE_OPENING_HOURS for a start the salon does not offer', async () => {
     // Sunday: the seed leaves it without opening stretches.
-    const response = await POST(
-      bookingRequest(validBody({ startsAt: '2026-09-20T09:30:00Z' })),
-    );
+    const response = await POST(bookingRequest(validBody({ startsAt: '2026-09-20T09:30:00Z' })));
 
     expect(response.status).toBe(409);
     expect(((await response.json()) as { code: string }).code).toBe('OUTSIDE_OPENING_HOURS');
@@ -199,6 +211,39 @@ describe('409 — the slot is no longer bookable', () => {
     expect(body.availability.selectedDate).toBe('2026-09-18');
     // The hour just taken is gone from what is offered.
     expect(body.availability.slots.map((slot) => slot.localTime)).not.toContain('11:30');
+  });
+});
+
+describe('several services in one appointment (005)', () => {
+  it('confirms two services as one appointment with one link', async () => {
+    const response = await POST(bookingRequest(validBody({ serviceIds: [COLOR, CORTE] })));
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get('Location')).toMatch(/^\/cita\/[A-Za-z0-9_-]{43}\?nueva=1$/);
+  });
+
+  it('answers SERVICE_UNAVAILABLE naming the service no longer offered (FR-015)', async () => {
+    const response = await POST(bookingRequest(validBody({ serviceIds: [CORTE, RETIRED] })));
+    const body = (await response.clone().json()) as {
+      code: string;
+      unavailableServiceIds: string[];
+      nextAction: string;
+    };
+
+    expect(response.status).toBe(409);
+    expectMatchesContract(conflictSchema, await response.json());
+    expect(body.code).toBe('SERVICE_UNAVAILABLE');
+    expect(body.unavailableServiceIds).toEqual([RETIRED]);
+    expect(body.nextAction.length).toBeGreaterThan(0);
+  });
+
+  it('treats a service that never existed the same way', async () => {
+    const unknown = randomUUID();
+    const response = await POST(bookingRequest(validBody({ serviceIds: [unknown] })));
+    const body = (await response.json()) as { code: string; unavailableServiceIds: string[] };
+
+    expect(response.status).toBe(409);
+    expect(body).toMatchObject({ code: 'SERVICE_UNAVAILABLE', unavailableServiceIds: [unknown] });
   });
 });
 

@@ -10,7 +10,13 @@ import {
 } from '@/infrastructure/db/appointment-repository';
 import { createSalonConfigRepository } from '@/infrastructure/db/salon-config-repository';
 import { generate, tokenGenerator } from '@/infrastructure/security/token';
-import { closeTestDb, ensureSchema, testPool, truncateAppointments } from '../helpers/test-db';
+import {
+  closeTestDb,
+  ensureSchema,
+  insertAppointmentRow,
+  testPool,
+  truncateAppointments,
+} from '../helpers/test-db';
 import { CORTE, seedContractDatabase } from '../../contract/helpers/seed-contract-db';
 
 /**
@@ -65,23 +71,34 @@ async function insertAppointment(startsAt: string): Promise<{ id: string; token:
   const id = randomUUID();
   const { token, hash } = generate();
 
-  await testPool().query(
-    `INSERT INTO appointment (
-       id, status, starts_at, ends_at, service_id, service_name,
-       service_duration_minutes, service_price_cents,
-       customer_name, customer_phone, customer_email,
-       customer_phone_normalized, customer_email_normalized, token_hash, created_at
-     ) VALUES ($1, 'CONFIRMED', $2, $2::timestamptz + interval '30 minutes',
-               $3, 'Corte', 30, 1800, 'Ana López', '600112233', 'ana@example.com',
-               '+34600112233', 'ana@example.com', $4, $2)`,
-    [id, startsAt, CORTE, Buffer.from(hash)],
+  const start = new Date(startsAt);
+  await insertAppointmentRow(
+    {
+      id,
+      status: 'CONFIRMED',
+      starts_at: start,
+      ends_at: new Date(start.getTime() + 30 * 60_000),
+      customer_name: 'Ana López',
+      customer_phone: '600112233',
+      customer_email: 'ana@example.com',
+      customer_phone_normalized: '+34600112233',
+      customer_email_normalized: 'ana@example.com',
+      token_hash: Buffer.from(hash),
+      created_at: start,
+    },
+    { serviceId: CORTE, name: 'Corte', durationMinutes: 30, priceCents: 1800 },
   );
 
   return { id, token };
 }
 
 async function rowOf(id: string): Promise<Row | undefined> {
-  const { rows } = await testPool().query<Row>('SELECT * FROM appointment WHERE id = $1', [id]);
+  const { rows } = await testPool().query<Row>(
+    `SELECT a.*, s.name AS service_name, s.duration_minutes AS service_duration_minutes
+       FROM appointment a JOIN appointment_service s ON s.appointment_id = a.id
+      WHERE a.id = $1`,
+    [id],
+  );
   return rows[0];
 }
 

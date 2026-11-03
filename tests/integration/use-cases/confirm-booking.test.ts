@@ -7,7 +7,12 @@ import { createAppointmentRepository } from '@/infrastructure/db/appointment-rep
 import { createSalonConfigRepository } from '@/infrastructure/db/salon-config-repository';
 import { tokenGenerator } from '@/infrastructure/security/token';
 import { closeTestDb, ensureSchema, testPool, truncateAppointments } from '../helpers/test-db';
-import { seedContractDatabase, CORTE, COLOR } from '../../contract/helpers/seed-contract-db';
+import {
+  seedContractDatabase,
+  CORTE,
+  COLOR,
+  LAVADO,
+} from '../../contract/helpers/seed-contract-db';
 
 /**
  * FR-011, FR-012, FR-013 and BR-014 against a real database.
@@ -16,6 +21,10 @@ import { seedContractDatabase, CORTE, COLOR } from '../../contract/helpers/seed-
  * race: the guarantee being tested is a database constraint (D-002), and a
  * simulation would be testing the simulation.
  */
+
+const PEINADO = '00000000-0000-4000-8000-000000000013';
+/** Offered when the client looked, withdrawn before they confirmed (FR-015). */
+const RETIRADO = '00000000-0000-4000-8000-000000000016';
 
 /** Tuesday 2026-09-15, 10:00 in Madrid. */
 const NOW = Temporal.Instant.from('2026-09-15T08:00:00Z');
@@ -42,6 +51,11 @@ let confirmBooking: ReturnType<typeof buildUseCase>;
 beforeAll(async () => {
   await ensureSchema();
   await seedContractDatabase();
+  await testPool().query(
+    `INSERT INTO service (id, name, duration_minutes, price_cents, is_active, display_order)
+     VALUES ($1, 'Peinado', 45, 2500, true, 3), ($2, 'Retirado', 30, 1000, true, 6)`,
+    [PEINADO, RETIRADO],
+  );
 });
 
 afterAll(async () => {
@@ -56,7 +70,7 @@ beforeEach(async () => {
 describe('a booking that goes through', () => {
   it('stores the appointment and hands back the token exactly once', async () => {
     const result = await confirmBooking({
-      serviceId: CORTE,
+      serviceIds: [CORTE],
       startsAt: FRIDAY_1130,
       contact: contactOf(),
     });
@@ -65,23 +79,25 @@ describe('a booking that goes through', () => {
     if (!result.ok) throw new Error('unreachable');
     expect(result.value.token).toMatch(/^[A-Za-z0-9_-]{43}$/);
     expect(result.value.appointment.status).toBe('CONFIRMED');
-    expect(result.value.appointment.service.name).toBe('Corte');
+    expect(result.value.appointment.services[0].name).toBe('Corte');
   });
 
   it('freezes the service into the appointment (FR-016, D-011)', async () => {
     const result = await confirmBooking({
-      serviceId: COLOR,
+      serviceIds: [COLOR],
       startsAt: FRIDAY_1130,
       contact: contactOf(),
     });
 
     if (!result.ok) throw new Error('unreachable');
-    expect(result.value.appointment.service).toEqual({
-      serviceId: COLOR,
-      name: 'Color',
-      durationMinutes: 90,
-      priceCents: 5500,
-    });
+    expect(result.value.appointment.services).toEqual([
+      {
+        serviceId: COLOR,
+        name: 'Color',
+        durationMinutes: 90,
+        priceCents: 5500,
+      },
+    ]);
     // The end comes from the snapshot duration, not from the request.
     expect(
       result.value.appointment.endsAt.since(result.value.appointment.startsAt).total('minutes'),
@@ -90,7 +106,7 @@ describe('a booking that goes through', () => {
 
   it('stores only the hash of the token, never the token itself (D-005)', async () => {
     const result = await confirmBooking({
-      serviceId: CORTE,
+      serviceIds: [CORTE],
       startsAt: FRIDAY_1130,
       contact: contactOf(),
     });
@@ -107,10 +123,10 @@ describe('a booking that goes through', () => {
 
 describe('revalidation at the moment of confirming (FR-011)', () => {
   it('rejects a slot that was taken while the form was being filled in', async () => {
-    await confirmBooking({ serviceId: CORTE, startsAt: FRIDAY_1130, contact: contactOf() });
+    await confirmBooking({ serviceIds: [CORTE], startsAt: FRIDAY_1130, contact: contactOf() });
 
     const second = await confirmBooking({
-      serviceId: CORTE,
+      serviceIds: [CORTE],
       startsAt: FRIDAY_1130,
       contact: contactOf('700112233', 'otro@example.com'),
     });
@@ -122,7 +138,7 @@ describe('revalidation at the moment of confirming (FR-011)', () => {
 
   it('rejects a start that has fallen inside the two hour lead time', async () => {
     const result = await confirmBooking({
-      serviceId: CORTE,
+      serviceIds: [CORTE],
       // 11:00 Madrid today, with the clock at 10:00.
       startsAt: '2026-09-15T09:00:00Z',
       contact: contactOf(),
@@ -137,7 +153,7 @@ describe('revalidation at the moment of confirming (FR-011)', () => {
 
   it('rejects a start the salon is not open for, however it was reached', async () => {
     const result = await confirmBooking({
-      serviceId: CORTE,
+      serviceIds: [CORTE],
       // Sunday, which the seed leaves without opening stretches.
       startsAt: '2026-09-20T09:30:00Z',
       contact: contactOf(),
@@ -150,19 +166,19 @@ describe('revalidation at the moment of confirming (FR-011)', () => {
 
   it('rejects an unknown service', async () => {
     const result = await confirmBooking({
-      serviceId: randomUUID(),
+      serviceIds: [randomUUID()],
       startsAt: FRIDAY_1130,
       contact: contactOf(),
     });
 
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error('unreachable');
-    expect(result.error.kind).toBe('UNKNOWN_SERVICE');
+    expect(result.error.kind).toBe('SERVICE_UNAVAILABLE');
   });
 
   it('rejects contact data the interface should have caught (FR-034)', async () => {
     const result = await confirmBooking({
-      serviceId: CORTE,
+      serviceIds: [CORTE],
       startsAt: FRIDAY_1130,
       contact: contactOf('12345', 'not-an-email'),
     });
@@ -186,7 +202,7 @@ describe('three confirmed future appointments per contact (BR-014, FR-013)', () 
   async function bookAt(index: number, phone: string, email: string) {
     const startsAt = slots[index];
     if (startsAt === undefined) throw new Error('no such slot in the fixture');
-    return confirmBooking({ serviceId: CORTE, startsAt, contact: contactOf(phone, email) });
+    return confirmBooking({ serviceIds: [CORTE], startsAt, contact: contactOf(phone, email) });
   }
 
   it('rejects the fourth appointment of the same phone', async () => {
@@ -231,21 +247,26 @@ describe('three confirmed future appointments per contact (BR-014, FR-013)', () 
 
   it('does not count cancelled or past appointments towards the limit', async () => {
     await testPool().query(
-      `INSERT INTO appointment (
-         id, status, starts_at, ends_at, service_id, service_name,
-         service_duration_minutes, service_price_cents,
-         customer_name, customer_phone, customer_email,
-         customer_phone_normalized, customer_email_normalized, token_hash,
-         created_at, cancelled_at
+      `WITH inserted AS (
+         INSERT INTO appointment (
+           id, status, starts_at, ends_at,
+           customer_name, customer_phone, customer_email,
+           customer_phone_normalized, customer_email_normalized, token_hash,
+           created_at, cancelled_at
+         )
+         SELECT gen_random_uuid(), 'CANCELLED',
+                timestamptz '2026-09-25 10:00+02' + (n * interval '2 hours'),
+                timestamptz '2026-09-25 10:30+02' + (n * interval '2 hours'),
+                'Ana', '600112233', 'ana@example.com',
+                '+34600112233', 'ana@example.com',
+                decode(md5(n::text), 'hex') || decode(md5(n::text), 'hex'),
+                now(), now()
+           FROM generate_series(1, 5) AS n
+         RETURNING id
        )
-       SELECT gen_random_uuid(), 'CANCELLED',
-              timestamptz '2026-09-25 10:00+02' + (n * interval '2 hours'),
-              timestamptz '2026-09-25 10:30+02' + (n * interval '2 hours'),
-              $1, 'Corte', 30, 1800, 'Ana', '600112233', 'ana@example.com',
-              '+34600112233', 'ana@example.com',
-              decode(md5(n::text), 'hex') || decode(md5(n::text), 'hex'),
-              now(), now()
-         FROM generate_series(1, 5) AS n`,
+       INSERT INTO appointment_service
+         (appointment_id, position, service_id, name, duration_minutes, price_cents)
+       SELECT id, 1, $1, 'Corte', 30, 1800 FROM inserted`,
       [CORTE],
     );
 
@@ -257,12 +278,12 @@ describe('two simultaneous confirmations on the same slot (FR-012)', () => {
   it('lets exactly one through and tells the other the slot is taken', async () => {
     const [first, second] = await Promise.all([
       confirmBooking({
-        serviceId: CORTE,
+        serviceIds: [CORTE],
         startsAt: FRIDAY_1130,
         contact: contactOf('600112233', 'ana@example.com'),
       }),
       confirmBooking({
-        serviceId: CORTE,
+        serviceIds: [CORTE],
         startsAt: FRIDAY_1130,
         contact: contactOf('700112233', 'otro@example.com'),
       }),
@@ -283,12 +304,12 @@ describe('two simultaneous confirmations on the same slot (FR-012)', () => {
   it('lets both through when the slots only touch (BR-013)', async () => {
     const [first, second] = await Promise.all([
       confirmBooking({
-        serviceId: CORTE,
+        serviceIds: [CORTE],
         startsAt: '2026-09-18T08:00:00Z',
         contact: contactOf('600112233', 'ana@example.com'),
       }),
       confirmBooking({
-        serviceId: CORTE,
+        serviceIds: [CORTE],
         startsAt: '2026-09-18T08:30:00Z',
         contact: contactOf('700112233', 'otro@example.com'),
       }),
@@ -296,5 +317,93 @@ describe('two simultaneous confirmations on the same slot (FR-012)', () => {
 
     expect(first.ok).toBe(true);
     expect(second.ok).toBe(true);
+  });
+});
+
+describe('several services in one appointment (005, Historia 1)', () => {
+  it('creates one appointment with a row per service, as long as their sum (FR-007, FR-012)', async () => {
+    const result = await confirmBooking({
+      serviceIds: [PEINADO, CORTE],
+      startsAt: FRIDAY_1130,
+      contact: contactOf(),
+    });
+
+    if (!result.ok) throw new Error('unreachable');
+    const { appointment } = result.value;
+    expect(appointment.services.map((service) => service.serviceId)).toEqual([CORTE, PEINADO]);
+    expect(appointment.endsAt.since(appointment.startsAt).total('minutes')).toBe(75);
+
+    const { rows } = await testPool().query<{ appointments: string; services: string }>(
+      `SELECT (SELECT count(*) FROM appointment) AS appointments,
+              (SELECT count(*) FROM appointment_service) AS services`,
+    );
+    expect(Number(rows[0]?.appointments)).toBe(1);
+    expect(Number(rows[0]?.services)).toBe(2);
+  });
+
+  it('refuses a service withdrawn since the client looked, naming it, and writes nothing (FR-015)', async () => {
+    // The client saw it offered; it is withdrawn before they confirm. Every
+    // confirmation reads the catalogue afresh, so a new use case sees it gone.
+    await testPool().query('UPDATE service SET is_active = false WHERE id = $1', [RETIRADO]);
+
+    const result = await buildUseCase()({
+      serviceIds: [CORTE, RETIRADO],
+      startsAt: FRIDAY_1130,
+      contact: contactOf(),
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: { kind: 'SERVICE_UNAVAILABLE', serviceIds: [RETIRADO] },
+    });
+    const { rows } = await testPool().query<{ count: string }>(
+      'SELECT count(*) AS count FROM appointment',
+    );
+    expect(Number(rows[0]?.count)).toBe(0);
+  });
+
+  it('lets exactly one of two overlapping confirmations through, when they overlap only in part (FR-016)', async () => {
+    // Color from 10:00 to 11:30 and Corte from 11:00 to 11:30: they share half an hour.
+    const [long, short] = await Promise.all([
+      confirmBooking({
+        serviceIds: [COLOR],
+        startsAt: '2026-09-18T08:00:00Z',
+        contact: contactOf('600112233', 'ana@example.com'),
+      }),
+      confirmBooking({
+        serviceIds: [CORTE],
+        startsAt: '2026-09-18T09:00:00Z',
+        contact: contactOf('700112233', 'otro@example.com'),
+      }),
+    ]);
+
+    expect([long, short].filter((result) => result.ok)).toHaveLength(1);
+    const failed = [long, short].find((result) => !result.ok);
+    expect(failed).toEqual({
+      ok: false,
+      error: { kind: 'REJECTED', rejection: { kind: 'SLOT_TAKEN' } },
+    });
+  });
+
+  it('counts appointments, not services, towards the limit of three (BR-014)', async () => {
+    const four = await confirmBooking({
+      serviceIds: [CORTE, COLOR, PEINADO, LAVADO],
+      startsAt: '2026-09-18T08:00:00Z',
+      contact: contactOf(),
+    });
+    expect(four.ok).toBe(true);
+
+    // A four service appointment is one: two more still fit under the limit.
+    for (const startsAt of ['2026-09-18T12:00:00Z', '2026-09-18T13:00:00Z']) {
+      const next = await confirmBooking({ serviceIds: [CORTE], startsAt, contact: contactOf() });
+      expect(next.ok).toBe(true);
+    }
+
+    const fourth = await confirmBooking({
+      serviceIds: [CORTE],
+      startsAt: '2026-09-18T14:00:00Z',
+      contact: contactOf(),
+    });
+    expect(fourth).toEqual({ ok: false, error: { kind: 'CONTACT_LIMIT_REACHED', limit: 3 } });
   });
 });

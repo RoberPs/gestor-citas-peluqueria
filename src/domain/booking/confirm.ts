@@ -1,7 +1,7 @@
 import { Temporal } from '@js-temporal/polyfill';
 import { generateCandidateStarts } from '../availability/slot-grid';
 import type { BookingPolicy, OpeningInterval } from '../catalog/salon';
-import type { ServiceSnapshot } from '../catalog/service';
+import { durationOfServices, type NonEmptyServiceList } from '../catalog/selection';
 import {
   validateContact,
   type ContactFieldError,
@@ -42,16 +42,19 @@ export type ValidatedSlot = {
 export type ValidatedBooking = {
   readonly startsAt: Temporal.Instant;
   readonly endsAt: Temporal.Instant;
-  readonly service: ServiceSnapshot;
+  readonly services: NonEmptyServiceList;
   readonly contact: ValidatedContact;
 };
 
-export type BookingRequest = {
+/**
+ * What a slot is checked against. It takes a duration, not a service: one
+ * service or four, what has to fit is the whole appointment (FR-008).
+ */
+export type SlotRequest = {
   readonly requestedStart: Temporal.Instant;
   /** The salon's calendar date the start is expected to fall on. */
   readonly date: Temporal.PlainDate;
-  readonly service: ServiceSnapshot;
-  readonly contact: RawContact;
+  readonly durationMinutes: number;
   readonly openingIntervals: readonly OpeningInterval[];
   readonly isClosed: boolean;
   readonly confirmedAppointments: readonly BusyInterval[];
@@ -60,6 +63,15 @@ export type BookingRequest = {
   readonly timezone: string;
   /** While rescheduling, this appointment's own slot does not block it (FR-027). */
   readonly currentAppointmentStart?: Temporal.Instant;
+};
+
+/**
+ * A new booking. The duration is not passed in: it is the sum of the services,
+ * so the two can never disagree.
+ */
+export type BookingRequest = Omit<SlotRequest, 'durationMinutes' | 'currentAppointmentStart'> & {
+  readonly services: NonEmptyServiceList;
+  readonly contact: RawContact;
 };
 
 function overlaps(
@@ -80,9 +92,7 @@ function overlaps(
  * second copy for rescheduling is exactly how a slot ends up bookable one way
  * and not the other (Principio I).
  */
-export function validateSlot(
-  input: Omit<BookingRequest, 'contact'>,
-): Result<ValidatedSlot, BookingRejection> {
+export function validateSlot(input: SlotRequest): Result<ValidatedSlot, BookingRejection> {
   const { policy, timezone, now, requestedStart } = input;
 
   const horizonEnd = localDateOf(now, timezone).add({ days: policy.horizonDays });
@@ -104,7 +114,7 @@ export function validateSlot(
     return err(isOnGrid(requestedStart, input) ? { kind: 'OUTSIDE_OPENING_HOURS' } : { kind: 'NOT_ON_GRID' });
   }
 
-  const endsAt = addMinutes(requestedStart, input.service.durationMinutes);
+  const endsAt = addMinutes(requestedStart, input.durationMinutes);
   const stretchEnd = instantFromWallTime(input.date, candidate.intervalEnd, timezone);
   if (Temporal.Instant.compare(endsAt, stretchEnd) > 0) {
     return err({ kind: 'OUTSIDE_OPENING_HOURS' });
@@ -136,17 +146,17 @@ export function validateSlot(
 export function validateBookingRequest(
   input: BookingRequest,
 ): Result<ValidatedBooking, BookingRejection> {
-  const slot = validateSlot(input);
+  const slot = validateSlot({ ...input, durationMinutes: durationOfServices(input.services) });
   if (!slot.ok) return slot;
 
   const contact = validateContact(input.contact);
   if (!contact.ok) return err({ kind: 'INVALID_CONTACT', fields: contact.error });
 
-  return ok({ ...slot.value, service: input.service, contact: contact.value });
+  return ok({ ...slot.value, services: input.services, contact: contact.value });
 }
 
 /** Whether the wall clock of the start lands on the grid, closed day or not. */
-function isOnGrid(start: Temporal.Instant, input: Omit<BookingRequest, 'contact'>): boolean {
+function isOnGrid(start: Temporal.Instant, input: SlotRequest): boolean {
   const zoned = start.toZonedDateTimeISO(input.timezone);
   const minutesIntoDay = zoned.hour * 60 + zoned.minute;
 
