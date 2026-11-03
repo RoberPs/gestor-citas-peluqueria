@@ -9,6 +9,7 @@ import type { SalonConfiguration, UnavailablePeriod } from '@/domain/catalog/sal
 import type { NonEmptyServiceList } from '@/domain/catalog/selection';
 import type { NormalizedEmail, NormalizedPhone, ValidatedContact } from '@/domain/contact/contact';
 import type { LockoutState } from '@/domain/owner/account';
+import type { BookingListCursor, BookingListQuery } from '@/domain/owner/booking-list';
 import type { Result } from '@/domain/shared/result';
 
 /**
@@ -171,6 +172,24 @@ export interface OwnerSessionRepository {
   deleteAllExcept(accountId: string, keepHash: Uint8Array): Promise<void>;
   /** The retention sweep's tidying: rows idle since before `cutoff`. */
   deleteIdleSince(cutoff: Temporal.Instant): Promise<number>;
+}
+
+export type BookingListPage = {
+  /** At most `pageSize`, each with all its services, origin and who cancelled. */
+  readonly rows: readonly Appointment[];
+  /** The cursor of the next page; `null` when there is none. */
+  readonly next: BookingListCursor | null;
+};
+
+/** The owner's bookings list (002, Historia 10). */
+export interface BookingListReader {
+  /**
+   * ONE query for a page, services included, with `LIMIT pageSize + 1` to know
+   * whether there is a next page without counting them all (FR-066, D-033).
+   * It turns a query the domain has already decided into SQL; it decides
+   * nothing itself.
+   */
+  readPage(query: BookingListQuery): Promise<BookingListPage>;
 }
 
 export interface TokenGenerator {

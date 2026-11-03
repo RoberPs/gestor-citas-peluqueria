@@ -39,9 +39,10 @@ const servicesOfAppointment = sql<ServiceSnapshot[] | null>`(
    WHERE ${appointmentService.appointmentId} = ${appointment.id}
 )`;
 
-const withServices = { ...getTableColumns(appointment), services: servicesOfAppointment };
+/** The appointment's columns and its services: one row, one appointment (shared with the bookings list). */
+export const withServices = { ...getTableColumns(appointment), services: servicesOfAppointment };
 
-type AppointmentWithServices = AppointmentRow & { readonly services: ServiceSnapshot[] | null };
+export type AppointmentWithServices = AppointmentRow & { readonly services: ServiceSnapshot[] | null };
 
 function instantOf(value: Date): Temporal.Instant {
   return Temporal.Instant.fromEpochMilliseconds(value.getTime());
@@ -59,7 +60,7 @@ function nonEmpty(services: readonly ServiceSnapshot[] | null, id: string): NonE
   return [first, ...rest];
 }
 
-function toDomain(row: AppointmentWithServices): Appointment {
+export function toDomain(row: AppointmentWithServices): Appointment {
   return {
     id: row.id,
     status: row.status,

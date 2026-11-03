@@ -4,12 +4,14 @@ import { createChangeOwnerPassword } from '@/application/use-cases/change-owner-
 import { createConfirmBooking } from '@/application/use-cases/confirm-booking';
 import { createGetAgendaDay } from '@/application/use-cases/get-agenda-day';
 import { createGetAvailability } from '@/application/use-cases/get-availability';
+import { createListBookings } from '@/application/use-cases/list-bookings';
 import { createListServices } from '@/application/use-cases/list-services';
 import { createRescheduleAppointment } from '@/application/use-cases/reschedule-appointment';
 import { createSignInOwner } from '@/application/use-cases/sign-in-owner';
 import { createSignOutOwner } from '@/application/use-cases/sign-out-owner';
 import { createViewAppointment } from '@/application/use-cases/view-appointment';
 import { createAppointmentRepository } from '@/infrastructure/db/appointment-repository';
+import { createBookingListReader } from '@/infrastructure/db/booking-list-reader';
 import { pool } from '@/infrastructure/db/client';
 import { createOwnerAccountRepository } from '@/infrastructure/db/owner-account-repository';
 import { createOwnerSessionRepository } from '@/infrastructure/db/owner-session-repository';
@@ -74,6 +76,11 @@ function build() {
     authorizeOwnerSession: createAuthorizeOwnerSession(owner),
     changeOwnerPassword: createChangeOwnerPassword(owner),
     getAgendaDay: createGetAgendaDay({ config, appointments, periods, clock: systemClock }),
+    listBookings: createListBookings({
+      config,
+      bookings: createBookingListReader(pool),
+      clock: systemClock,
+    }),
     rescheduleAppointment: createRescheduleAppointment({
       config,
       appointments,

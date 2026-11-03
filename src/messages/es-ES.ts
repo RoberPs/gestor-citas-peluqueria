@@ -336,6 +336,32 @@ export const messages = {
       anonymized: 'Datos del cliente borrados por antigüedad',
     },
 
+    bookings: {
+      title: 'Reservas',
+      filters: 'Filtrar las reservas',
+      search: 'Buscar por nombre o teléfono',
+      searchHint: 'El teléfono, entero. Del nombre basta con una parte, con o sin tildes.',
+      order: 'Orden',
+      orders: { proximas: 'Próximas citas', recientes: 'Últimas reservas recibidas' },
+      status: 'Estado',
+      statuses: { confirmadas: 'Confirmadas', canceladas: 'Canceladas', todas: 'Todas' },
+      origin: 'Origen',
+      origins: { todos: 'Todas', online: 'Online', mano: 'A mano' },
+      from: 'Desde el día',
+      to: 'Hasta el día',
+      apply: 'Ver las reservas',
+      reset: 'Volver a los filtros por defecto',
+      /** FR-068: an empty result says so, and offers the way back. */
+      empty: 'No hay ninguna reserva con estos filtros.',
+      next: 'Página siguiente',
+      first: 'Volver al principio',
+      bookedAt: 'Reservada el',
+      cancelledOn: 'el',
+      confirmed: 'Confirmada',
+      goToAgenda: 'Ver ese día en la agenda',
+      results: 'Reservas encontradas',
+    },
+
     /** FR-013: the origin with text and an icon, never colour alone. */
     origin: {
       ONLINE: { label: 'Reservada online', icon: '@' },
@@ -374,6 +400,19 @@ export const messages = {
       badRequest: {
         message: 'No hemos entendido la petición.',
         nextAction: 'Vuelve a la pantalla anterior y repite la operación.',
+      },
+      /** The bookings list, D-033 and D-036. */
+      invalidFilter: {
+        message: 'Esos filtros no se pueden aplicar.',
+        nextAction: 'Vuelve a los filtros por defecto y elige de nuevo.',
+      },
+      rangeReversed: {
+        message: 'La fecha «hasta» es anterior a la fecha «desde».',
+        nextAction: 'Elige una fecha final igual o posterior a la inicial.',
+      },
+      incompletePhone: {
+        message: 'Ese teléfono está incompleto.',
+        nextAction: 'Escribe el teléfono entero, con sus 9 cifras, o busca por el nombre.',
       },
       wrongCurrentPassword: {
         message: 'La contraseña actual no es correcta.',
