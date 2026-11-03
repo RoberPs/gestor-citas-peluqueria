@@ -72,8 +72,9 @@ una única cita con los dos servicios que ocupa la suma de sus duraciones.
    ese día con una selección de 1 h, **Then** el último inicio ofrecido es las 13:00 y
    no se ofrecen las 13:30.
 4. **Given** una cita confirmada de 11:00 a 11:30, **When** el cliente consulta las horas
-   con una selección de 1 h, **Then** no se ofrecen las 10:30, las 11:00 ni las 11:30
-   para empezar, y sí las 10:00 y las 12:00.
+   con una selección de 1 h, **Then** no se ofrecen las 10:30 ni las 11:00 para empezar,
+   y sí las 10:00 y las 11:30, porque una cita puede empezar justo cuando termina otra
+   (BR-013 de la 001).
 5. **Given** dos servicios elegidos, **When** el cliente cambia la selección, **Then** el
    estado de los 14 días y las horas del día elegido se recalculan para la nueva
    duración total.
@@ -216,9 +217,11 @@ catálogo, resumen, confirmación y enlace, y comprobar qué se muestra en cada 
 - **FR-009**: El sistema MUST recalcular el estado de los 14 días y las horas del día
   elegido cada vez que cambia la selección, y MUST seguir resolviendo el estado de un
   rango en una sola consulta de disponibilidad, sea cual sea el número de servicios.
-- **FR-010**: El sistema MUST explicar al cliente, cuando su selección no quepa en
-  ningún tramo libre del horizonte, que debe quitar algún servicio o llamar al salón,
-  mostrando su teléfono.
+- **FR-010**: El sistema MUST explicar al cliente, cuando su selección dure más que
+  cualquier tramo de apertura del salón, que debe quitar algún servicio o llamar al
+  salón, mostrando su teléfono. Si la selección cabe en el horario pero no queda ningún
+  hueco libre, se mantiene el comportamiento de la 001: días llenos y salto al siguiente
+  día con huecos.
 - **FR-011**: El sistema MUST conservar la hora elegida al cambiar la selección sólo si
   sigue siendo reservable con la nueva duración total; si no, MUST quitarla y avisar al
   cliente, conservando el día elegido y los datos escritos.
