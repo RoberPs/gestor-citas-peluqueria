@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { CONTRACT_NOW, CORTE, seedContractDatabase } from './helpers/seed-contract-db';
+import { COLOR, CONTRACT_NOW, CORTE, seedContractDatabase } from './helpers/seed-contract-db';
 import { expectMatchesContract, responseSchema } from './helpers/openapi';
 import { closeTestDb, truncateAppointments } from '../integration/helpers/test-db';
 
@@ -21,8 +21,18 @@ function request(query: Record<string, string>): Request {
 
 type AvailabilityBody = {
   serviceIds: string[];
+  services: { id: string; name: string; priceLabel: string }[];
+  durationMinutes: number;
+  price: { kind: string; knownCents: number | null; label: string };
+  fitsOpeningHours: boolean;
   range: { start: string; end: string; canGoBack: boolean; canGoForward: boolean };
-  days: { date: string; status: string; slotCount: number; weekdayLabel: string; dayLabel: string }[];
+  days: {
+    date: string;
+    status: string;
+    slotCount: number;
+    weekdayLabel: string;
+    dayLabel: string;
+  }[];
   selectedDate: string;
   slots: { startsAt: string; localTime: string; endsLocalTime: string }[];
   nextAvailableDate: string | null;
@@ -150,6 +160,39 @@ describe('400 responses', () => {
   it('says what to do next, as every error must (SC-012)', async () => {
     const body = (await (await GET(request({}))).json()) as { nextAction: string };
 
+    expect(body.nextAction.length).toBeGreaterThan(0);
+  });
+});
+
+describe('several services (005, contract 2.0.0)', () => {
+  it('lasts the sum, lists the services in catalogue order and prices them all', async () => {
+    const response = await GET(request({ serviceIds: `${COLOR},${CORTE}` }));
+    const body = (await response.clone().json()) as AvailabilityBody;
+
+    expect(response.status).toBe(200);
+    expectMatchesContract(okSchema, await response.json());
+    expect(body.durationMinutes).toBe(120);
+    expect(body.serviceIds).toEqual([CORTE, COLOR]);
+    expect(body.services.map((service) => service.name)).toEqual(['Corte', 'Color']);
+    expect(body.price).toEqual({ kind: 'ALL_PRICED', knownCents: 7300, label: '73,00 €' });
+    expect(body.fitsOpeningHours).toBe(true);
+  });
+
+  it('drops a repeated id and answers as if it had come once', async () => {
+    const once = await availability({ serviceIds: `${CORTE},${COLOR}` });
+    const twice = await availability({ serviceIds: `${CORTE},${COLOR},${CORTE}` });
+
+    expect(twice.status).toBe(200);
+    expect(twice.body).toEqual(once.body);
+  });
+
+  it('asks for at least one service when the selection is empty (FR-004)', async () => {
+    const response = await GET(request({ serviceIds: '' }));
+    const body = (await response.clone().json()) as { code: string; nextAction: string };
+
+    expect(response.status).toBe(400);
+    expectMatchesContract(errorSchema, await response.json());
+    expect(body.code).toBe('EMPTY_SELECTION');
     expect(body.nextAction.length).toBeGreaterThan(0);
   });
 });

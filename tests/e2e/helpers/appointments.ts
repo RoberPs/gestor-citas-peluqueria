@@ -33,6 +33,21 @@ export async function closeAppointmentsPool(): Promise<void> {
   pool = undefined;
 }
 
+/** How many appointments and service rows the database holds (005, FR-012). */
+export async function countStored(): Promise<{ appointments: number; services: number }> {
+  pool ??= new Pool({ connectionString: process.env['DATABASE_URL_TEST'] ?? '', max: 2 });
+
+  const { rows } = await pool.query<{ appointments: string; services: string }>(
+    `SELECT (SELECT count(*) FROM appointment) AS appointments,
+            (SELECT count(*) FROM appointment_service) AS services`,
+  );
+
+  return {
+    appointments: Number(rows[0]?.appointments ?? 0),
+    services: Number(rows[0]?.services ?? 0),
+  };
+}
+
 /** The `Corte` of the seed: 30 minutes, 18,00 €. */
 export const CORTE_ID = '00000000-0000-4000-8000-000000000011';
 

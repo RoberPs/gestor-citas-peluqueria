@@ -236,18 +236,18 @@ pasos 1 a 11).
 
 > Escribirlos primero y confirmar que fallan.
 
-- [ ] T019 [P] [US1] En `tests/unit/ui/format.test.ts`:
+- [X] T019 [P] [US1] En `tests/unit/ui/format.test.ts`:
   - `durationLabel` da `30 min`, `1 h`, `1 h 15 min` y `3 h 15 min` (D-009);
   - `totalPriceLabel` da «18,00 €», «Precio a consultar en el salón» y «18,00 € +
     precio a consultar en el salón» (FR-020).
-- [ ] T020 [P] [US1] En `tests/unit/domain/catalog/selection.test.ts`:
+- [X] T020 [P] [US1] En `tests/unit/domain/catalog/selection.test.ts`:
   - `fitsOpeningHours(durationMinutes, schedule)`: `true` si algún tramo de la semana
     es igual o más largo; `false` si todos son más cortos; `false` con un horario vacío
     (D-007).
   - `totalPriceOf`: todos con precio da `ALL_PRICED` con la suma; ninguno da
     `NONE_PRICED`; mezcla da `PARTIALLY_PRICED` con la suma de los conocidos; un solo
     servicio sin precio da `NONE_PRICED`.
-- [ ] T021 [P] [US1] Ampliar `tests/integration/use-cases/get-availability.test.ts`:
+- [X] T021 [P] [US1] Ampliar `tests/integration/use-cases/get-availability.test.ts`:
   - Con «Corte» y «Peinado» (75 min), en un día de 10:00 a 20:00 el último hueco es las
     18:30, y `price` es `ALL_PRICED` con 4300.
   - Escenario 4, con dos servicios de 30 min sembrados en el test: una cita confirmada
@@ -256,7 +256,7 @@ pasos 1 a 11).
   - El orden de `serviceIds` no cambia el resultado.
   - Con un `SalonConfigRepository` de prueba con tramos de 2 h y una selección de 2 h
     30 min, `fitsOpeningHours` es `false` y no hay huecos.
-- [ ] T022 [P] [US1] Ampliar `tests/integration/use-cases/confirm-booking.test.ts`:
+- [X] T022 [P] [US1] Ampliar `tests/integration/use-cases/confirm-booking.test.ts`:
   - Dos servicios crean una cita con dos filas y `endsAt = startsAt + suma`.
   - Un servicio desactivado entre la consulta y la confirmación da `UNKNOWN_SERVICE` con
     su id y no escribe nada (FR-015).
@@ -264,7 +264,7 @@ pasos 1 a 11).
     30 min a las 11:00, que se solapan sólo en parte. Prospera exactamente una (FR-016).
   - El límite de 3 citas futuras cuenta citas, no servicios: una cita de 4 servicios
     cuenta como 1.
-- [ ] T023 [P] [US1] Ampliar `tests/contract/availability.test.ts` y
+- [X] T023 [P] [US1] Ampliar `tests/contract/availability.test.ts` y
   `tests/contract/appointments-create.test.ts`:
   - `serviceIds` con dos ids da `durationMinutes` igual a la suma, `services` en el orden
     del catálogo y `price` con `kind: ALL_PRICED` y su `label`;
@@ -274,7 +274,7 @@ pasos 1 a 11).
   - `POST` con dos servicios da 303;
   - `POST` con un id inactivo da 409 `SERVICE_UNAVAILABLE` con `unavailableServiceIds`;
   - `POST` con un id repetido da 400.
-- [ ] T024 [P] [US1] Escribir `tests/e2e/multiple-services.spec.ts` (US1, en los tres
+- [X] T024 [P] [US1] Escribir `tests/e2e/multiple-services.spec.ts` (US1, en los tres
   tamaños), con los escenarios 1 a 8 de US1 y los casos límite de selección:
   - preselección con «✓ Elegido»;
   - marcar un segundo servicio y ver «Duración total»;
@@ -296,10 +296,10 @@ pasos 1 a 11).
     usar el ratón.
 
   Los clics que navegan van con `clickAndNavigate`.
-- [ ] T025 [P] [US1] Añadir a `tests/e2e/accessibility.spec.ts` la página de reserva con
+- [X] T025 [P] [US1] Añadir a `tests/e2e/accessibility.spec.ts` la página de reserva con
   dos servicios elegidos y con la selección vacía, a 360, 768 y 1280 px. Comprobar que la
   duración total está en una región `aria-live="polite"`.
-- [ ] T026 [US1] Commit `test: describe booking several services in one appointment` con
+- [X] T026 [US1] Commit `test: describe booking several services in one appointment` con
   T019 a T025 en rojo.
 
 ### Implementation for User Story 1

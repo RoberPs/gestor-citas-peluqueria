@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import type { Service } from '@/domain/catalog/service';
-import { selectServices } from '@/domain/catalog/selection';
+import type { OpeningInterval, Weekday, WeeklySchedule } from '@/domain/catalog/salon';
+import type { Service, ServiceSnapshot } from '@/domain/catalog/service';
+import { fitsOpeningHours, selectServices, totalPriceOf } from '@/domain/catalog/selection';
+import { interval } from '../availability/_fixtures';
 
 /**
  * Which services go into an appointment, in what order and for how long
@@ -105,5 +107,69 @@ describe('selectServices', () => {
       { serviceId: CORTE.id, name: 'Corte', durationMinutes: 30, priceCents: 1800 },
       { serviceId: LAVADO.id, name: 'Lavado', durationMinutes: 30, priceCents: null },
     ]);
+  });
+});
+
+function schedule(...stretches: OpeningInterval[]): WeeklySchedule {
+  const byDay = new Map<Weekday, OpeningInterval[]>();
+  for (const stretch of stretches) {
+    byDay.set(stretch.weekday, [...(byDay.get(stretch.weekday) ?? []), stretch]);
+  }
+  return byDay;
+}
+
+describe('fitsOpeningHours (FR-010, D-007)', () => {
+  const SATURDAY_SPLIT = schedule(interval(6, '10:00', '14:00'), interval(6, '16:00', '20:00'));
+
+  it('fits when some stretch of the week is as long as the selection', () => {
+    expect(fitsOpeningHours(240, SATURDAY_SPLIT)).toBe(true);
+  });
+
+  it('fits when one stretch is longer, even if others are shorter', () => {
+    expect(
+      fitsOpeningHours(300, schedule(interval(1, '10:00', '12:00'), interval(2, '10:00', '20:00'))),
+    ).toBe(true);
+  });
+
+  it('does not fit when every stretch is shorter: no day will ever have room', () => {
+    expect(fitsOpeningHours(270, SATURDAY_SPLIT)).toBe(false);
+  });
+
+  it('does not fit a salon with no opening hours at all', () => {
+    expect(fitsOpeningHours(30, schedule())).toBe(false);
+  });
+});
+
+describe('totalPriceOf (FR-020)', () => {
+  const priced = (cents: number): ServiceSnapshot => ({
+    serviceId: `s${cents}`,
+    name: 'Con precio',
+    durationMinutes: 30,
+    priceCents: cents,
+  });
+  const unpriced: ServiceSnapshot = {
+    serviceId: 'sin',
+    name: 'Sin precio',
+    durationMinutes: 30,
+    priceCents: null,
+  };
+
+  it('adds the prices when every service has one', () => {
+    expect(totalPriceOf([priced(1800), priced(2500)])).toEqual({ kind: 'ALL_PRICED', cents: 4300 });
+  });
+
+  it('has no price when none of them has one', () => {
+    expect(totalPriceOf([unpriced])).toEqual({ kind: 'NONE_PRICED' });
+  });
+
+  it('adds what is known and says the rest is unknown when they mix', () => {
+    expect(totalPriceOf([priced(1800), unpriced])).toEqual({
+      kind: 'PARTIALLY_PRICED',
+      knownCents: 1800,
+    });
+  });
+
+  it('gives a single service without price no price, not a partial one', () => {
+    expect(totalPriceOf([unpriced]).kind).toBe('NONE_PRICED');
   });
 });

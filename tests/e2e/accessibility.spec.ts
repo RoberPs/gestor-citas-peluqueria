@@ -125,6 +125,26 @@ test('ruta 2 — la pantalla de datos', async ({ page }) => {
   await checkScreen(page, 4);
 });
 
+test('ruta 1b — la pantalla de reservas con dos servicios elegidos (005)', async ({ page }) => {
+  await page.goto('/');
+  await clickAndNavigate(page.getByRole('button', { name: /^Peinado/ }));
+
+  // The total is announced where it changes, without moving the focus (FR-023).
+  const selection = page.locator('section[aria-labelledby="service-heading"] [aria-live="polite"]');
+  await expect(selection).toContainText('Duración total: 1 h 15 min');
+  await expect(page.locator(DAY_GRID)).toBeVisible();
+  await checkScreen(page, 10);
+});
+
+test('ruta 1c — la pantalla de reservas sin ningún servicio elegido (005)', async ({ page }) => {
+  await page.goto('/?serviceIds=');
+
+  await expect(
+    page.getByText('Elige al menos un servicio para ver los días y las horas libres.'),
+  ).toBeVisible();
+  await checkScreen(page, 4);
+});
+
 test('ruta 3a — la cita recién creada, con ?nueva=1', async ({ page }) => {
   await bookAppointment(page);
 
