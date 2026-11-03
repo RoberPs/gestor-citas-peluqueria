@@ -1,6 +1,7 @@
 import { Temporal } from '@js-temporal/polyfill';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createConfirmBooking } from '@/application/use-cases/confirm-booking';
+import { createGetAvailability } from '@/application/use-cases/get-availability';
 import { createRescheduleAppointment } from '@/application/use-cases/reschedule-appointment';
 import { createViewAppointment } from '@/application/use-cases/view-appointment';
 import type { Clock } from '@/domain/shared/clock';
@@ -23,6 +24,9 @@ const clock: Clock = { now: () => currentNow };
 const FRIDAY_1130 = '2026-09-18T09:30:00Z';
 const FRIDAY_1600 = '2026-09-18T14:00:00Z';
 
+/** No price, 30 minutes: with Corte, an appointment of one hour. */
+const LAVADO = '00000000-0000-4000-8000-000000000014';
+
 function build() {
   const config = createSalonConfigRepository(() => testPool());
   const appointments = createAppointmentRepository(() => testPool());
@@ -30,6 +34,7 @@ function build() {
   return {
     confirmBooking: createConfirmBooking({ config, appointments, tokens: tokenGenerator, clock }),
     viewAppointment: createViewAppointment({ config, appointments, tokens: tokenGenerator, clock }),
+    getAvailability: createGetAvailability({ config, appointments, clock }),
     rescheduleAppointment: createRescheduleAppointment({
       config,
       appointments,
@@ -63,6 +68,11 @@ async function startOf(token: string): Promise<string | undefined> {
 beforeAll(async () => {
   await ensureSchema();
   await seedContractDatabase();
+  await testPool().query(
+    `INSERT INTO service (id, name, duration_minutes, price_cents, is_active, display_order)
+     VALUES ($1, 'Lavado', 30, NULL, true, 4)`,
+    [LAVADO],
+  );
 });
 
 afterAll(async () => {
@@ -237,5 +247,50 @@ describe('moves that are refused outright', () => {
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error('unreachable');
     expect(result.error.kind).toBe('INVALID_START');
+  });
+});
+
+describe('an appointment of several services (005, Historia 2)', () => {
+  async function bookOneHour(): Promise<string> {
+    const result = await useCases.confirmBooking({
+      serviceIds: [LAVADO, CORTE],
+      startsAt: FRIDAY_1130,
+      contact: { name: 'Ana López', phone: '600112233', email: 'ana@example.com' },
+    });
+    if (!result.ok) throw new Error('the fixture booking was rejected');
+    return result.value.token;
+  }
+
+  it('moves keeping its link, its services and its hour of length (FR-017, FR-026)', async () => {
+    const token = await bookOneHour();
+
+    const result = await useCases.rescheduleAppointment(token, FRIDAY_1600);
+
+    if (!result.ok) throw new Error('unreachable');
+    const moved = (await useCases.viewAppointment(token))?.appointment;
+    expect(moved?.startsAt.toString()).toBe(FRIDAY_1600);
+    expect(moved?.services.map((service) => service.serviceId)).toEqual([CORTE, LAVADO]);
+    expect(moved?.endsAt.since(moved.startsAt).total('minutes')).toBe(60);
+  });
+
+  it('offers only the starts where the whole hour fits, its own marked (escenario 3)', async () => {
+    const token = await bookOneHour();
+    const detail = await useCases.viewAppointment(token);
+    if (detail === null) throw new Error('unreachable');
+
+    const availability = await useCases.getAvailability({
+      selectedDate: '2026-09-18',
+      currentAppointment: {
+        services: detail.appointment.services,
+        startsAt: detail.appointment.startsAt,
+      },
+    });
+
+    if (!availability.ok) throw new Error('unreachable');
+    expect(availability.value.selection.durationMinutes).toBe(60);
+    // 19:00 is the last start of a 10:00 to 20:00 day that holds an hour.
+    expect(availability.value.slots.at(-1)?.localTime).toBe('19:00');
+    const own = availability.value.slots.find((slot) => slot.isCurrentAppointment);
+    expect(own?.localTime).toBe('11:30');
   });
 });

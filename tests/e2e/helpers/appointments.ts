@@ -56,6 +56,14 @@ export type SeededAppointment = {
   readonly startsAt: Date;
 };
 
+/** A service of a seeded appointment, frozen as its snapshot (005, FR-014). */
+export type SeededService = {
+  readonly id: string;
+  readonly name: string;
+  readonly minutes: number;
+  readonly cents: number | null;
+};
+
 /**
  * Writes an appointment straight into the database.
  *
@@ -63,23 +71,30 @@ export type SeededAppointment = {
  * completed appointment needs an hour that has already passed. Walking the
  * booking flow for the states that *can* be reached would also spend the per-IP
  * confirmation limit on setup rather than on what is being tested.
+ *
+ * With no `services` it is one `Corte`, the shape migration 0003 leaves every
+ * appointment booked before 005 in (FR-021).
  */
 export async function seedAppointment(options: {
   readonly startsAt: Date;
   readonly durationMinutes?: number;
   readonly status?: 'CONFIRMED' | 'CANCELLED';
+  readonly services?: readonly SeededService[];
 }): Promise<SeededAppointment> {
   const { generate } = await import('../../../src/infrastructure/security/token');
   const { token, hash } = generate();
 
-  const durationMinutes = options.durationMinutes ?? 30;
+  const services = options.services ?? [
+    { id: CORTE_ID, name: 'Corte', minutes: options.durationMinutes ?? 30, cents: 1800 },
+  ];
+  const durationMinutes = services.reduce((total, service) => total + service.minutes, 0);
   const endsAt = new Date(options.startsAt.getTime() + durationMinutes * 60_000);
   const status = options.status ?? 'CONFIRMED';
 
   const connectionString = process.env['DATABASE_URL_TEST'] ?? '';
   pool ??= new Pool({ connectionString, max: 2 });
 
-  // The appointment and its one service row, in one statement (005, D-001).
+  // The appointment and its service rows, in one statement (005, D-001).
   await pool.query(
     `WITH inserted AS (
        INSERT INTO appointment (
@@ -89,20 +104,25 @@ export async function seedAppointment(options: {
          token_hash, created_at, cancelled_at
        ) VALUES (gen_random_uuid(), $1, $2, $3,
                  'Ana López', '600112233', 'ana@example.com',
-                 '+34600112233', 'ana@example.com', $6, now(), $7)
+                 '+34600112233', 'ana@example.com', $4, now(), $5)
        RETURNING id
      )
      INSERT INTO appointment_service
        (appointment_id, position, service_id, name, duration_minutes, price_cents)
-     SELECT id, 1, $4, 'Corte', $5, 1800 FROM inserted`,
+     SELECT inserted.id, row.position, row.service_id, row.name, row.minutes, row.cents
+       FROM inserted,
+            unnest($6::uuid[], $7::text[], $8::integer[], $9::integer[])
+              WITH ORDINALITY AS row(service_id, name, minutes, cents, position)`,
     [
       status,
       options.startsAt,
       endsAt,
-      CORTE_ID,
-      durationMinutes,
       Buffer.from(hash),
       status === 'CANCELLED' ? new Date() : null,
+      services.map((service) => service.id),
+      services.map((service) => service.name),
+      services.map((service) => service.minutes),
+      services.map((service) => service.cents),
     ],
   );
 

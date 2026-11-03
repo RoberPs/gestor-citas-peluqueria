@@ -351,3 +351,88 @@ async function tabTo(page: Page, selector: string, text?: string): Promise<void>
 
   throw new Error(`Tab never reached ${selector}${text === undefined ? '' : ` (${text})`}`);
 }
+
+test.describe('Historia 2 — consultar y reprogramar una cita con varios servicios', () => {
+  const LAVADO = {
+    id: '00000000-0000-4000-8000-000000000014',
+    name: 'Lavado',
+    minutes: 30,
+    cents: null,
+  };
+  const CORTE_ROW = { id: CORTE, name: 'Corte', minutes: 30, cents: 1800 };
+
+  test('escenario 1 — el enlace muestra los dos servicios, la duración y el precio total', async ({
+    page,
+  }) => {
+    const { token } = await seedAppointment({
+      startsAt: slotDaysFromNow(6),
+      services: [CORTE_ROW, LAVADO],
+    });
+
+    await page.goto(`/cita/${token}`);
+
+    const card = page.locator(APPOINTMENT);
+    await expect(card).toContainText('Servicios');
+    await expect(card).toContainText('Corte · 30 min · 18,00 €');
+    await expect(card).toContainText('Lavado · 30 min · Precio a consultar en el salón');
+    await expect(card).toContainText('1 h');
+    await expect(card).toContainText('18,00 € + precio a consultar en el salón');
+    await expect(card).toContainText('Confirmada');
+    await expectNoAccessibilityViolations(page);
+  });
+
+  test('escenarios 2 a 4 — sólo cambia la hora, con inicios donde cabe la hora entera', async ({
+    page,
+  }) => {
+    const { token } = await seedAppointment({
+      startsAt: slotDaysFromNow(6, 11, 0),
+      services: [CORTE_ROW, LAVADO],
+    });
+
+    await page.goto(`/cita/${token}/reprogramar`);
+
+    await expect(
+      page.getByText(
+        'Estás cambiando la hora de tu cita (Corte y Lavado). Los servicios no cambian; si quieres otros, cancela esta cita y reserva una nueva.',
+      ),
+    ).toBeVisible();
+    await expect(page.locator('.service-option')).toHaveCount(0);
+
+    const times = await slotTimes(page);
+    // The appointment's own day: a weekday or a Saturday, never a Sunday.
+    expect(times).not.toContain('19:30');
+    expect(times).toContain('11:00');
+    await expect(page.locator(`${SLOT_LIST} button.is-current-appointment`)).toContainText(
+      'tu hora actual',
+    );
+
+    const other = page.locator(`${SLOT_LIST} button:not(.is-current-appointment)`).first();
+    const newTime = ((await other.textContent()) ?? '').trim().slice(0, 5);
+    await other.click();
+    await page.getByRole('button', { name: 'Sí, cambiar a esta hora' }).click();
+    await page.waitForURL(new RegExp(`/cita/${token}`));
+
+    const card = page.locator(APPOINTMENT);
+    await expect(card).toContainText(newTime);
+    await expect(card).toContainText('Corte · 30 min · 18,00 €');
+    await expect(card).toContainText('Lavado · 30 min · Precio a consultar en el salón');
+    expect((await countStored()).services).toBe(2);
+  });
+
+  test('escenario 5 — una cita de antes de la feature se ve igual que antes (FR-021)', async ({
+    page,
+  }) => {
+    // One service row, which is exactly what migration 0003 leaves behind.
+    const { token } = await seedAppointment({ startsAt: slotDaysFromNow(6) });
+
+    await page.goto(`/cita/${token}`);
+
+    const card = page.locator(APPOINTMENT);
+    await expect(card.locator('dt', { hasText: /^Servicio$/ })).toBeVisible();
+    await expect(card.locator('dt', { hasText: /^Servicios$/ })).toHaveCount(0);
+    await expect(card).toContainText('Corte');
+    await expect(card).toContainText('30 min');
+    await expect(card).toContainText('18,00 €');
+    await expect(page.getByText(/Estás cambiando/)).toHaveCount(0);
+  });
+});

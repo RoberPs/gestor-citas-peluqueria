@@ -390,22 +390,22 @@ ve igual (quickstart, pasos 12 y 13).
 
 ### Tests for User Story 2 ⚠️
 
-- [ ] T038 [P] [US2] Ampliar `tests/unit/domain/booking/reschedule.test.ts`:
+- [X] T038 [P] [US2] Ampliar `tests/unit/domain/booking/reschedule.test.ts`:
   - una cita de dos servicios de 30 min no se puede mover a un inicio donde sólo cabe
     media hora;
   - al moverla se conservan `services` y la duración;
   - `UNCHANGED` sigue igual.
-- [ ] T039 [P] [US2] Ampliar `tests/integration/use-cases/reschedule-appointment.test.ts`
+- [X] T039 [P] [US2] Ampliar `tests/integration/use-cases/reschedule-appointment.test.ts`
   y `view-appointment.test.ts`:
   - una cita de 1 h se reprograma y conserva token, servicios y `endsAt − startsAt`;
   - los huecos de reprogramación se calculan con 1 h y marcan la hora actual;
   - el detalle devuelve los servicios en orden.
-- [ ] T040 [P] [US2] Ampliar `tests/contract/appointment-detail.test.ts` y
+- [X] T040 [P] [US2] Ampliar `tests/contract/appointment-detail.test.ts` y
   `tests/contract/reschedule.test.ts`:
   - `services[]` con dos elementos y `durationMinutes` igual a la suma;
   - `price` en el detalle;
   - la disponibilidad de reprogramación con `durationMinutes` de la cita.
-- [ ] T041 [P] [US2] Añadir a `tests/e2e/multiple-services.spec.ts` los escenarios de US2:
+- [X] T041 [P] [US2] Añadir a `tests/e2e/multiple-services.spec.ts` los escenarios de US2:
   - enlace con dos servicios y el precio total;
   - aviso de reprogramar que nombra los dos y no tiene selector;
   - sólo inicios de 1 h;
@@ -415,7 +415,7 @@ ve igual (quickstart, pasos 12 y 13).
 
   Ampliar `seedAppointment` de `tests/e2e/helpers/appointments.ts` para aceptar varios
   servicios.
-- [ ] T042 [US2] Commit `test: describe viewing and rescheduling an appointment with several services`.
+- [X] T042 [US2] Commit `test: describe viewing and rescheduling an appointment with several services`.
 
 ### Implementation for User Story 2
 
