@@ -276,6 +276,10 @@ test.describe('en ordenador — cambiar los servicios con una hora elegida (FR-0
     await page.getByLabel('Nombre').fill(ANA.name);
 
     await toggle(page, 'Peinado');
+    // The screen checks the hour and settles on its own URL (D-005).
+    await page.waitForURL(
+      (url) => url.pathname === '/reservar' && !url.searchParams.has('cambioServicios'),
+    );
 
     expect(new URL(page.url()).pathname).toBe('/reservar');
     expect(new URL(page.url()).searchParams.get('startsAt')).toBe(startsAt);
@@ -295,6 +299,7 @@ test.describe('en ordenador — cambiar los servicios con una hora elegida (FR-0
     await page.getByLabel('Nombre').fill(ANA.name);
 
     await toggle(page, 'Color');
+    await page.waitForURL((url) => url.pathname === '/');
 
     expect(new URL(page.url()).pathname).toBe('/');
     expect(new URL(page.url()).searchParams.get('selectedDate')).toBe(day);

@@ -8,6 +8,11 @@ import { expect, type Page } from '@playwright/test';
  * excluding somebody who uses a screen reader is not an edge case.
  */
 export async function expectNoAccessibilityViolations(page: Page): Promise<void> {
+  // Right after a server action redirects, React is still swapping the head
+  // and for an instant there is no <title>. Analysing that instant reports a
+  // page that never reaches the client; a title that never comes still fails.
+  await expect(page).toHaveTitle(/\S/);
+
   const results = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
     .analyze();

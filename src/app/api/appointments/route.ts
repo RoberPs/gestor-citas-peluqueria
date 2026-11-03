@@ -173,6 +173,14 @@ export async function POST(request: Request): Promise<Response> {
     'booking rejected',
   );
 
+  if (failure.kind === 'SERVICE_UNAVAILABLE') {
+    return jsonErrorWith(
+      409,
+      { code: 'SERVICE_UNAVAILABLE', ...messages.errors.serviceUnavailable },
+      { unavailableServiceIds: failure.serviceIds },
+    );
+  }
+
   if (failure.kind !== 'REJECTED' && failure.kind !== 'CONTACT_LIMIT_REACHED') {
     return validationError([], { code: 'INVALID_REQUEST', ...messages.errors.unknownService });
   }

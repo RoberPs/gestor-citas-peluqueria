@@ -6,8 +6,11 @@ import type { RangeDay, Slot } from '@/domain/booking/appointment';
 import type { Salon } from '@/domain/catalog/salon';
 import {
   durationOfServices,
+  fitsOpeningHours,
   selectServices,
+  totalPriceOf,
   type NonEmptyServiceList,
+  type PriceTotal,
   type ServiceSelection,
 } from '@/domain/catalog/selection';
 import type { Clock } from '@/domain/shared/clock';
@@ -28,6 +31,9 @@ import type { AppointmentRepository, SalonConfigRepository } from '../ports';
 export type AvailabilityView = {
   /** The services asked about, in catalogue order, and their total duration. */
   readonly selection: ServiceSelection;
+  readonly price: PriceTotal;
+  /** `false` when no opening stretch is long enough: no day will ever have room (D-007). */
+  readonly fitsOpeningHours: boolean;
   readonly salon: Salon;
   readonly range: {
     readonly start: string;
@@ -204,6 +210,9 @@ export function createGetAvailability(deps: {
 
     return ok({
       selection,
+      price: totalPriceOf(selection.services),
+      // From the schedule already in memory: no query added (Principio VIII).
+      fitsOpeningHours: fitsOpeningHours(selection.durationMinutes, configuration.schedule),
       salon,
       range: {
         start: rangeStart.toString(),

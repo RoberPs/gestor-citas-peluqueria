@@ -33,7 +33,11 @@ export type ConfirmBookingInput = {
 export type ConfirmBookingFailure =
   | { readonly kind: 'EMPTY_SELECTION' }
   | { readonly kind: 'DUPLICATE_SERVICE' }
-  | { readonly kind: 'UNKNOWN_SERVICE'; readonly serviceIds: readonly string[] }
+  /**
+   * A service that is not, or is no longer, on offer. To the client a retired
+   * service and one that never existed are the same news (FR-015).
+   */
+  | { readonly kind: 'SERVICE_UNAVAILABLE'; readonly serviceIds: readonly string[] }
   | { readonly kind: 'INVALID_START' }
   | { readonly kind: 'REJECTED'; readonly rejection: BookingRejection }
   | { readonly kind: 'CONTACT_LIMIT_REACHED'; readonly limit: number };
@@ -80,7 +84,7 @@ export function createConfirmBooking(deps: {
         case 'DUPLICATE':
           return err({ kind: 'DUPLICATE_SERVICE' });
         case 'UNKNOWN_SERVICE':
-          return err({ kind: 'UNKNOWN_SERVICE', serviceIds: selection.error.serviceIds });
+          return err({ kind: 'SERVICE_UNAVAILABLE', serviceIds: selection.error.serviceIds });
       }
     }
 

@@ -3,10 +3,11 @@ import type { AppointmentDetail } from '@/application/use-cases/view-appointment
 import { durationOf } from '@/domain/booking/appointment';
 import type { ModificationBlock } from '@/domain/booking/modification-rules';
 import type { Salon } from '@/domain/catalog/salon';
+import type { PriceTotal } from '@/domain/catalog/selection';
 import { snapshotOf, type Service, type ServiceSnapshot } from '@/domain/catalog/service';
 import { formatIsoDate, formatLocalTime, localDateOf } from '@/domain/shared/time';
 import { messages, withPhone } from '@/messages/es-ES';
-import { dayLabel, priceLabel, weekdayLabel } from '../../_lib/format';
+import { dayLabel, priceLabel, totalPriceLabel, weekdayLabel } from '../../_lib/format';
 
 /**
  * Domain and use-case types turned into the wire shapes of
@@ -59,6 +60,20 @@ export function serviceDto(service: Service): ServiceDto {
   return snapshotDto(snapshotOf(service));
 }
 
+export type PriceTotalDto = {
+  readonly kind: PriceTotal['kind'];
+  readonly knownCents: number | null;
+  /** Already written out: the client neither adds amounts nor picks the sentence (FR-020). */
+  readonly label: string;
+};
+
+export function priceTotalDto(total: PriceTotal): PriceTotalDto {
+  const knownCents =
+    total.kind === 'ALL_PRICED' ? total.cents : total.kind === 'PARTIALLY_PRICED' ? total.knownCents : null;
+
+  return { kind: total.kind, knownCents, label: totalPriceLabel(total) };
+}
+
 export function availabilityResponse(view: AvailabilityView) {
   const { selection } = view;
 
@@ -66,6 +81,8 @@ export function availabilityResponse(view: AvailabilityView) {
     serviceIds: selection.services.map((service) => service.serviceId),
     services: selection.services.map(snapshotDto),
     durationMinutes: selection.durationMinutes,
+    price: priceTotalDto(view.price),
+    fitsOpeningHours: view.fitsOpeningHours,
     range: view.range,
     days: view.days.map((day) => ({
       date: day.date,

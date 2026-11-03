@@ -6,7 +6,13 @@ import {
   slotDaysFromNow,
 } from './helpers/appointments';
 import { expectNoAccessibilityViolations, expectNoHorizontalScroll } from './helpers/axe';
-import { bookAppointment, DAY_GRID, SLOT_LIST, clickAndNavigate } from './helpers/booking';
+import {
+  bookAppointment,
+  chooseOnlyService,
+  clickAndNavigate,
+  DAY_GRID,
+  SLOT_LIST,
+} from './helpers/booking';
 import { useOwnClientIp } from './helpers/client-ip';
 
 /**
@@ -117,7 +123,7 @@ test('ruta 1 — la pantalla de reservas', async ({ page }) => {
 
 test('ruta 2 — la pantalla de datos', async ({ page }) => {
   await page.goto('/');
-  await clickAndNavigate(page.getByRole('button', { name: /^Corte/ }));
+  await chooseOnlyService(page, 'Corte');
   await clickAndNavigate(page.locator(`${DAY_GRID} button.is-available`).last());
   await page.locator(`${SLOT_LIST} button`).first().click();
 

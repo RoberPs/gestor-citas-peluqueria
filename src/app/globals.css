@@ -285,6 +285,13 @@ select {
   font-weight: 600;
 }
 
+/* Several services of one appointment, one per line (005). */
+.summary-services {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
 /* Service catalogue -------------------------------------------------- */
 
 .service-list {
@@ -311,10 +318,20 @@ select {
   background: var(--surface-sunken);
 }
 
-/* The selected service is named, not only outlined. */
-.service-option.is-selected .service-name::after {
-  content: ' ✓';
+/* A chosen service says so in words and a mark, not only an outline (005, FR-023). */
+.service-badge {
+  font-size: 0.8125rem;
+  font-weight: 600;
   color: var(--accent);
+}
+
+/* What is chosen and how long it takes, always in view under the catalogue. */
+.selection-summary {
+  margin-top: 12px;
+}
+
+.selection-summary p {
+  margin: 0;
 }
 
 .service-name {

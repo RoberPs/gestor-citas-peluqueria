@@ -304,7 +304,7 @@ pasos 1 a 11).
 
 ### Implementation for User Story 1
 
-- [ ] T027 [P] [US1] Implementar en `src/app/_lib/format.ts`, con los textos en
+- [X] T027 [P] [US1] Implementar en `src/app/_lib/format.ts`, con los textos en
   `src/messages/es-ES.ts`:
   - `durationLabel` en horas y minutos;
   - `totalPriceLabel(PriceTotal)` con las tres frases.
@@ -312,9 +312,9 @@ pasos 1 a 11).
   Actualizar las comprobaciones de los e2e de la 001 que esperan «90 min» o «45 min»
   (`tests/e2e/us1-availability.spec.ts` y las que aparezcan) al formato nuevo. T019
   pasa a verde.
-- [ ] T028 [P] [US1] Implementar `fitsOpeningHours`, `PriceTotal` y `totalPriceOf` en
+- [X] T028 [P] [US1] Implementar `fitsOpeningHours`, `PriceTotal` y `totalPriceOf` en
   `src/domain/catalog/selection.ts`. T020 pasa a verde.
-- [ ] T029 [US1] En `src/application/use-cases/get-availability.ts`, añadir a
+- [X] T029 [US1] En `src/application/use-cases/get-availability.ts`, añadir a
   `AvailabilityView`:
   - `fitsOpeningHours`, calculado sobre `configuration.schedule` y
     `selection.durationMinutes`;
@@ -323,11 +323,11 @@ pasos 1 a 11).
   Serializarlos en `src/app/api/_lib/serializers.ts` (`price` con `kind`, `knownCents` y
   `label`) y marcarlos como obligatorios en `AvailabilityResponse` del contrato. T021
   pasa a verde.
-- [ ] T030 [US1] En `src/application/use-cases/confirm-booking.ts`, traducir
+- [X] T030 [US1] En `src/application/use-cases/confirm-booking.ts`, traducir
   `UNKNOWN_SERVICE` con ids a `SERVICE_UNAVAILABLE`. En
   `src/app/api/appointments/route.ts`, responder 409 `SERVICE_UNAVAILABLE` con
   `unavailableServiceIds` y `nextAction`. T022 y T023 pasan a verde.
-- [ ] T031 [P] [US1] Añadir a `src/messages/es-ES.ts` los textos de
+- [X] T031 [P] [US1] Añadir a `src/messages/es-ES.ts` los textos de
   [contracts/ui-booking.md](./contracts/ui-booking.md):
   - título y pista de «Elige los servicios»;
   - «✓ Elegido»;
@@ -339,7 +339,7 @@ pasos 1 a 11).
 
   Los errores nuevos llevan `message` y `nextAction`; comprobarlo con
   `tests/unit/messages/actionable-errors.test.ts`.
-- [ ] T032 [US1] Reescribir `src/components/service-picker.tsx` como selección múltiple
+- [X] T032 [US1] Reescribir `src/components/service-picker.tsx` como selección múltiple
   (D-004):
   - Recibe `selectedIds` y los campos que debe conservar (`rangeStart`, `selectedDate`
     y, en `/reservar`, `startsAt`) y la `action`.
@@ -347,32 +347,32 @@ pasos 1 a 11).
     orden de catálogo.
   - `aria-pressed` y «✓ Elegido» con texto e icono.
   - Debajo, el resumen de servicios elegidos y la duración total en `aria-live="polite"`.
-- [ ] T033 [P] [US1] Crear `src/components/service-summary.tsx`: las filas `<dt>`/`<dd>`
+- [X] T033 [P] [US1] Crear `src/components/service-summary.tsx`: las filas `<dt>`/`<dd>`
   de los servicios (nombre · duración · precio con `priceLabel`), la duración total y
   el precio total con `totalPriceLabel`, para usar dentro de `dl.summary`. Con un
   servicio, la etiqueta es «Servicio», en singular. Sólo presentación: recibe
   snapshots, la duración y el `PriceTotal` ya calculados.
-- [ ] T034 [US1] Actualizar `src/app/(booking)/page.tsx`:
+- [X] T034 [US1] Actualizar `src/app/(booking)/page.tsx`:
   - leer `serviceIds` según la tabla de D-004 (ausente, vacío, desconocidos);
   - con la selección vacía, mostrar el selector y el aviso en lugar de días y horas;
   - con `fitsOpeningHours = false`, mostrar el mensaje de FR-010 en lugar de las horas;
   - con `horaQuitada=1`, mostrar el aviso de hora quitada (`role="status"`).
 
   Clases de la 003 sin cambios.
-- [ ] T035 [US1] Actualizar `src/app/(booking)/reservar/page.tsx`:
+- [X] T035 [US1] Actualizar `src/app/(booking)/reservar/page.tsx`:
   - resumen con `ServiceSummary`;
   - selector apuntando a `/reservar` con `startsAt`;
   - si `startsAt` no está entre los `slots` de la nueva selección, `redirect` a `/` con
     `serviceIds`, `rangeStart`, `selectedDate` y `horaQuitada=1` (D-005).
 
   El borrador del formulario (003/D-004) no se toca.
-- [ ] T036 [US1] Actualizar `src/app/(booking)/reservar/actions.ts` y
+- [X] T036 [US1] Actualizar `src/app/(booking)/reservar/actions.ts` y
   `src/components/booking-form.tsx`:
   - `serviceIds` como campo oculto separado por comas;
   - `SERVICE_UNAVAILABLE` muestra su mensaje y `revalidatePath('/reservar')`, como el
     hueco ocupado. Al volver a pintarse, la selección ya no incluye el servicio retirado
     (D-004).
-- [ ] T037 [US1] Ejecutar la suite completa. T024 y T025 en verde y la de la 001 y la 003
+- [X] T037 [US1] Ejecutar la suite completa. T024 y T025 en verde y la de la 001 y la 003
   sin regresiones. Commit `feat: book several services in one appointment`.
 
 **Checkpoint**: US1 funciona por sí sola, precio total incluido. Es el MVP de la feature.

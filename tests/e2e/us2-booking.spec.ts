@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { closeAppointmentsPool, resetAppointments } from './helpers/appointments';
 import { expectNoAccessibilityViolations, expectNoHorizontalScroll } from './helpers/axe';
-import { DAY_GRID, SLOT_LIST, clickAndNavigate } from './helpers/booking';
+import { DAY_GRID, SLOT_LIST, chooseOnlyService, clickAndNavigate } from './helpers/booking';
 import { useOwnClientIp } from './helpers/client-ip';
 
 /**
@@ -22,7 +22,7 @@ test.afterAll(async () => {
 /** Walks as far as the form and stops there. */
 async function reachForm(page: Page): Promise<string> {
   await page.goto('/');
-  await clickAndNavigate(page.getByRole('button', { name: /^Corte/ }));
+  await chooseOnlyService(page, 'Corte');
   await clickAndNavigate(page.locator(`${DAY_GRID} button.is-available`).last());
 
   const slot = page.locator(`${SLOT_LIST} button`).first();
@@ -164,7 +164,7 @@ test('escenario 6 — a fourth future appointment is refused with the limit expl
 
   for (let booking = 0; booking < 3; booking += 1) {
     await page.goto('/');
-    await clickAndNavigate(page.getByRole('button', { name: /^Corte/ }));
+    await chooseOnlyService(page, 'Corte');
     await clickAndNavigate(page.locator(`${DAY_GRID} button.is-available`).last());
     await page.locator(`${SLOT_LIST} button`).nth(booking).click();
     await page.getByLabel('Nombre').fill(customer.name);
@@ -175,7 +175,7 @@ test('escenario 6 — a fourth future appointment is refused with the limit expl
   }
 
   await page.goto('/');
-  await clickAndNavigate(page.getByRole('button', { name: /^Corte/ }));
+  await chooseOnlyService(page, 'Corte');
   await clickAndNavigate(page.locator(`${DAY_GRID} button.is-available`).last());
   await page.locator(`${SLOT_LIST} button`).nth(3).click();
   await page.getByLabel('Nombre').fill(customer.name);

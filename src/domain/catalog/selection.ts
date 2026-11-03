@@ -1,4 +1,5 @@
 import { err, ok, type Result } from '../shared/result';
+import type { WeeklySchedule } from './salon';
 import { snapshotOf, type Service, type ServiceId, type ServiceSnapshot } from './service';
 
 /**
@@ -23,6 +24,15 @@ export type SelectionError =
   | { readonly kind: 'EMPTY' }
   | { readonly kind: 'DUPLICATE' }
   | { readonly kind: 'UNKNOWN_SERVICE'; readonly serviceIds: readonly ServiceId[] };
+
+/**
+ * The total price of an appointment, as a product rule and not as formatting
+ * (FR-020): every screen, and later the confirmation email, says the same.
+ */
+export type PriceTotal =
+  | { readonly kind: 'ALL_PRICED'; readonly cents: number }
+  | { readonly kind: 'NONE_PRICED' }
+  | { readonly kind: 'PARTIALLY_PRICED'; readonly knownCents: number };
 
 export function durationOfServices(services: readonly ServiceSnapshot[]): number {
   return services.reduce((total, service) => total + service.durationMinutes, 0);
@@ -53,4 +63,30 @@ export function selectServices(
 
   const services: NonEmptyServiceList = [first, ...rest];
   return ok({ services, durationMinutes: durationOfServices(services) });
+}
+
+export function totalPriceOf(services: NonEmptyServiceList): PriceTotal {
+  const known = services.flatMap((service) =>
+    service.priceCents === null ? [] : [service.priceCents],
+  );
+  const sum = known.reduce((total, cents) => total + cents, 0);
+
+  if (known.length === services.length) return { kind: 'ALL_PRICED', cents: sum };
+  if (known.length === 0) return { kind: 'NONE_PRICED' };
+  return { kind: 'PARTIALLY_PRICED', knownCents: sum };
+}
+
+/**
+ * Whether the selection fits in at least one opening stretch of the week
+ * (FR-010, D-007). When it does not, no day will ever have room for it, which
+ * is a different answer from a full agenda: the client should remove a
+ * service, not wait.
+ */
+export function fitsOpeningHours(durationMinutes: number, schedule: WeeklySchedule): boolean {
+  for (const stretches of schedule.values()) {
+    for (const stretch of stretches) {
+      if (stretch.startsAt.until(stretch.endsAt).total('minutes') >= durationMinutes) return true;
+    }
+  }
+  return false;
 }

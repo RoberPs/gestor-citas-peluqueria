@@ -5,7 +5,7 @@ import {
   seedAppointment,
   slotDaysFromNow,
 } from './helpers/appointments';
-import { DAY_GRID, SLOT_LIST, clickAndNavigate } from './helpers/booking';
+import { DAY_GRID, SLOT_LIST, chooseOnlyService, clickAndNavigate } from './helpers/booking';
 import { useOwnClientIp } from './helpers/client-ip';
 
 /**
@@ -165,7 +165,7 @@ test('the booking route stays inside its JavaScript budget', async ({ page }) =>
   const bookingScreen = scripts.total();
 
   scripts.reset();
-  await clickAndNavigate(page.getByRole('button', { name: /^Corte/ }));
+  await chooseOnlyService(page, 'Corte');
   await clickAndNavigate(page.locator(`${DAY_GRID} button.is-available`).last());
   await page.locator(`${SLOT_LIST} button`).first().click();
   await page.getByLabel('Nombre').waitFor();

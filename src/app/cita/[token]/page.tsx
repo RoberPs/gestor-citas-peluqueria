@@ -2,9 +2,12 @@ import Link from 'next/link';
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { container } from '@/app/_lib/container';
-import { durationLabel, longDateLabel, priceLabel } from '@/app/_lib/format';
-import { unavailableReason } from '@/app/api/_lib/serializers';
+import { longDateLabel } from '@/app/_lib/format';
+import { priceTotalDto, snapshotDto, unavailableReason } from '@/app/api/_lib/serializers';
 import { CancelDialog } from '@/components/cancel-dialog';
+import { ServiceSummary } from '@/components/service-summary';
+import { durationOf } from '@/domain/booking/appointment';
+import { totalPriceOf } from '@/domain/catalog/selection';
 import { formatLocalTime, localDateOf } from '@/domain/shared/time';
 import { managementLink, resolveClientIp } from '@/infrastructure/config/env';
 import { rateLimiter } from '@/infrastructure/security/rate-limiter';
@@ -52,7 +55,6 @@ export default async function AppointmentPage({
   if (!allowed || detail === null) notFound();
 
   const { appointment, salon, view } = detail;
-  const [service] = appointment.services;
   const timezone = salon.timezone;
   const date = localDateOf(appointment.startsAt, timezone).toString();
   const status = messages.appointment.status[view];
@@ -88,23 +90,22 @@ export default async function AppointmentPage({
                 </span>
               </dd>
 
-              <dt>{messages.booking.summaryService}</dt>
-              <dd>{service.name}</dd>
+              {/* Every service as it was booked, with the totals the domain
+                  decides (005, FR-013, FR-014). One service reads as in 001. */}
+              <ServiceSummary
+                services={appointment.services.map(snapshotDto)}
+                durationMinutes={durationOf(appointment)}
+                price={priceTotalDto(totalPriceOf(appointment.services))}
+              >
+                <dt>{messages.booking.summaryDate}</dt>
+                <dd>{longDateLabel(date)}</dd>
 
-              <dt>{messages.booking.summaryDate}</dt>
-              <dd>{longDateLabel(date)}</dd>
-
-              <dt>{messages.booking.summaryTime}</dt>
-              <dd>
-                {formatLocalTime(appointment.startsAt, timezone)} –{' '}
-                {formatLocalTime(appointment.endsAt, timezone)}
-              </dd>
-
-              <dt>{messages.booking.summaryDuration}</dt>
-              <dd>{durationLabel(service.durationMinutes)}</dd>
-
-              <dt>{messages.booking.summaryPrice}</dt>
-              <dd>{priceLabel(service.priceCents)}</dd>
+                <dt>{messages.booking.summaryTime}</dt>
+                <dd>
+                  {formatLocalTime(appointment.startsAt, timezone)} –{' '}
+                  {formatLocalTime(appointment.endsAt, timezone)}
+                </dd>
+              </ServiceSummary>
 
               <dt>{messages.booking.summaryCancellationPolicy}</dt>
               <dd>{messages.booking.cancellationPolicyValue(detail.policy.cancellationDeadlineHours)}</dd>

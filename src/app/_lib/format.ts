@@ -1,5 +1,6 @@
 import { Temporal } from '@js-temporal/polyfill';
 import type { Weekday } from '@/domain/catalog/salon';
+import type { PriceTotal } from '@/domain/catalog/selection';
 import { messages } from '@/messages/es-ES';
 
 /**
@@ -43,6 +44,28 @@ export function priceLabel(cents: number | null): string {
   return `${(cents / 100).toFixed(2).replace('.', ',')} €`;
 }
 
+/**
+ * The total price the domain decided, in words (FR-020). Which of the three
+ * sentences applies is the domain's call; only the wording is chosen here.
+ */
+export function totalPriceLabel(total: PriceTotal): string {
+  switch (total.kind) {
+    case 'ALL_PRICED':
+      return priceLabel(total.cents);
+    case 'NONE_PRICED':
+      return messages.common.priceOnRequest;
+    case 'PARTIALLY_PRICED':
+      return `${priceLabel(total.knownCents)} ${messages.common.partialPriceSuffix}`;
+  }
+}
+
+/** `30 min`, `1 h`, `1 h 15 min`: with several services, hours are the norm (D-009). */
 export function durationLabel(minutes: number): string {
-  return `${minutes} ${messages.common.minutesSuffix}`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  const { hoursSuffix, minutesSuffix } = messages.common;
+
+  if (hours === 0) return `${rest} ${minutesSuffix}`;
+  if (rest === 0) return `${hours} ${hoursSuffix}`;
+  return `${hours} ${hoursSuffix} ${rest} ${minutesSuffix}`;
 }
