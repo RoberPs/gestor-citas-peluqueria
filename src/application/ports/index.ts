@@ -86,7 +86,11 @@ export interface AppointmentRepository {
 }
 
 export interface SalonConfigRepository {
-  /** FR-007: preloaded configuration, read-only in v1. Cacheable in memory. */
+  /**
+   * The configuration as it is **now**: read on every call, never cached, so
+   * that what the owner saves rules at once (002, FR-056, D-021). Read-only:
+   * writing it is a separate port no client use case depends on.
+   */
   load(): Promise<SalonConfiguration>;
 }
 

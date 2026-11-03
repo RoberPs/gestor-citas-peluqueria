@@ -33,6 +33,10 @@ export const salon = pgTable('salon', {
   address: text('address').notNull(),
   phone: text('phone').notNull(),
   timezone: text('timezone').notNull(),
+  /** Editable since 002 (D-022). 0–2880, in whole hours. */
+  minimumLeadTimeMinutes: integer('minimum_lead_time_minutes').notNull().default(120),
+  /** Editable since 002 (D-022). 0–72. */
+  cancellationDeadlineHours: integer('cancellation_deadline_hours').notNull().default(24),
 });
 
 export const openingInterval = pgTable('opening_interval', {

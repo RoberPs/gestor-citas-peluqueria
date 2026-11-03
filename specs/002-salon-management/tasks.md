@@ -47,7 +47,7 @@ Proyecto único con arquitectura hexagonal, heredado de `001-client-appointment-
 ### Tests de la fase fundacional ⚠️ (escribir primero, deben fallar)
 
 - [x] T006 [P] Test de regresión de la migración 0005 en `tests/integration/db/migration-0005-closures.test.ts`: carga cierres, migra y comprueba que los periodos resultantes cubren exactamente los mismos días, incluido uno en la semana del cambio de hora (data-model.md, "Migración desde `closure`")
-- [ ] T007 [P] Test de restricciones nuevas en `tests/integration/db/constraints.test.ts` (ampliar): `CHECK (ends_at > starts_at)` de `unavailable_period`, `EXCLUDE` de `opening_interval` y `CHECK` de rangos de `salon`. Los `CHECK` de `service` ya existen (0001 y 0003 de la 005) y ya tienen test
+- [x] T007 [P] Test de restricciones nuevas en `tests/integration/db/constraints.test.ts` (ampliar): `CHECK (ends_at > starts_at)` de `unavailable_period`, `EXCLUDE` de `opening_interval` y `CHECK` de rangos de `salon`. Los `CHECK` de `service` ya existen (0001 y 0003 de la 005) y ya tienen test
 - [x] T008 [P] Test de la restricción `appointment_anonymization_is_atomic` reescrita en `tests/integration/db/constraints.test.ts`: cita manual sin email válida, cita manual con `token_hash` rechazada, cita online sin `token_hash` rechazada, anonimizada a medias rechazada, y `customer_name_search` que sigue al nombre y se vacía al anonimizar (D-026, D-036)
 - [x] T165 [P] Test de `appointment_cancelled_by_consistency` en `tests/integration/db/constraints.test.ts`: cancelada sin `cancelled_by` rechazada, confirmada con `cancelled_by` rechazada; y en `tests/integration/db/migration-0006-owner-fields.test.ts`, que las canceladas existentes migran a `CUSTOMER` y las confirmadas a `NULL` (FR-040a, D-032)
 - [x] T188 [P] Test unitario de `searchableName` en `tests/unit/domain/contact/contact.test.ts` (ampliar): tildes, diéresis, eñes, mayúsculas y espacios repetidos («José  NÚÑEZ» → «jose nunez»), y `validateContact` devuelve `searchName` (FR-069, D-036)
@@ -60,7 +60,7 @@ Proyecto único con arquitectura hexagonal, heredado de `001-client-appointment-
 - [x] T010 [P] Test unitario en `tests/unit/domain/availability/compute-day.test.ts` (ampliar): los periodos no disponibles entran como ocupados y ningún inicio los pisa (FR-020, BR-002)
 - [x] T011 [P] Test unitario en `tests/unit/domain/availability/compute-range.test.ts` (ampliar): `CLOSED` cuando los periodos cubren toda la apertura, `FULL` cuando queda apertura sin cubrir (D-020)
 - [x] T012 [P] Test unitario en `tests/unit/domain/contact/contact.test.ts` (ampliar): email ausente (`null` o cadena vacía) es contacto válido; nombre y teléfono siguen siendo obligatorios (FR-024, FR-031)
-- [ ] T013 [P] Test de integración `tests/integration/use-cases/config-propagation.test.ts`: cambiar un parámetro y comprobar que la siguiente consulta de disponibilidad ya lo usa, sin reiniciar el proceso, contando consultas para que un caché reintroducido lo ponga en rojo (D-021, FR-056)
+- [x] T013 [P] Test de integración `tests/integration/use-cases/config-propagation.test.ts`: cambiar un parámetro y comprobar que la siguiente consulta de disponibilidad ya lo usa, sin reiniciar el proceso, contando consultas para que un caché reintroducido lo ponga en rojo (D-021, FR-056)
 
 ### Migraciones y esquema
 
@@ -69,8 +69,8 @@ La `0003_multiple_services.sql` es de la 005 y ya está en `main`: las de esta f
 - [x] T014 Escribir a mano `src/infrastructure/db/migrations/0004_owner_account_and_session.sql`: `owner_account` con su índice único de fila única, `owner_session` con `token_hash` único y `ON DELETE CASCADE`, sin ninguna columna de IP ni de dispositivo (FR-009)
 - [x] T015 Escribir a mano `src/infrastructure/db/migrations/0005_unavailable_period.sql`: crear la tabla, el `CHECK (ends_at > starts_at)`, el índice GiST sobre `tstzrange(starts_at, ends_at, '[)')`, convertir los cierres a instantes en la zona del salón y eliminar `closure` (D-019, D-027)
 - [x] T016 Escribir a mano `src/infrastructure/db/migrations/0006_appointment_owner_fields.sql`: enums `appointment_origin` y `appointment_actor`, columna `origin NOT NULL` con `ONLINE` para lo existente, columna `cancelled_by` con `CUSTOMER` para las ya canceladas y su `CHECK` `appointment_cancelled_by_consistency`, columna generada `customer_name_search` con el SQL de data-model.md, reescritura de `appointment_anonymization_is_atomic`, e índices `appointment_starts_at_id_idx` y `appointment_created_at_id_idx` del listado (D-026, D-032, D-033, D-036)
-- [ ] T017 Escribir a mano `src/infrastructure/db/migrations/0007_editable_configuration.sql`: columnas de política en `salon` con sus `CHECK` de rango y de horas completas, tipo `timerange` y `EXCLUDE` de `opening_interval` (D-022, FR-045). `service` no se toca: sus `CHECK` ya existen (D-031)
-- [ ] T018 Actualizar `src/infrastructure/db/schema.ts`: tablas `owner_account`, `owner_session` y `unavailable_period`, columnas nuevas de `salon` y de `appointment` (`origin`, `cancelled_by`), y retirada de `closure`
+- [x] T017 Escribir a mano `src/infrastructure/db/migrations/0007_editable_configuration.sql`: columnas de política en `salon` con sus `CHECK` de rango y de horas completas, tipo `timerange` y `EXCLUDE` de `opening_interval` (D-022, FR-045). `service` no se toca: sus `CHECK` ya existen (D-031)
+- [x] T018 Actualizar `src/infrastructure/db/schema.ts`: tablas `owner_account`, `owner_session` y `unavailable_period`, columnas nuevas de `salon` y de `appointment` (`origin`, `cancelled_by`), y retirada de `closure`
 
 ### Dominio: lo que cambia de la 001
 
@@ -85,15 +85,15 @@ La `0003_multiple_services.sql` es de la 005 y ya está en `main`: las de esta f
 
 ### Infraestructura y puertos
 
-- [ ] T025 Declarar los puertos nuevos en `src/application/ports/index.ts`: `PasswordHasher`, `OwnerAccountRepository`, `OwnerSessionRepository`, `UnavailablePeriodRepository`, `SalonConfigWriter`, `OwnerAppointmentWriter` (contracts/domain-api.md)
-- [ ] T026 Retirar el caché de proceso de `src/infrastructure/db/salon-config-repository.ts`, leer la política de la fila `salon` y borrar el comentario que dejó de ser cierto (D-021, D-022)
+- [ ] T025 Declarar los puertos nuevos en `src/application/ports/index.ts`: `PasswordHasher`, `OwnerAccountRepository`, `OwnerSessionRepository`, `UnavailablePeriodRepository`, `SalonConfigWriter`, `OwnerAppointmentWriter` (contracts/domain-api.md). *En la Fase 2 sólo `UnavailablePeriodRepository`, que es el que la disponibilidad usa; cada uno de los demás se declara con la primera tarea que lo implementa (T045, T077, T115, T125), para no dejar interfaces sin nadie detrás*
+- [x] T026 Retirar el caché de proceso de `src/infrastructure/db/salon-config-repository.ts`, leer la política de la fila `salon` y borrar el comentario que dejó de ser cierto (D-021, D-022)
 - [ ] T027 [P] Implementar `src/infrastructure/db/unavailable-period-repository.ts` con `findOverlapping` apoyada en el índice GiST, `insert`, `shorten` y `delete`. *`findOverlapping` hecho en la Fase 2, que es lo que la disponibilidad lee; `insert`, `shorten` y `delete` llegan con T077, que es quien los usa*
 - [x] T028 Añadir `origin`, `cancelled_by` y el email opcional a `src/infrastructure/db/appointment-repository.ts`; `cancel(id, at, by)` escribe `cancelled_by` en el mismo `UPDATE`; y una consulta de las citas de un día **con sus servicios** de `appointment_service`, en una sola consulta, con filtro de canceladas (FR-014, FR-015, FR-040a, D-027)
 - [x] T170 Pasar `CUSTOMER` desde `src/application/use-cases/cancel-appointment.ts` al repositorio, sin cambiar nada de lo que ve el cliente (FR-040a). El texto que el cliente ve según quién canceló es de la Fase 7 (T195)
 - [x] T192 ~~Escribir `customer_name_search` desde `ValidatedContact.searchName` en el `insert` y ponerla a `NULL` al anonimizar~~ — innecesaria: la columna es generada desde el nombre (D-036, revisado al implementar). T189 y T190 vigilan que siga al nombre
 - [ ] T029 [P] Cargar los festivos como `unavailable_period` de día completo y añadir la comida de un martes en `db/seed/seed.ts`; retirar toda referencia a `closure` en `db/seed/configuration.ts`, que comparten el fixture y la demo. En `db/seed/demo.ts` sólo cambia el nombre del campo (`closures: []` pasa a periodos vacíos): sus datos no se tocan. *Hecho salvo la comida del martes, que se añade con la US2 (T063): el fixture lo usan los e2e de la 001 y una hora bloqueada nueva cambiaría sus huecos sin que ninguna historia la necesite todavía*
-- [ ] T030 [P] Crear el bloque `owner` de textos en `src/messages/es-ES.ts`, con los mensajes comunes de carga, éxito y error accionable (FR-059)
-- [ ] T031 Registrar los repositorios y puertos nuevos en `src/app/_lib/container.ts`
+- [ ] T030 [P] Crear el bloque `owner` de textos en `src/messages/es-ES.ts`, con los mensajes comunes de carga, éxito y error accionable (FR-059). *Se hace con T058, la primera pantalla que los muestra: `actionable-errors.test.ts` no puede comprobar textos que nadie usa*
+- [ ] T031 Registrar los repositorios y puertos nuevos en `src/app/_lib/container.ts`. *Registrado `createUnavailablePeriodRepository` en la Fase 2; cada historia registra los suyos*
 
 **Checkpoint**: `npm run test:all` en verde con los cierres migrados, la configuración leída en vivo, las cancelaciones del cliente registradas como suyas y el nombre buscable guardado en cada cita. La 001 y la 005 siguen en verde sin cambiar de comportamiento. Las historias pueden empezar.
 

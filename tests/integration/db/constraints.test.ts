@@ -384,6 +384,62 @@ describe('appointment_token_hash_idx (D-005)', () => {
   });
 });
 
+describe('the editable booking parameters (002, FR-054, D-022)', () => {
+  it('starts with the values 001 fixed: 2 h of lead time and a 24 h deadline', async () => {
+    const { rows } = await testPool().query<{
+      minimum_lead_time_minutes: number;
+      cancellation_deadline_hours: number;
+    }>('SELECT minimum_lead_time_minutes, cancellation_deadline_hours FROM salon');
+
+    expect(rows[0]).toEqual({ minimum_lead_time_minutes: 120, cancellation_deadline_hours: 24 });
+  });
+
+  it.each([
+    ['minimum_lead_time_minutes = -60'],
+    ['minimum_lead_time_minutes = 2940'],
+    ['minimum_lead_time_minutes = 90'],
+    ['cancellation_deadline_hours = -1'],
+    ['cancellation_deadline_hours = 73'],
+  ])('rejects %s: outside the range or not whole hours', async (assignment) => {
+    expect(await sqlStateOf(() => testPool().query(`UPDATE salon SET ${assignment}`))).toBe('23514');
+  });
+
+  it.each([['minimum_lead_time_minutes = 0'], ['minimum_lead_time_minutes = 2880'], ['cancellation_deadline_hours = 72']])(
+    'accepts %s, at the edge of the range',
+    async (assignment) => {
+      expect(await sqlStateOf(() => testPool().query(`UPDATE salon SET ${assignment}`))).toBeUndefined();
+    },
+  );
+});
+
+describe('opening_interval (002, FR-045)', () => {
+  async function insertStretch(weekday: number, from: string, to: string): Promise<void> {
+    await testPool().query(
+      'INSERT INTO opening_interval (id, weekday, starts_at, ends_at) VALUES ($1, $2, $3, $4)',
+      [randomUUID(), weekday, from, to],
+    );
+  }
+
+  it('rejects a stretch that does not end after it starts', async () => {
+    expect(await sqlStateOf(() => insertStretch(5, '14:00', '10:00'))).toBe('23514');
+    expect(await sqlStateOf(() => insertStretch(5, '10:00', '10:00'))).toBe('23514');
+  });
+
+  it('rejects two stretches of the same weekday that overlap', async () => {
+    await insertStretch(5, '10:00', '14:00');
+
+    expect(await sqlStateOf(() => insertStretch(5, '13:00', '20:00'))).toBe('23P01');
+  });
+
+  it('accepts a midday close, stretches that touch, and the same hours on another weekday', async () => {
+    await insertStretch(6, '10:00', '14:00');
+
+    expect(await sqlStateOf(() => insertStretch(6, '16:00', '20:00'))).toBeUndefined();
+    expect(await sqlStateOf(() => insertStretch(6, '14:00', '16:00'))).toBeUndefined();
+    expect(await sqlStateOf(() => insertStretch(5, '10:00', '14:00'))).toBeUndefined();
+  });
+});
+
 describe('salon single row invariant', () => {
   it('rejects a second salon', async () => {
     const code = await sqlStateOf(() =>

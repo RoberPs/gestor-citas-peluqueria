@@ -80,7 +80,7 @@ export const DEFAULT_BOOKING_POLICY: BookingPolicy = {
   retentionMonths: 12,
 };
 
-/** Everything the availability calculation needs about the salon, loaded once. */
+/** Everything the availability calculation needs about the salon, as it is at that moment. */
 export type SalonConfiguration = {
   readonly salon: Salon;
   readonly schedule: WeeklySchedule;

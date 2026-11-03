@@ -553,12 +553,25 @@ describe('SalonConfigRepository', () => {
     expect(config.services.map((s) => s.name)).toEqual(['Corte']);
   });
 
-  it('caches the configuration in memory rather than re-reading it per request', async () => {
+  it('reads the configuration afresh on every load: a change rules at once (002, FR-056, D-021)', async () => {
     const repository = createSalonConfigRepository(() => testPool());
     await repository.load();
 
     await testPool().query(`UPDATE salon SET name = 'Cambiado'`);
 
-    expect((await repository.load()).salon.name).toBe('Peluqueria Aurora');
+    expect((await repository.load()).salon.name).toBe('Cambiado');
+  });
+
+  it('reads the two editable parameters from the salon row, the rest from the code (D-022)', async () => {
+    await testPool().query(
+      'UPDATE salon SET minimum_lead_time_minutes = 240, cancellation_deadline_hours = 12',
+    );
+
+    const { policy } = await createSalonConfigRepository(() => testPool()).load();
+
+    expect(policy.minimumLeadTimeMinutes).toBe(240);
+    expect(policy.cancellationDeadlineHours).toBe(12);
+    expect(policy.horizonDays).toBe(60);
+    expect(policy.maxFutureAppointmentsPerContact).toBe(3);
   });
 });
