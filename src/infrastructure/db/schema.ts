@@ -2,7 +2,6 @@ import { sql } from 'drizzle-orm';
 import {
   boolean,
   customType,
-  date,
   integer,
   pgEnum,
   pgTable,
@@ -41,11 +40,16 @@ export const openingInterval = pgTable('opening_interval', {
   endsAt: time('ends_at').notNull(),
 });
 
-export const closure = pgTable('closure', {
+/** Replaces the whole-day closure of 001 (002, D-019). Half-open `[starts_at, ends_at)`. */
+export const unavailablePeriod = pgTable('unavailable_period', {
   id: uuid('id').primaryKey(),
-  date: date('date', { mode: 'string' }).notNull(),
+  startsAt: timestamp('starts_at', { withTimezone: true, mode: 'date' }).notNull(),
+  endsAt: timestamp('ends_at', { withTimezone: true, mode: 'date' }).notNull(),
   /** Internal. Never leaves the database: the client sees "closed", never why. */
-  reason: text('reason').notNull(),
+  reason: text('reason'),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+    .notNull()
+    .default(sql`now()`),
 });
 
 export const service = pgTable('service', {
@@ -122,7 +126,7 @@ export const ownerSession = pgTable('owner_session', {
 export const schema = {
   salon,
   openingInterval,
-  closure,
+  unavailablePeriod,
   service,
   appointment,
   appointmentService,

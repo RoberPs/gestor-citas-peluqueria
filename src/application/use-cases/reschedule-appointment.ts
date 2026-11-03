@@ -12,7 +12,12 @@ import { applyReschedule } from '@/domain/booking/reschedule';
 import type { Clock } from '@/domain/shared/clock';
 import { err, ok, type Result } from '@/domain/shared/result';
 import { localDateOf } from '@/domain/shared/time';
-import type { AppointmentRepository, SalonConfigRepository, TokenGenerator } from '../ports';
+import type {
+  AppointmentRepository,
+  SalonConfigRepository,
+  TokenGenerator,
+  UnavailablePeriodRepository,
+} from '../ports';
 import type { AppointmentDetail } from './view-appointment';
 
 /**
@@ -40,6 +45,7 @@ export type RescheduleResult = {
 export function createRescheduleAppointment(deps: {
   readonly config: SalonConfigRepository;
   readonly appointments: AppointmentRepository;
+  readonly periods: UnavailablePeriodRepository;
   readonly tokens: TokenGenerator;
   readonly clock: Clock;
 }) {
@@ -63,18 +69,21 @@ export function createRescheduleAppointment(deps: {
     }
 
     const date = localDateOf(newStart, timezone);
-    const opening = openingOf(date, configuration.schedule, configuration.closures);
+    const opening = openingOf(date, configuration.schedule);
 
     const dayStart = startOfDay(date, timezone);
     const dayEnd = startOfDay(date.add({ days: 1 }), timezone);
-    const busy = await deps.appointments.findConfirmedInWindow(dayStart, dayEnd);
+    const [busy, unavailablePeriods] = await Promise.all([
+      deps.appointments.findConfirmedInWindow(dayStart, dayEnd),
+      deps.periods.findOverlapping(dayStart, dayEnd),
+    ]);
 
     const outcome = applyReschedule({
       appointment,
       newStart,
       date,
       openingIntervals: opening.openingIntervals,
-      isClosed: opening.isClosed,
+      unavailablePeriods,
       confirmedAppointments: busy,
       now,
       policy,

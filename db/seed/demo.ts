@@ -11,7 +11,7 @@ import { writeConfiguration } from './configuration';
  *   says "Precio a consultar en el salón" (feature 005).
  * - A client may book several services in one appointment: "Corte de pelo"
  *   and "Diseño y corte de barba" make one appointment of 1 h.
- * - No closures: real holidays are added once the salon gives them.
+ * - No holidays: real ones are added once the salon gives them.
  *
  * Tests never use this data; their fixture is `seed.ts`. Running either script
  * switches the database to it.
@@ -53,6 +53,6 @@ await writeConfiguration(connectionString, process.env['SALON_TIMEZONE'] ?? 'Eur
   },
   opening: OPENING,
   services: SERVICES,
-  closures: [],
+  holidays: [],
 });
-console.log('Seeded the demo: Peluquería de Caballeros Niza, four services, no closures.');
+console.log('Seeded the demo: Peluquería de Caballeros Niza, four services, no holidays.');

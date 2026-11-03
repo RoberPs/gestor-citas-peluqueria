@@ -5,6 +5,7 @@ import { createConfirmBooking } from '@/application/use-cases/confirm-booking';
 import type { Clock } from '@/domain/shared/clock';
 import { createAppointmentRepository } from '@/infrastructure/db/appointment-repository';
 import { createSalonConfigRepository } from '@/infrastructure/db/salon-config-repository';
+import { createUnavailablePeriodRepository } from '@/infrastructure/db/unavailable-period-repository';
 import { tokenGenerator } from '@/infrastructure/security/token';
 import { closeTestDb, ensureSchema, testPool, truncateAppointments } from '../helpers/test-db';
 import {
@@ -41,6 +42,7 @@ function buildUseCase() {
   return createConfirmBooking({
     config: createSalonConfigRepository(() => testPool()),
     appointments: createAppointmentRepository(() => testPool()),
+    periods: createUnavailablePeriodRepository(() => testPool()),
     tokens: tokenGenerator,
     clock,
   });

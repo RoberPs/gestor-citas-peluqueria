@@ -4,7 +4,7 @@ import type {
   AppointmentId,
   BusyInterval,
 } from '@/domain/booking/appointment';
-import type { SalonConfiguration } from '@/domain/catalog/salon';
+import type { SalonConfiguration, UnavailablePeriod } from '@/domain/catalog/salon';
 import type { NonEmptyServiceList } from '@/domain/catalog/selection';
 import type { NormalizedEmail, NormalizedPhone, ValidatedContact } from '@/domain/contact/contact';
 import type { Result } from '@/domain/shared/result';
@@ -73,6 +73,18 @@ export interface AppointmentRepository {
 export interface SalonConfigRepository {
   /** FR-007: preloaded configuration, read-only in v1. Cacheable in memory. */
   load(): Promise<SalonConfiguration>;
+}
+
+/** The owner's blocked time (002, D-019). Never cached: a new period rules at once (FR-056). */
+export interface UnavailablePeriodRepository {
+  /**
+   * The periods that touch `[from, to)`, in order, found through the index on
+   * their range (D-027). One query for the whole window, never one per day.
+   */
+  findOverlapping(
+    from: Temporal.Instant,
+    to: Temporal.Instant,
+  ): Promise<readonly UnavailablePeriod[]>;
 }
 
 export interface TokenGenerator {

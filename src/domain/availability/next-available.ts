@@ -18,7 +18,7 @@ export type NextAvailableInput = {
   readonly fromDate: Temporal.PlainDate;
   readonly horizonEnd: Temporal.PlainDate;
   readonly salonSchedule: WeeklySchedule;
-  readonly closures: ReadonlySet<string>;
+  readonly unavailablePeriods: readonly BusyInterval[];
   readonly serviceDurationMinutes: number;
   readonly confirmedAppointments: readonly BusyInterval[];
   readonly now: Temporal.Instant;
@@ -31,13 +31,13 @@ export function findNextAvailableDate(input: NextAvailableInput): Temporal.Plain
   let date = input.fromDate.add({ days: 1 });
 
   while (Temporal.PlainDate.compare(date, input.horizonEnd) <= 0) {
-    const opening = openingOf(date, input.salonSchedule, input.closures);
+    const opening = openingOf(date, input.salonSchedule);
 
-    if (!opening.isClosed) {
+    if (opening.openingIntervals.length > 0) {
       const slots = computeDaySlots({
         date,
         openingIntervals: opening.openingIntervals,
-        isClosed: false,
+        unavailablePeriods: input.unavailablePeriods,
         serviceDurationMinutes: input.serviceDurationMinutes,
         confirmedAppointments: input.confirmedAppointments,
         now: input.now,

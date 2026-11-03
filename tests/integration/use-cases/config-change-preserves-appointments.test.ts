@@ -7,6 +7,7 @@ import { createViewAppointment } from '@/application/use-cases/view-appointment'
 import type { Clock } from '@/domain/shared/clock';
 import { createAppointmentRepository } from '@/infrastructure/db/appointment-repository';
 import { createSalonConfigRepository } from '@/infrastructure/db/salon-config-repository';
+import { createUnavailablePeriodRepository } from '@/infrastructure/db/unavailable-period-repository';
 import { generate, tokenGenerator } from '@/infrastructure/security/token';
 import {
   closeTestDb,
@@ -25,9 +26,18 @@ import { CORTE, seedContractDatabase } from '../../contract/helpers/seed-contrac
  * There is no implementation behind this test, and that is the point. The
  * design already guarantees it — configuration and appointments are separate
  * tables and availability is derived, so there is no code path that could
- * cancel an appointment when a closure appears. This test exists so that it
+ * cancel an appointment when a period blocks its day. This test exists so that it
  * cannot stop being true without somebody noticing.
  */
+
+/** A whole-day unavailable period on that Thursday: what a closure is since 002 (D-019). */
+async function blockThursday(): Promise<void> {
+  await testPool().query(
+    `INSERT INTO unavailable_period (id, starts_at, ends_at, reason)
+     VALUES ($1, '2026-09-17 00:00 Europe/Madrid', '2026-09-18 00:00 Europe/Madrid', 'Ausencia')`,
+    [randomUUID()],
+  );
+}
 
 /** Thursday 2026-09-17, 11:00 salon time. */
 const THURSDAY_1100 = '2026-09-17T09:00:00Z';
@@ -37,10 +47,11 @@ const clock: Clock = { now: () => NOW };
 function build(pool: Pool = testPool()) {
   const config = createSalonConfigRepository(() => pool);
   const appointments = createAppointmentRepository(() => pool);
+  const periods = createUnavailablePeriodRepository(() => pool);
 
   return {
     appointments,
-    getAvailability: createGetAvailability({ config, appointments, clock }),
+    getAvailability: createGetAvailability({ config, appointments, periods, clock }),
     viewAppointment: createViewAppointment({ config, appointments, tokens: tokenGenerator, clock }),
   };
 }
@@ -129,15 +140,12 @@ beforeEach(async () => {
   await truncateAppointments();
 });
 
-describe('(a) a closure appears on the day of a confirmed appointment (FR-007b)', () => {
+describe('(a) a whole-day period blocks the day of a confirmed appointment (FR-007b)', () => {
   it('leaves the appointment confirmed, uncancelled and still reachable', async () => {
     const { id, token } = await insertThursdayAppointment();
     const before = await stateOf(id);
 
-    await testPool().query(
-      `INSERT INTO closure (id, date, reason) VALUES ($1, '2026-09-17', 'Ausencia')`,
-      [randomUUID()],
-    );
+    await blockThursday();
 
     const after = await stateOf(id);
     expect(after?.status).toBe('CONFIRMED');
@@ -161,10 +169,7 @@ describe('(a) a closure appears on the day of a confirmed appointment (FR-007b)'
   it('stops offering that day and nothing more', async () => {
     await insertThursdayAppointment();
 
-    await testPool().query(
-      `INSERT INTO closure (id, date, reason) VALUES ($1, '2026-09-17', 'Ausencia')`,
-      [randomUUID()],
-    );
+    await blockThursday();
 
     const result = await build().getAvailability({ serviceIds: [CORTE] });
     if (!result.ok) throw new Error('unreachable');
@@ -230,10 +235,7 @@ describe('(c) neither change writes to the appointment table', () => {
 
     const spy = spyingPool(testPool());
 
-    await testPool().query(
-      `INSERT INTO closure (id, date, reason) VALUES ($1, '2026-09-17', 'Ausencia')`,
-      [randomUUID()],
-    );
+    await blockThursday();
     await testPool().query('DELETE FROM opening_interval WHERE weekday = 4');
 
     // Reload the configuration through the application, twice over.

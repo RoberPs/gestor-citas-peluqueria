@@ -6,7 +6,7 @@ import type { OpeningInterval } from '@/domain/catalog/salon';
 import type { ServiceSnapshot } from '@/domain/catalog/service';
 import type { RawContact } from '@/domain/contact/contact';
 import { localDateOf } from '@/domain/shared/time';
-import { at, busy, interval, MADRID, NOW, POLICY } from '../availability/_fixtures';
+import { at, busy, interval, MADRID, NOW, POLICY, wholeDay } from '../availability/_fixtures';
 
 /**
  * FR-011 and FR-034: the server re-checks **everything** the interface already
@@ -34,7 +34,7 @@ type Options = {
   service?: ServiceSnapshot;
   contact?: RawContact;
   openingIntervals?: OpeningInterval[];
-  isClosed?: boolean;
+  unavailable?: BusyInterval[];
   confirmed?: BusyInterval[];
   now?: Temporal.Instant;
 };
@@ -50,7 +50,7 @@ function validate(options: Options = {}) {
     services: [options.service ?? CORTE],
     contact: options.contact ?? GOOD_CONTACT,
     openingIntervals: options.openingIntervals ?? [interval(5, '10:00', '20:00')],
-    isClosed: options.isClosed ?? false,
+    unavailablePeriods: options.unavailable ?? [],
     confirmedAppointments: options.confirmed ?? [],
     now: options.now ?? NOW,
     policy: POLICY,
@@ -136,7 +136,37 @@ describe('TOO_LATE_TO_BOOK (BR-003)', () => {
 
 describe('OUTSIDE_OPENING_HOURS (FR-003a, BR-002)', () => {
   it('rejects a start on a closed day', () => {
-    expect(rejection({ isClosed: true })).toEqual({ kind: 'OUTSIDE_OPENING_HOURS' });
+    expect(rejection({ unavailable: [wholeDay('2026-09-18')] })).toEqual({
+      kind: 'OUTSIDE_OPENING_HOURS',
+    });
+  });
+
+  it('rejects a start inside a blocked hour, as closed time (002, BR-002)', () => {
+    expect(
+      rejection({
+        requestedStart: at('2026-09-18', '13:00'),
+        unavailable: [busy('2026-09-18', '13:00', '14:00')],
+      }),
+    ).toEqual({ kind: 'OUTSIDE_OPENING_HOURS' });
+  });
+
+  it('rejects an appointment that would run into a blocked hour', () => {
+    expect(
+      rejection({
+        requestedStart: at('2026-09-18', '12:30'),
+        service: { ...CORTE, durationMinutes: 45 },
+        unavailable: [busy('2026-09-18', '13:00', '14:00')],
+      }),
+    ).toEqual({ kind: 'OUTSIDE_OPENING_HOURS' });
+  });
+
+  it('accepts a start exactly when a blocked hour ends (BR-013)', () => {
+    const result = validate({
+      requestedStart: at('2026-09-18', '14:00'),
+      unavailable: [busy('2026-09-18', '13:00', '14:00')],
+    });
+
+    expect(result.ok).toBe(true);
   });
 
   it('rejects a start before the salon opens', () => {

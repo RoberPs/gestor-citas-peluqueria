@@ -45,6 +45,16 @@ export function busy(date: string, from: string, to: string): BusyInterval {
   return { startsAt: at(date, from), endsAt: at(date, to) };
 }
 
+/**
+ * An unavailable period covering one whole salon day, midnight to midnight in
+ * the salon's zone: the shape a holiday takes since closures became periods
+ * (002, D-019). On the day the clocks change it lasts 23 or 25 real hours.
+ */
+export function wholeDay(date: string): BusyInterval {
+  const day = Temporal.PlainDate.from(date);
+  return { startsAt: at(date, '00:00'), endsAt: at(day.add({ days: 1 }).toString(), '00:00') };
+}
+
 /** Monday to Friday 10:00–20:00; Saturday with a midday close; Sunday shut. */
 export function standardSchedule(): WeeklySchedule {
   return new Map<Weekday, readonly OpeningInterval[]>([

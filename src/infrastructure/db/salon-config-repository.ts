@@ -11,7 +11,7 @@ import {
   type Weekday,
   type WeeklySchedule,
 } from '@/domain/catalog/salon';
-import { closure, openingInterval, salon, schema, service } from './schema';
+import { openingInterval, salon, schema, service } from './schema';
 
 /**
  * Reads the preloaded configuration (FR-007). This feature never writes it.
@@ -29,10 +29,9 @@ export function createSalonConfigRepository(getPool: () => Pool): SalonConfigRep
 
       const database = drizzle(getPool(), { schema });
 
-      const [salonRows, intervalRows, closureRows, serviceRows] = await Promise.all([
+      const [salonRows, intervalRows, serviceRows] = await Promise.all([
         database.select().from(salon).limit(1),
         database.select().from(openingInterval).orderBy(asc(openingInterval.startsAt)),
-        database.select().from(closure),
         database
           .select()
           .from(service)
@@ -65,9 +64,6 @@ export function createSalonConfigRepository(getPool: () => Pool): SalonConfigRep
           timezone: salonRow.timezone,
         },
         schedule: schedule as WeeklySchedule,
-        // The reason a day is closed stays in the database: the client sees
-        // "closed", never whether it is a holiday or an absence.
-        closures: new Set(closureRows.map((row) => row.date)),
         services: serviceRows.map((row) => ({
           id: row.id,
           name: row.name,

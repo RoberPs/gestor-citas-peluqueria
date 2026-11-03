@@ -41,7 +41,7 @@ type Options = {
   appointment?: Appointment;
   newStart?: Temporal.Instant;
   openingIntervals?: OpeningInterval[];
-  isClosed?: boolean;
+  unavailable?: BusyInterval[];
   confirmed?: BusyInterval[];
   now?: Temporal.Instant;
 };
@@ -55,7 +55,7 @@ function reschedule(options: Options = {}) {
     newStart,
     date: localDateOf(newStart, MADRID),
     openingIntervals: options.openingIntervals ?? [interval(5, '10:00', '20:00')],
-    isClosed: options.isClosed ?? false,
+    unavailablePeriods: options.unavailable ?? [],
     confirmedAppointments: options.confirmed ?? [
       { startsAt: target.startsAt, endsAt: target.endsAt },
     ],

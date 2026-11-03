@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { Temporal } from '@js-temporal/polyfill';
 import { Pool } from 'pg';
-import { closureDate } from '../../../db/seed/seed';
+import { holidayDate } from '../../../db/seed/seed';
 
 /**
  * Empties the appointments between tests.
@@ -138,7 +138,7 @@ export async function seedAppointment(options: {
  */
 export function slotDaysFromNow(days: number, hour = 11, minute = 30): Date {
   const timeZone = salonTimezone();
-  const holiday = closureDate(timeZone);
+  const holiday = holidayDate(timeZone);
   let date = Temporal.Now.plainDateISO(timeZone).add({ days });
   while (date.dayOfWeek === 7 || date.toString() === holiday) {
     date = date.add({ days: 1 });

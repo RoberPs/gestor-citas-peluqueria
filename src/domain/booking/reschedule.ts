@@ -33,7 +33,7 @@ export type RescheduleRequest = {
   /** The salon's calendar date of the new start. */
   readonly date: Temporal.PlainDate;
   readonly openingIntervals: readonly OpeningInterval[];
-  readonly isClosed: boolean;
+  readonly unavailablePeriods: readonly BusyInterval[];
   readonly confirmedAppointments: readonly BusyInterval[];
   readonly now: Temporal.Instant;
   readonly policy: BookingPolicy;
@@ -56,7 +56,7 @@ export function applyReschedule(
     date: input.date,
     durationMinutes: durationOf(input.appointment),
     openingIntervals: input.openingIntervals,
-    isClosed: input.isClosed,
+    unavailablePeriods: input.unavailablePeriods,
     confirmedAppointments: input.confirmedAppointments,
     now: input.now,
     policy: input.policy,

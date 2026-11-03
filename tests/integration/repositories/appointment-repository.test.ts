@@ -454,15 +454,11 @@ describe('cancel', () => {
 });
 
 describe('SalonConfigRepository', () => {
-  it('loads salon, schedule, closures and the active catalogue', async () => {
+  it('loads salon, schedule and the active catalogue', async () => {
     await testPool().query(
       `INSERT INTO opening_interval (id, weekday, starts_at, ends_at)
        VALUES ($1, 6, '10:00', '14:00'), ($2, 6, '16:00', '20:00'), ($3, 1, '10:00', '20:00')`,
       [randomUUID(), randomUUID(), randomUUID()],
-    );
-    await testPool().query(
-      `INSERT INTO closure (id, date, reason) VALUES ($1, '2026-09-22', 'Festivo')`,
-      [randomUUID()],
     );
     await testPool().query(
       `INSERT INTO service (id, name, duration_minutes, price_cents, is_active, display_order)
@@ -476,7 +472,6 @@ describe('SalonConfigRepository', () => {
     expect(config.salon.phone).toBe('911234567');
     expect(config.schedule.get(6)).toHaveLength(2);
     expect(config.schedule.get(7)).toBeUndefined();
-    expect(config.closures.has('2026-09-22')).toBe(true);
     // A retired service stops being offered; appointments referencing it stay whole.
     expect(config.services.map((s) => s.name)).toEqual(['Corte']);
   });

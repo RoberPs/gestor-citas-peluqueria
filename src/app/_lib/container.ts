@@ -7,6 +7,7 @@ import { createViewAppointment } from '@/application/use-cases/view-appointment'
 import { createAppointmentRepository } from '@/infrastructure/db/appointment-repository';
 import { pool } from '@/infrastructure/db/client';
 import { createSalonConfigRepository } from '@/infrastructure/db/salon-config-repository';
+import { createUnavailablePeriodRepository } from '@/infrastructure/db/unavailable-period-repository';
 import { tokenGenerator } from '@/infrastructure/security/token';
 import { systemClock } from '@/infrastructure/time/system-clock';
 
@@ -24,16 +25,18 @@ type Container = ReturnType<typeof build>;
 function build() {
   const config = createSalonConfigRepository(pool);
   const appointments = createAppointmentRepository(pool);
+  const periods = createUnavailablePeriodRepository(pool);
 
   return {
     config,
     appointments,
     clock: systemClock,
     listServices: createListServices({ config }),
-    getAvailability: createGetAvailability({ config, appointments, clock: systemClock }),
+    getAvailability: createGetAvailability({ config, appointments, periods, clock: systemClock }),
     confirmBooking: createConfirmBooking({
       config,
       appointments,
+      periods,
       tokens: tokenGenerator,
       clock: systemClock,
     }),
@@ -52,6 +55,7 @@ function build() {
     rescheduleAppointment: createRescheduleAppointment({
       config,
       appointments,
+      periods,
       tokens: tokenGenerator,
       clock: systemClock,
     }),

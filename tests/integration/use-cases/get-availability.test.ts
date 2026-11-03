@@ -8,6 +8,7 @@ import type { OpeningInterval, Weekday } from '@/domain/catalog/salon';
 import type { Clock } from '@/domain/shared/clock';
 import { createAppointmentRepository } from '@/infrastructure/db/appointment-repository';
 import { createSalonConfigRepository } from '@/infrastructure/db/salon-config-repository';
+import { createUnavailablePeriodRepository } from '@/infrastructure/db/unavailable-period-repository';
 import {
   closeTestDb,
   ensureSchema,
@@ -119,6 +120,7 @@ function buildUseCase(pool: Pool) {
   return createGetAvailability({
     config: createSalonConfigRepository(() => pool),
     appointments: createAppointmentRepository(() => pool),
+    periods: createUnavailablePeriodRepository(() => pool),
     clock,
   });
 }
@@ -389,6 +391,7 @@ describe('several services in one appointment (005, Historia 1)', () => {
     const getAvailability = createGetAvailability({
       config: twoHourStretches,
       appointments: createAppointmentRepository(() => testPool()),
+      periods: createUnavailablePeriodRepository(() => testPool()),
       clock,
     });
 
