@@ -36,7 +36,7 @@ acordarlos con el cliente:
   «0,00 €».
 - No hay cierres por festivo.
 
-La configuración se cachea al arrancar: tras `npm run db:seed:demo`, reinicia la app.
+La configuración se lee en cada consulta: lo que carga `npm run db:seed:demo` se ve al recargar, sin reiniciar la app.
 
 Los servicios de prueba quedan desactivados, no borrados, porque puede haber citas que
 los referencian. Para volver a los datos de prueba, `npm run db:seed`. Los tests usan
@@ -58,7 +58,7 @@ salón la ve sin consultarla a mano.
 | Feature | Estado | Tareas | Rama | En `main` |
 |---|---|---|---|---|
 | [001 · Reserva del cliente](specs/001-client-appointment-booking/spec.md) | Implementada | 118 / 118 | `001-client-appointment-booking` | Sí (PR #1) |
-| [002 · Gestión del salón](specs/002-salon-management/spec.md) | Spec, plan y tareas revisados el 2026-11-03 (005, US10, y US11 «Editar una cita», búsqueda y textos de cancelación); sin código | 2 / 212 (T139 y T140 las cubrió la 005) | `002-salon-management` | Sólo la documentación de antes de la revisión (PR #4) |
+| [002 · Gestión del salón](specs/002-salon-management/spec.md) | En curso: fases 1 y 2 (base común) hechas el 2026-11-03; sin pantallas de la dueña todavía | 37 / 212 (T139 y T140 las cubrió la 005) | `002-salon-management` | Sólo la documentación de antes de la revisión (PR #4) |
 | [003 · Versión responsive para tablet y ordenador](specs/003-responsive-desktop/spec.md) | Implementada | 35 / 35 | `003-responsive-desktop` | Sí (PR #3) |
 | 004 · Avisos por email y SMS | Planificada, sin spec | — | — | — |
 | [005 · Varios servicios por cita y precio opcional](specs/005-multiple-services/spec.md) | Implementada | 55 / 55 | `005-multiple-services` | Sí (PR #6) |
@@ -109,13 +109,13 @@ Con la 003, todo lo anterior se adapta a tres tamaños:
 
 ### Estado de los checks
 
-En la rama `005-multiple-services`, el 2026-11-03. Playwright tiene tres proyectos, uno
-por tamaño (ver `playwright.config.ts`).
+En la rama `002-salon-management`, el 2026-11-03, con las fases 1 y 2 de la 002. Playwright
+tiene tres proyectos, uno por tamaño (ver `playwright.config.ts`).
 
 | Check | Resultado |
 |---|---|
-| `npm test` (unitarios) | 303 / 303 ✅ |
-| `npm run test:integration` | 135 / 135 ✅ |
+| `npm test` (unitarios) | 336 / 336 ✅ |
+| `npm run test:integration` | 195 / 195 ✅ |
 | `npm run test:contract` | 94 / 94 ✅ |
 | `npm run test:e2e` | 210 / 210 ✅ |
 | · proyecto `mobile-360` (la suite de la 001 y la 005) | 85 / 85 ✅ |
@@ -156,7 +156,5 @@ no hay título, y `us5-cancel` fallaba de forma intermitente por eso.
 
 ### Restricciones a tener en cuenta
 
-- La configuración del salón se cachea en memoria al primer acceso (D-003 de la 001).
-  Cambiarla con el seed exige reiniciar la app; la 002 lo sustituye por lectura en vivo.
 - v1 no envía SMS ni email. La 004 cambiará esa decisión y activará el Principio IV
   de la constitución.

@@ -83,7 +83,19 @@ verde, y es un punto donde se puede parar.
     límite de 3 citas futuras sin contar la propia cita.
   - Va antes del paso 3: la edición y los textos del cliente tocan el dominio y el
     contrato que el paso 3 empieza a construir.
-- [ ] **3 · 002, fases 1 y 2: setup y base común**
+- [x] **3 · 002, fases 1 y 2: setup y base común** — rama `002-salon-management`,
+  2026-11-03
+  - Resultado: migraciones `0004` (cuenta y sesión), `0005` (periodos no disponibles en
+    lugar de cierres, convertidos en la zona del salón), `0006` (origen, quién canceló,
+    email y enlace opcionales y nombre buscable) y `0007` (parámetros editables y
+    horario sin solapes). La disponibilidad resta intervalos; la configuración se lee
+    en vivo. 336 unitarios, 195 de integración, 94 de contrato y 210 e2e en verde.
+  - Cambio respecto al plan: `customer_name_search` es una columna generada por
+    PostgreSQL en lugar de escrita por el repositorio (D-036 revisada).
+  - Aplazado a la historia que lo usa: el script `owner:provision` y sus variables
+    (T002, T003, con T056), los puertos de cuenta, sesión y escritura (T025), el bloque
+    de textos `owner` (T030, con T058) y la comida del martes en el seed (T029, con la
+    US2).
   - Migraciones: cuenta de la dueña, sesión, periodos no disponibles, origen de la cita,
     quién la canceló y nombre buscable.
   - Dominio: la disponibilidad resta intervalos en lugar de descartar días; email y
