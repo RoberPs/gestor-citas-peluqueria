@@ -93,4 +93,39 @@ export const appointmentService = pgTable('appointment_service', {
   priceCents: integer('price_cents'),
 });
 
-export const schema = { salon, openingInterval, closure, service, appointment, appointmentService };
+/** The one staff account (002, FR-001). No column for an IP or a device (FR-009). */
+export const ownerAccount = pgTable('owner_account', {
+  id: uuid('id').primaryKey(),
+  username: text('username').notNull(),
+  /** `scrypt$N$r$p$salt$hash` (D-016). */
+  passwordHash: text('password_hash').notNull(),
+  passwordChangedAt: timestamp('password_changed_at', { withTimezone: true, mode: 'date' }).notNull(),
+  failedAttempts: integer('failed_attempts').notNull().default(0),
+  firstFailedAttemptAt: timestamp('first_failed_attempt_at', { withTimezone: true, mode: 'date' }),
+  lockedUntil: timestamp('locked_until', { withTimezone: true, mode: 'date' }),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+    .notNull()
+    .default(sql`now()`),
+});
+
+/** One live session per row; only the token's SHA-256 is kept (D-015). */
+export const ownerSession = pgTable('owner_session', {
+  id: uuid('id').primaryKey(),
+  accountId: uuid('account_id')
+    .notNull()
+    .references(() => ownerAccount.id, { onDelete: 'cascade' }),
+  tokenHash: bytea('token_hash').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull(),
+  lastSeenAt: timestamp('last_seen_at', { withTimezone: true, mode: 'date' }).notNull(),
+});
+
+export const schema = {
+  salon,
+  openingInterval,
+  closure,
+  service,
+  appointment,
+  appointmentService,
+  ownerAccount,
+  ownerSession,
+};
