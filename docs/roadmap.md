@@ -35,7 +35,7 @@ verde, y es un punto donde se puede parar.
   - Tests e2e y de accesibilidad también a 1280 px.
   - Va antes de la 002 para que las pantallas de la dueña nazcan responsive.
 - [x] **1b · `005-multiple-services`:** varios servicios por cita y precio opcional —
-  2026-11-03
+  PR #6, 2026-11-03
   - Spec con `/speckit-specify`, después plan, tareas y `/speckit-analyze`. Ver
     "Decisiones tomadas" del 2026-11-02 sobre la 005.
   - Va antes de la 002, como la 003: las pantallas de la dueña nacen mostrando varios
@@ -47,6 +47,8 @@ verde, y es un punto donde se puede parar.
   - ~~Rebasar `002-salon-management` sobre `main`~~ — en su lugar se fusionó `main` en
     la rama el 2026-11-02, sin reescribir su historia; su documentación está en
     `main` (PR #4).
+  - Fusionar de nuevo `main` en `002-salon-management` para traer la 005, del mismo
+    modo, antes de revisar su spec.
   - Las pantallas de la dueña usan la base responsive de la 003 (clases `.page--split`,
     `.col-main`, `.col-side`, `.wide-only`, `NavForm`); revisar el plan de la 002 para
     que lo diga.
