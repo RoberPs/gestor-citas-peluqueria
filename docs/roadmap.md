@@ -34,11 +34,14 @@ verde, y es un punto donde se puede parar.
     formulario a la derecha).
   - Tests e2e y de accesibilidad también a 1280 px.
   - Va antes de la 002 para que las pantallas de la dueña nazcan responsive.
-- [ ] **1b · `005-multiple-services`:** varios servicios por cita y precio opcional.
+- [x] **1b · `005-multiple-services`:** varios servicios por cita y precio opcional —
+  2026-11-03
   - Spec con `/speckit-specify`, después plan, tareas y `/speckit-analyze`. Ver
     "Decisiones tomadas" del 2026-11-02 sobre la 005.
   - Va antes de la 002, como la 003: las pantallas de la dueña nacen mostrando varios
     servicios por cita y sin que haya que migrar datos después.
+  - Una cita guarda sus servicios en `appointment_service`, cada uno con su snapshot; el
+    contrato HTTP vivo pasa a la 2.0.0.
 - [ ] **2 · Actualizar la 002 con la US10 "Listado de reservas"**
   - Spec, plan, tareas y `/speckit-analyze`. Ver el apartado "US10" más abajo.
   - ~~Rebasar `002-salon-management` sobre `main`~~ — en su lugar se fusionó `main` en
@@ -47,6 +50,12 @@ verde, y es un punto donde se puede parar.
   - Las pantallas de la dueña usan la base responsive de la 003 (clases `.page--split`,
     `.col-main`, `.col-side`, `.wide-only`, `NavForm`); revisar el plan de la 002 para
     que lo diga.
+  - Revisar la 002 con el modelo de la 005: una cita lleva **uno o varios servicios**
+    (`appointment_service`) y un servicio **puede no tener precio**. Afecta a la agenda
+    y al listado (mostrar todos los servicios de cada cita, leídos en la misma consulta,
+    sin N+1), a las citas a mano (elegir varios servicios, con la duración total), a
+    mover citas (la duración es la suma de sus snapshots) y al catálogo de la US8
+    (precio opcional, nunca 0).
 - [ ] **3 · 002, fases 1 y 2: setup y base común**
   - Migraciones: cuenta de la dueña, sesión, periodos no disponibles, origen de la cita.
   - Dominio: la disponibilidad resta intervalos en lugar de descartar días; email y

@@ -495,15 +495,15 @@ y 14).
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T051 [P] Poner `cents: null` en los cuatro servicios de `db/seed/demo.ts` y
+- [X] T051 [P] Poner `cents: null` en los cuatro servicios de `db/seed/demo.ts` y
   actualizar su comentario de cabecera, que dice que la 005 hará los precios opcionales.
   Comprobar con `npm run db:seed:demo` y reiniciando la app (001/D-003).
-- [ ] T052 Repetir `tests/e2e/performance.spec.ts` con cuatro servicios elegidos (añadir
+- [X] T052 Repetir `tests/e2e/performance.spec.ts` con cuatro servicios elegidos (añadir
   el caso al spec) y comparar con las medidas de T001 en la misma máquina (SC-004). Si
   supera los 2 s, investigar antes de seguir.
-- [ ] T053 Recorrer a mano [quickstart.md](./quickstart.md), pasos 1 a 16, a 360 y a
+- [X] T053 Recorrer a mano [quickstart.md](./quickstart.md), pasos 1 a 16, a 360 y a
   1280 px, y la sección de la demo. Anotar en el PR cualquier diferencia.
-- [ ] T054 [P] Actualizar la documentación:
+- [X] T054 [P] Actualizar la documentación:
   - `README.md`: tabla de features con la 005, «Qué puede hacer hoy la app», la demo
     (precios «a consultar», ya no «0,00 €») y la tabla de checks.
   - `docs/roadmap.md`: marcar el paso 1b, y en el paso 2 anotar que la 002 debe revisar
