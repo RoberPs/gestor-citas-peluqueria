@@ -42,13 +42,17 @@ verde, y es un punto donde se puede parar.
     servicios por cita y sin que haya que migrar datos después.
   - Una cita guarda sus servicios en `appointment_service`, cada uno con su snapshot; el
     contrato HTTP vivo pasa a la 2.0.0.
-- [ ] **2 · Actualizar la 002 con la US10 "Listado de reservas"**
+- [x] **2 · Actualizar la 002 con la US10 "Listado de reservas"** — rama
+  `002-salon-management`, 2026-11-03
   - Spec, plan, tareas y `/speckit-analyze`. Ver el apartado "US10" más abajo.
+    Resultado: la US10 entra como Fase 4b con las tareas T165–T187; decisiones nuevas
+    D-030 a D-034 en `specs/002-salon-management/research.md`; las migraciones de la
+    002 pasan a ser `0004`–`0007`; `/speckit-analyze` sin problemas críticos.
   - ~~Rebasar `002-salon-management` sobre `main`~~ — en su lugar se fusionó `main` en
     la rama el 2026-11-02, sin reescribir su historia; su documentación está en
     `main` (PR #4).
   - Fusionar de nuevo `main` en `002-salon-management` para traer la 005, del mismo
-    modo, antes de revisar su spec.
+    modo, antes de revisar su spec. Hecho el 2026-11-03.
   - Las pantallas de la dueña usan la base responsive de la 003 (clases `.page--split`,
     `.col-main`, `.col-side`, `.wide-only`, `NavForm`); revisar el plan de la 002 para
     que lo diga.
@@ -89,7 +93,8 @@ Pantalla privada de la dueña, dentro de la 002.
   *Últimas reservas recibidas* (por fecha de creación).
 - **Filtros:** estado, origen y rango de fechas. Lista paginada.
 - **Acción:** desde cada fila se va a la cita en la agenda.
-- **A revisar en el modelo de datos:** si se guarda quién canceló (cliente o dueña).
+- **Quién canceló:** se guarda (cliente o dueña) y el listado lo muestra. Decidido el
+  2026-11-03; columna `cancelled_by`, D-032 de la 002.
 - **A aclarar en la spec:** "vista de semana o de mes" sigue fuera de alcance; un
   listado no es una vista de calendario.
 
@@ -122,6 +127,14 @@ un proveedor de pago cuando se decida el presupuesto.
 Ninguna por ahora.
 
 ## Decisiones tomadas
+
+- 2026-11-03 · **US10 · Quién canceló:** cada cancelación guarda si la hizo el cliente
+  desde su enlace o la dueña desde la gestión, y el listado lo muestra. Las
+  cancelaciones anteriores se registran como del cliente, que era el único que podía
+  cancelar.
+- 2026-11-03 · **002 · Servicios de una cita:** la dueña tampoco cambia los servicios
+  de una cita confirmada en v1; mover sólo cambia la hora, como para el cliente en la
+  005. Para cambiarlos, cancela y apunta una nueva.
 
 - 2026-11-02 · **005 · Varios servicios por cita:** el cliente puede elegir varios. La
   cita dura la **suma** de sus servicios. Sin máximo y sin combinaciones prohibidas.

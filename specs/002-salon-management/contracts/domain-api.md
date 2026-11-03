@@ -1,8 +1,8 @@
 # Contratos de la capa de dominio — gestión del salón
 
-**Feature**: `002-salon-management` | **Date**: 2026-09-16
+**Feature**: `002-salon-management` | **Date**: 2026-09-16 | **Revised**: 2026-11-03 (005, quién canceló y listado de reservas)
 
-Continúa [`../../001-client-appointment-booking/contracts/domain-api.md`](../../001-client-appointment-booking/contracts/domain-api.md), cuyas dos reglas transversales siguen intactas:
+Continúa [`../../001-client-appointment-booking/contracts/domain-api.md`](../../001-client-appointment-booking/contracts/domain-api.md) y usa tal cual lo que añadió la [`005-multiple-services`](../../005-multiple-services/contracts/): `NonEmptyServiceList`, `selectServices`, `durationOfServices`, `durationOf` y `totalPriceOf` de `catalog/selection.ts`. Las dos reglas transversales de la 001 siguen intactas:
 
 1. **`src/domain` no importa nada del framework ni de la base de datos.** Verificado en CI con `dependency-cruiser`.
 2. **Ninguna función de dominio lanza excepciones para fallos esperados.** Devuelven `Result<T, E>` con `E` enumerando los modos de fallo en el tipo.
@@ -21,7 +21,7 @@ Este documento fija los contratos **nuevos** y los **cambios** sobre los de la 0
    readonly openingIntervals: readonly OpeningInterval[];
 -  readonly isClosed: boolean;
 +  readonly unavailablePeriods: readonly BusyInterval[];   // D-019
-   readonly serviceDurationMinutes: number;
+   readonly serviceDurationMinutes: number;               // la suma de la selección (005)
    readonly confirmedAppointments: readonly BusyInterval[];
    readonly now: Temporal.Instant;
    readonly policy: BookingPolicy;
@@ -70,16 +70,33 @@ El tipo obliga a cada lector a hacerse cargo del caso ausente, igual que `custom
 
 ### `confirmBooking` — el servicio puede haberse retirado mientras tanto
 
+**Ya resuelto por la 005, sin cambios aquí.** `confirmBooking` comprueba la selección con `selectServices` contra el catálogo **activo** en el instante de confirmar (FR-015 de la 005), y un servicio retirado mientras el cliente rellenaba sus datos produce `SERVICE_UNAVAILABLE` con los identificadores que faltan. La cita **no se crea a medias**. Lo único que añade la 002 es el test que retira el servicio desde la gestión, de verdad, entre la consulta y la confirmación (escenario 6 de la Historia 8).
+
+### `Appointment` — origen y quién canceló
+
 ```diff
- export type ConfirmBookingError =
-   | 'SLOT_TAKEN'
-   | 'OUTSIDE_AVAILABILITY'
-   | 'CONTACT_LIMIT_REACHED'
-   | 'INVALID_CONTACT'
-+  | 'SERVICE_UNAVAILABLE';          // FR: escenario 6 de la Historia 8
+ export type Appointment = {
+   readonly id: AppointmentId;
+   readonly status: AppointmentStatus;
++  readonly origin: 'ONLINE' | 'OWNER';                   // FR-025, D-026
+   readonly startsAt: Temporal.Instant;
+   readonly endsAt: Temporal.Instant;
+   readonly services: NonEmptyServiceList;                // de la 005
+   readonly customer: CustomerContact | null;
+   readonly createdAt: Temporal.Instant;
+   readonly cancelledAt: Temporal.Instant | null;
++  readonly cancelledBy: CancellationActor | null;        // FR-040a, D-032
+   readonly anonymizedAt: Temporal.Instant | null;
+ };
++
++export type CancellationActor = 'CUSTOMER' | 'OWNER';
 ```
 
-**Contrato**: el catálogo activo se comprueba **en el instante de confirmar**, no sólo al pintar el formulario. Si la dueña retiró el servicio mientras el cliente rellenaba sus datos, la confirmación se rechaza con un mensaje que lo explica y la cita **no se crea a medias**. Es el precio de que el catálogo sea editable en vivo, y es un modo de fallo nuevo que el tipo obliga a tratar en todos los llamantes.
+`cancelledBy` es `null` si y sólo si `cancelledAt` lo es. Lo imponen el tipo de las dos transiciones de abajo —ninguna fija una sin la otra— y el `CHECK` de la base.
+
+### `applyCancellation` — la del cliente registra que fue el cliente
+
+La firma no cambia. El resultado sí: además de `status: 'CANCELLED'` y `cancelledAt`, fija `cancelledBy: 'CUSTOMER'`. Sus reglas —plazo de cancelación, cita ya cancelada, cita pasada— siguen siendo las de `canCancel`. La cancelación de la dueña **no** pasa por aquí: está exenta del plazo (BR-007) y tiene su propia función, `applyOwnerCancellation`.
 
 ---
 
@@ -128,7 +145,8 @@ export function isPastSlot(
 ```typescript
 export function planManualBooking(input: {
   readonly intent: { readonly startsAt: Temporal.Instant;
-                     readonly service: ServiceSnapshot;
+                     /** De `selectServices` contra el catálogo activo (FR-024, D-030). */
+                     readonly services: NonEmptyServiceList;
                      readonly contact: ValidatedContact };
   readonly openingIntervals: readonly OpeningInterval[];
   readonly confirmedAppointments: readonly BusyInterval[];
@@ -147,7 +165,7 @@ export type ManualBookingBlocker =
 
 export type ManualBookingPlan = {
   readonly startsAt: Temporal.Instant;
-  readonly endsAt: Temporal.Instant;       // derivada del servicio (FR-027)
+  readonly endsAt: Temporal.Instant;       // inicio + durationOfServices (FR-027)
   readonly conflicts: readonly Conflict[]; // vacía si no estorba nada
   readonly warnings: readonly ManualBookingWarning[];
 };
@@ -159,9 +177,30 @@ export type ManualBookingWarning = 'OUTSIDE_OPENING_HOURS';  // FR-028, avisa, n
 
 Tres cosas que esta función **no** comprueba, y es deliberado (BR-007): la antelación mínima, el horizonte de reserva y el plazo de cancelación. No aparecen ni como bloqueo ni como aviso. Una cita a las 17:00 cuando son las 16:40 y la antelación es de dos horas se crea **sin objeción** (escenario 3 de la Historia 4).
 
-El formato del contacto no es un bloqueo de esta función: llega ya como `ValidatedContact`, validado por `validateContact` (FR-031). Una función, una responsabilidad.
+El formato del contacto no es un bloqueo de esta función: llega ya como `ValidatedContact`, validado por `validateContact` (FR-031). La selección de servicios tampoco: llega ya como `NonEmptyServiceList`, validada por `selectServices`, cuyos fallos `EMPTY`, `DUPLICATE` y `UNKNOWN_SERVICE` traduce el caso de uso. Una función, una responsabilidad.
 
-`endsAt` se deriva siempre del servicio. No hay ninguna entrada que permita fijar otra duración: editar la duración de una cita concreta está fuera de alcance.
+`endsAt` se deriva siempre de la suma de los servicios. No hay ninguna entrada que permita fijar otra duración: editar la duración de una cita concreta está fuera de alcance.
+
+### Mover como dueña
+
+No hay función nueva para la duración: mover usa `durationOf(appointment)`, la suma de los snapshots guardados, y nunca el catálogo de hoy (FR-039, BR-020, D-008 de la 005). La planificación del destino es la misma `planManualBooking` con los servicios de la propia cita y `excludeAppointmentId` en la detección de conflictos.
+
+---
+
+## `owner/cancellation` — la dueña cancela
+
+```typescript
+export function applyOwnerCancellation(
+  appointment: Appointment,
+  now: Temporal.Instant,
+): Result<Appointment, OwnerCancellationBlock>;
+
+export type OwnerCancellationBlock =
+  | 'ALREADY_CANCELLED'   // FR-042, BR-008
+  | 'IN_THE_PAST';        // su hora de fin ya pasó: FR-016, BR-009
+```
+
+**Contrato**: devuelve la cita con `status: 'CANCELLED'`, `cancelledAt: now` y `cancelledBy: 'OWNER'` (FR-040a). **No consulta el plazo de cancelación** (BR-007): una cita que empieza dentro de una hora se cancela igual. El corte del pasado es `isPastSlot`, el mismo que usa la agenda: una cita en curso todavía se cancela.
 
 ---
 
@@ -180,7 +219,7 @@ export function detectConflicts(input: {
 }): readonly Conflict[];
 ```
 
-**Función pura, misma media abierta `[)` de BR-013.** Devuelve cada elemento que se solapa, **con lo que hace falta para nombrarlo** (FR-033): nombre del cliente, servicio y franja para una cita; franja y motivo para un periodo. Un `Conflict` que no se pudiera enseñar no serviría de nada, y por eso el tipo no admite un identificador a secas.
+**Función pura, misma media abierta `[)` de BR-013.** Devuelve cada elemento que se solapa, **con lo que hace falta para nombrarlo** (FR-033): nombre del cliente, todos sus servicios (`serviceNames`, en el orden del catálogo) y franja para una cita; franja y motivo para un periodo. Un `Conflict` que no se pudiera enseñar no serviría de nada, y por eso el tipo no admite un identificador a secas.
 
 Solapar **por poco es solapar**: un minuto de intersección produce el mismo conflicto que la coincidencia total (clarificación del 2026-09-16).
 
@@ -262,15 +301,18 @@ export function appointmentsOutsideSchedule(input: {
 export function validateService(input: {
   readonly name: string;
   readonly durationMinutes: number;
-  readonly priceCents: number;
+  /** `null` es «sin precio» (FR-018 de la 005), nunca 0. */
+  readonly priceCents: number | null;
 }): Result<ValidatedServiceInput, ServiceError>;
 
-export type ServiceError = 'EMPTY_NAME' | 'NON_POSITIVE_DURATION' | 'NEGATIVE_PRICE';
+export type ServiceError = 'EMPTY_NAME' | 'NON_POSITIVE_DURATION' | 'NON_POSITIVE_PRICE';
 
 export function canRetireService(input: {
   readonly activeServiceCount: number;
 }): Result<void, 'LAST_ACTIVE_SERVICE'>;
 ```
+
+**Contrato de `validateService`**: `NON_POSITIVE_PRICE` cubre el 0 y los negativos (FR-053, D-031). El mensaje dice qué hacer: dejar el precio vacío si no se quiere poner. Es la misma regla que impone `service_price_positive` en la base.
 
 **Contrato de `canRetireService`**: el catálogo nunca queda sin servicios activos (FR-051, BR-010). La regla es del dominio; el recuento se lo dan hecho, y el caso de uso lo obtiene **dentro de la transacción** que retira, para que dos retiradas simultáneas no dejen el catálogo vacío entre las dos.
 
@@ -301,6 +343,39 @@ export type BookingParameterError = {
 **Contrato**: el error **lleva los límites dentro**. FR-054 pide que los rangos se expliquen en pantalla, y la única forma de que el mensaje no los reescriba por su cuenta —duplicando la regla— es que se los dé el dominio. `BOOKING_PARAMETER_LIMITS` es también lo que alimenta `GET /gestion/parametros`: un solo origen para el formulario, el mensaje de error y el contrato HTTP.
 
 Horas completas, no minutos: es lo que la especificación fija y lo que la dueña entiende.
+
+---
+
+## `owner/booking-list` — el listado de reservas
+
+```typescript
+export const BOOKING_LIST_PAGE_SIZE = 20;
+
+export function parseBookingListQuery(input: {
+  readonly order?: string;          // 'UPCOMING' | 'RECENT'
+  readonly status?: string;         // 'CONFIRMED' | 'CANCELLED' | 'ALL'
+  readonly origin?: string;         // 'ONLINE' | 'OWNER' | 'ALL'
+  readonly from?: string;           // YYYY-MM-DD, día del salón
+  readonly to?: string;
+  readonly after?: BookingListCursor;
+  readonly now: Temporal.Instant;
+  readonly timezone: string;
+}): Result<BookingListQuery, BookingListQueryError>;
+
+export type BookingListQueryError =
+  | { readonly kind: 'INVALID_VALUE'; readonly field: 'order' | 'status' | 'origin' | 'from' | 'to' }
+  | { readonly kind: 'RANGE_REVERSED' }                // from > to
+  | { readonly kind: 'CURSOR_ORDER_MISMATCH' };       // cursor de un orden con el otro
+```
+
+**Contrato**: es donde viven las reglas de la Historia 10, en un solo sitio (Principio I):
+
+- Un campo ausente toma su valor por defecto: `UPCOMING`, `CONFIRMED`, `ALL` y sin rango (FR-061, FR-062). La pantalla no los repite: si el filtro no está en la URL, el dominio lo pone.
+- Con `UPCOMING`, `notBefore` es el inicio de **hoy** en la zona del salón, calculado con el `now` del reloj inyectado, nunca con el del dispositivo. Con `RECENT` es `null`: el orden por fecha de reserva incluye las citas pasadas.
+- `from` y `to` son días del salón, inclusivos, sobre el **día de la cita** en los dos órdenes.
+- El cursor de un orden no vale para el otro: cambiar de orden vuelve a la primera página.
+
+Leer la página no es dominio: lo hace el puerto `BookingListReader` con la consulta ya normalizada, en **una** consulta (FR-066, D-033). El dominio no sabe que existen `LIMIT` ni `json_agg`.
 
 ---
 
@@ -398,11 +473,25 @@ export interface SalonConfigWriter {
 }
 
 export interface OwnerAppointmentWriter {
-  /** FR-037: el plan entero en UNA transacción, o nada (D-023). */
+  /**
+   * FR-037: el plan entero en UNA transacción, o nada (D-023). Una cita nueva
+   * se escribe con sus filas de appointment_service en esa misma transacción;
+   * una cancelación del plan, con cancelled_by = OWNER (FR-040a).
+   */
   applyPlan(plan: ResolutionPlan, expectedStateToken: string):
     Promise<Result<AppliedPlan, 'STATE_CHANGED' | 'SLOT_TAKEN'>>;
 }
+
+export interface BookingListReader {
+  /**
+   * FR-066, D-033: UNA consulta, servicios incluidos, LIMIT pageSize + 1 para
+   * saber si hay página siguiente sin contar el total.
+   */
+  readPage(query: BookingListQuery): Promise<BookingListPage>;
+}
 ```
+
+**Cambios en `AppointmentRepository`** (de la 001): `cancel(id, at)` pasa a `cancel(id, at, by: CancellationActor)` y escribe `cancelled_by` en el mismo `UPDATE` que el estado. Las lecturas devuelven `origin` y `cancelledBy`. Las citas de un día para la agenda se leen con sus servicios en una sola consulta, igual que la disponibilidad (D-027).
 
 **`SalonConfigWriter` es un puerto aparte de `SalonConfigRepository`**, que sigue siendo de sólo lectura. Los casos de uso del cliente dependen únicamente del de lectura, y el compilador garantiza que ninguno de ellos pueda escribir configuración.
 

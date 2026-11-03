@@ -8,10 +8,12 @@
 
 **Organization**: las tareas se agrupan por historia de usuario. Cada fase es un incremento entregable y verificable por separado.
 
+**Revisión del 2026-11-03**: las tareas se adaptan a la `005-multiple-services` (varios servicios por cita, precio opcional, migración `0003` ya ocupada) y a la `003-responsive-desktop`, y se añaden la Historia 10 (Fase 4b) y el registro de quién cancela. Las tareas nuevas van de la T165 a la T187 para no renumerar las existentes; T139 y T140 ya las cubrió la 005.
+
 ## Format: `[ID] [P?] [Story] Description`
 
 - **[P]**: se puede ejecutar en paralelo (archivos distintos, sin dependencias pendientes)
-- **[Story]**: la historia a la que pertenece la tarea (US1 … US9)
+- **[Story]**: la historia a la que pertenece la tarea (US1 … US10)
 - Toda descripción lleva la ruta exacta del archivo
 
 ## Path Conventions
@@ -42,9 +44,13 @@ Proyecto único con arquitectura hexagonal, heredado de `001-client-appointment-
 
 ### Tests de la fase fundacional ⚠️ (escribir primero, deben fallar)
 
-- [ ] T006 [P] Test de regresión de la migración 0004 en `tests/integration/db/migration-0004-closures.test.ts`: carga cierres, migra y comprueba que los periodos resultantes cubren exactamente los mismos días, incluido uno en la semana del cambio de hora (data-model.md, "Migración desde `closure`")
-- [ ] T007 [P] Test de restricciones nuevas en `tests/integration/db/constraints.test.ts` (ampliar): `CHECK (ends_at > starts_at)` de `unavailable_period`, `EXCLUDE` de `opening_interval`, `CHECK` de rangos de `salon`, `CHECK` de `service`
+- [ ] T006 [P] Test de regresión de la migración 0005 en `tests/integration/db/migration-0005-closures.test.ts`: carga cierres, migra y comprueba que los periodos resultantes cubren exactamente los mismos días, incluido uno en la semana del cambio de hora (data-model.md, "Migración desde `closure`")
+- [ ] T007 [P] Test de restricciones nuevas en `tests/integration/db/constraints.test.ts` (ampliar): `CHECK (ends_at > starts_at)` de `unavailable_period`, `EXCLUDE` de `opening_interval` y `CHECK` de rangos de `salon`. Los `CHECK` de `service` ya existen (0001 y 0003 de la 005) y ya tienen test
 - [ ] T008 [P] Test de la restricción `appointment_anonymization_is_atomic` reescrita en `tests/integration/db/constraints.test.ts`: cita manual sin email válida, cita manual con `token_hash` rechazada, cita online sin `token_hash` rechazada, anonimizada a medias rechazada (D-026)
+- [ ] T165 [P] Test de `appointment_cancelled_by_consistency` en `tests/integration/db/constraints.test.ts`: cancelada sin `cancelled_by` rechazada, confirmada con `cancelled_by` rechazada; y en `tests/integration/db/migration-0006-cancelled-by.test.ts`, que las canceladas existentes migran a `CUSTOMER` y las confirmadas a `NULL` (FR-040a, D-032)
+- [ ] T166 [P] Test unitario en `tests/unit/domain/booking/cancel.test.ts` (ampliar): `applyCancellation` fija `cancelledBy: 'CUSTOMER'` junto a `cancelledAt` (FR-040a)
+- [ ] T167 [P] Test de regresión en `tests/integration/use-cases/cancel-appointment.test.ts` (ampliar): el cliente cancela desde su enlace y la cita queda con `cancelled_by = 'CUSTOMER'`; lo que ve el cliente no cambia (FR-040a)
+- [ ] T168 [P] Test en `tests/integration/repositories/appointment-repository.test.ts` (ampliar): las citas de un día se leen con **todos** sus servicios en el orden del catálogo, con una sola consulta, y devuelven `origin` y `cancelledBy` (FR-014, D-027)
 - [ ] T009 [P] Test unitario de resta de intervalos en `tests/unit/domain/availability/interval-math.test.ts`: apertura menos ocupados, media abierta `[)`, resultado vacío, solapes parciales y anidados
 - [ ] T010 [P] Test unitario en `tests/unit/domain/availability/compute-day.test.ts` (ampliar): los periodos no disponibles entran como ocupados y ningún inicio los pisa (FR-020, BR-002)
 - [ ] T011 [P] Test unitario en `tests/unit/domain/availability/compute-range.test.ts` (ampliar): `CLOSED` cuando los periodos cubren toda la apertura, `FULL` cuando queda apertura sin cubrir (D-020)
@@ -53,11 +59,13 @@ Proyecto único con arquitectura hexagonal, heredado de `001-client-appointment-
 
 ### Migraciones y esquema
 
-- [ ] T014 Escribir a mano `src/infrastructure/db/migrations/0003_owner_account_and_session.sql`: `owner_account` con su índice único de fila única, `owner_session` con `token_hash` único y `ON DELETE CASCADE`, sin ninguna columna de IP ni de dispositivo (FR-009)
-- [ ] T015 Escribir a mano `src/infrastructure/db/migrations/0004_unavailable_period.sql`: crear la tabla, el `CHECK (ends_at > starts_at)`, el índice GiST sobre `tstzrange(starts_at, ends_at, '[)')`, convertir los cierres a instantes en la zona del salón y eliminar `closure` (D-019, D-027)
-- [ ] T016 Escribir a mano `src/infrastructure/db/migrations/0005_appointment_origin.sql`: enum `appointment_origin`, columna `origin NOT NULL` con `ONLINE` para lo existente, y reescritura de `appointment_anonymization_is_atomic` (D-026)
-- [ ] T017 Escribir a mano `src/infrastructure/db/migrations/0006_editable_configuration.sql`: columnas de política en `salon` con sus `CHECK` de rango y de horas completas, tipo `timerange` y `EXCLUDE` de `opening_interval`, y `CHECK` de `service` (D-022, FR-045, FR-053)
-- [ ] T018 Actualizar `src/infrastructure/db/schema.ts`: tablas `owner_account`, `owner_session` y `unavailable_period`, columnas nuevas de `salon` y `appointment`, y retirada de `closure`
+La `0003_multiple_services.sql` es de la 005 y ya está en `main`: las de esta feature empiezan en la `0004`.
+
+- [ ] T014 Escribir a mano `src/infrastructure/db/migrations/0004_owner_account_and_session.sql`: `owner_account` con su índice único de fila única, `owner_session` con `token_hash` único y `ON DELETE CASCADE`, sin ninguna columna de IP ni de dispositivo (FR-009)
+- [ ] T015 Escribir a mano `src/infrastructure/db/migrations/0005_unavailable_period.sql`: crear la tabla, el `CHECK (ends_at > starts_at)`, el índice GiST sobre `tstzrange(starts_at, ends_at, '[)')`, convertir los cierres a instantes en la zona del salón y eliminar `closure` (D-019, D-027)
+- [ ] T016 Escribir a mano `src/infrastructure/db/migrations/0006_appointment_origin_and_cancellation.sql`: enums `appointment_origin` y `appointment_actor`, columna `origin NOT NULL` con `ONLINE` para lo existente, columna `cancelled_by` con `CUSTOMER` para las ya canceladas y su `CHECK` `appointment_cancelled_by_consistency`, reescritura de `appointment_anonymization_is_atomic`, e índices `appointment_starts_at_id_idx` y `appointment_created_at_id_idx` del listado (D-026, D-032, D-033)
+- [ ] T017 Escribir a mano `src/infrastructure/db/migrations/0007_editable_configuration.sql`: columnas de política en `salon` con sus `CHECK` de rango y de horas completas, tipo `timerange` y `EXCLUDE` de `opening_interval` (D-022, FR-045). `service` no se toca: sus `CHECK` ya existen (D-031)
+- [ ] T018 Actualizar `src/infrastructure/db/schema.ts`: tablas `owner_account`, `owner_session` y `unavailable_period`, columnas nuevas de `salon` y de `appointment` (`origin`, `cancelled_by`), y retirada de `closure`
 
 ### Dominio: lo que cambia de la 001
 
@@ -67,18 +75,20 @@ Proyecto único con arquitectura hexagonal, heredado de `001-client-appointment-
 - [ ] T022 Generalizar `src/domain/availability/compute-range.ts` con la regla `CLOSED`/`FULL` de D-020, apoyándose en `interval-math.ts`
 - [ ] T023 [P] Hacer opcional el email en `src/domain/contact/contact.ts`: `CustomerContact.email: string | null` y `validateContact` tratando la ausencia como válida (D-026)
 - [ ] T024 Propagar el email opcional por los llamantes que el compilador señale en `src/domain/booking/`, `src/application/use-cases/` y `src/components/`, sin cambiar ningún comportamiento de la cara del cliente
+- [ ] T169 Añadir `origin` y `cancelledBy: CancellationActor | null` a `Appointment` en `src/domain/booking/appointment.ts`, y hacer que `applyCancellation` en `src/domain/booking/cancel.ts` fije `cancelledBy: 'CUSTOMER'` (D-032, contracts/domain-api.md)
 
 ### Infraestructura y puertos
 
 - [ ] T025 Declarar los puertos nuevos en `src/application/ports/index.ts`: `PasswordHasher`, `OwnerAccountRepository`, `OwnerSessionRepository`, `UnavailablePeriodRepository`, `SalonConfigWriter`, `OwnerAppointmentWriter` (contracts/domain-api.md)
 - [ ] T026 Retirar el caché de proceso de `src/infrastructure/db/salon-config-repository.ts`, leer la política de la fila `salon` y borrar el comentario que dejó de ser cierto (D-021, D-022)
 - [ ] T027 [P] Implementar `src/infrastructure/db/unavailable-period-repository.ts` con `findOverlapping` apoyada en el índice GiST, `insert`, `shorten` y `delete`
-- [ ] T028 Añadir `origin` y el email opcional a `src/infrastructure/db/appointment-repository.ts`, y una consulta de las citas de un día con filtro de canceladas (FR-015, D-027)
-- [ ] T029 [P] Cargar los festivos como `unavailable_period` de día completo y añadir la comida de un martes en `db/seed/seed.ts`; retirar toda referencia a `closure`
+- [ ] T028 Añadir `origin`, `cancelled_by` y el email opcional a `src/infrastructure/db/appointment-repository.ts`; `cancel(id, at, by)` escribe `cancelled_by` en el mismo `UPDATE`; y una consulta de las citas de un día **con sus servicios** de `appointment_service`, en una sola consulta, con filtro de canceladas (FR-014, FR-015, FR-040a, D-027)
+- [ ] T170 Pasar `CUSTOMER` desde `src/application/use-cases/cancel-appointment.ts` al repositorio, sin cambiar nada de lo que ve el cliente (FR-040a)
+- [ ] T029 [P] Cargar los festivos como `unavailable_period` de día completo y añadir la comida de un martes en `db/seed/seed.ts`; retirar toda referencia a `closure` en `db/seed/configuration.ts`, que comparten el fixture y la demo. En `db/seed/demo.ts` sólo cambia el nombre del campo (`closures: []` pasa a periodos vacíos): sus datos no se tocan
 - [ ] T030 [P] Crear el bloque `owner` de textos en `src/messages/es-ES.ts`, con los mensajes comunes de carga, éxito y error accionable (FR-059)
 - [ ] T031 Registrar los repositorios y puertos nuevos en `src/app/_lib/container.ts`
 
-**Checkpoint**: `npm run test:all` en verde con los cierres migrados y la configuración leída en vivo. Las historias pueden empezar.
+**Checkpoint**: `npm run test:all` en verde con los cierres migrados, la configuración leída en vivo y las cancelaciones del cliente registradas como suyas. La 001 y la 005 siguen en verde sin cambiar de comportamiento. Las historias pueden empezar.
 
 ---
 
@@ -115,8 +125,8 @@ Proyecto único con arquitectura hexagonal, heredado de `001-client-appointment-
 - [ ] T051 [US1] Implementar `src/app/api/gestion/sesion/route.ts` (`POST` y `DELETE`) con validación Zod y la cookie `__Host-owner_session` (`HttpOnly`, `Secure`, `SameSite=Strict`, `Path=/`, sin `Max-Age`)
 - [ ] T052 [P] [US1] Implementar `src/app/api/gestion/cuenta/contrasena/route.ts` (`PUT`)
 - [ ] T053 [P] [US1] Implementar `src/middleware.ts` que **sólo redirige** a `/gestion/acceso` y no autoriza nada (D-018)
-- [ ] T054 [P] [US1] Implementar la pantalla `src/app/gestion/acceso/page.tsx`: formulario accesible a 360 px, mensaje de error único y la indicación de qué hacer si se olvida la contraseña, sin detalles operativos (FR-005)
-- [ ] T055 [P] [US1] Implementar la pantalla `src/app/gestion/cuenta/page.tsx` con el cambio de contraseña y el cierre de sesión
+- [ ] T054 [P] [US1] Implementar la pantalla `src/app/gestion/acceso/page.tsx`: formulario accesible a 360 px, en una columna con la base de la 003 (D-034), mensaje de error único y la indicación de qué hacer si se olvida la contraseña, sin detalles operativos (FR-005)
+- [ ] T055 [P] [US1] Implementar la pantalla `src/app/gestion/cuenta/page.tsx` con el cambio de contraseña y el cierre de sesión, en una columna con la base de la 003 (D-034)
 - [ ] T056 [P] [US1] Implementar `scripts/provision-owner.ts`: lee el entorno, rechaza contraseñas cortas, avisa cuando sobrescribe, cierra todas las sesiones vivas y no registra la contraseña en ningún log (quickstart.md)
 - [ ] T057 [P] [US1] Borrar las sesiones caducadas en `scripts/retention-purge.ts` (data-model.md, "Limpieza")
 - [ ] T058 [US1] Añadir los textos de acceso, cuenta y errores de sesión al bloque `owner` de `src/messages/es-ES.ts`
@@ -136,20 +146,52 @@ Proyecto único con arquitectura hexagonal, heredado de `001-client-appointment-
 - [ ] T059 [P] [US2] Test unitario en `tests/unit/domain/owner/agenda.test.ts`: `entries` ordenadas y sin `FREE` solapado, cita y periodo sí pueden solaparse, `isClosed` según D-020, distinción "sin citas" vs "cerrado" (FR-011, FR-017)
 - [ ] T060 [P] [US2] Test unitario de `isPastSlot` en `tests/unit/domain/owner/agenda.test.ts`: el corte es la **hora de fin**; una cita en curso no es pasado (FR-016, BR-009)
 - [ ] T061 [P] [US2] Test de contrato en `tests/contract/owner/agenda.test.ts` para `GET /gestion/agenda`
-- [ ] T062 [P] [US2] Test de rendimiento en `tests/integration/performance/agenda-performance.test.ts`: número **fijo** de consultas al abrir un día, igual con la base vacía que con las 10.000 citas de `db:seed:history` (SC-010, D-027)
-- [ ] T063 [P] [US2] E2E en `tests/e2e/us2-agenda.spec.ts`: tres citas en orden, origen por texto e icono, periodo con su motivo, atajo de hoy, día pasado de sólo lectura, día vacío, más axe
+- [ ] T062 [P] [US2] Test de rendimiento en `tests/integration/performance/agenda-performance.test.ts`: número **fijo** de consultas al abrir un día, igual con la base vacía que con las 10.000 citas de `db:seed:history`, y sin aumentar cuando cada cita del día tiene cuatro servicios (SC-010, D-027, FR-014)
+- [ ] T063 [P] [US2] E2E en `tests/e2e/us2-agenda.spec.ts`: tres citas en orden, origen por texto e icono, periodo con su motivo, atajo de hoy, día pasado de sólo lectura, día vacío, una cita de dos servicios con los dos a la vista (US2-7), más axe; a 360 px y a 1280 px
 
 ### Implementación de la Historia 2
 
 - [ ] T064 [US2] Implementar `src/domain/owner/agenda.ts`: `buildAgendaDay` e `isPastSlot`, funciones puras apoyadas en `interval-math.ts` (contracts/domain-api.md)
 - [ ] T065 [US2] Implementar `src/application/use-cases/get-agenda-day.ts`: tres consultas de coste acotado y el filtro de canceladas según lo que la dueña pidió (FR-015, D-027)
 - [ ] T066 [US2] Implementar `src/app/api/gestion/agenda/route.ts` (`GET`) con el guardián de T050, devolviendo la línea temporal completa en una sola respuesta
-- [ ] T067 [P] [US2] Implementar `src/components/owner/timeline.tsx` como **lista** semántica, no rejilla absoluta: recorrible con teclado y legible con lector de pantalla (Principio VII)
-- [ ] T068 [US2] Implementar la pantalla `src/app/gestion/agenda/page.tsx` con la navegación a cualquier fecha y el atajo de hoy (FR-012)
+- [ ] T067 [P] [US2] Implementar `src/components/owner/timeline.tsx` como **lista** semántica, no rejilla absoluta: recorrible con teclado y legible con lector de pantalla (Principio VII). Cada cita muestra todos sus servicios y su precio total reutilizando `src/components/service-summary.tsx` de la 005 (FR-014)
+- [ ] T068 [US2] Implementar la pantalla `src/app/gestion/agenda/page.tsx` con la navegación a cualquier fecha y el atajo de hoy (FR-012), con `NavForm` para cambiar de día y la base responsive de la 003: línea temporal en `.col-main`, navegación en `.col-side` dentro de `.page--split` (D-034)
 - [ ] T069 [P] [US2] Añadir a `src/messages/es-ES.ts` los textos de origen de la cita, estado, estado vacío "sin citas" y "cerrado" (FR-013, FR-017)
 - [ ] T070 [P] [US2] Extender la redacción de Pino en `src/infrastructure/logging/logger.ts` a los cuerpos de agenda y conflicto, que llevan nombre y teléfono (FR-057)
 
 **Checkpoint**: la agenda sustituye al papel. Historias 1 y 2 funcionan por separado.
+
+---
+
+## Phase 4b: User Story 10 - Consultar el listado de reservas (Priority: P1)
+
+**Goal**: la dueña ve sus reservas una debajo de otra, con los dos órdenes, los filtros de estado, origen y fechas, y quién canceló cada cancelada.
+
+**Independent Test**: con citas confirmadas y canceladas, online y a mano, en varios días, abrir el listado y comprobar el orden por defecto, cada filtro, el otro orden, la paginación y el enlace de cada fila a su día.
+
+**Depende de**: US1 (el guardián) y la Fase 2 (`cancelled_by`, citas con servicios). Sólo el escenario 7 —ir a la agenda desde una fila— necesita la pantalla de US2 (T068).
+
+### Tests de la Historia 10 ⚠️
+
+- [ ] T171 [P] [US10] Test unitario en `tests/unit/domain/owner/booking-list.test.ts`: valores por defecto `UPCOMING`, `CONFIRMED` y `ALL`; `notBefore` es el inicio de hoy en `Europe/Madrid` con el reloj inyectado, también un día de cambio de hora; `RANGE_REVERSED`; `INVALID_VALUE` por campo; `CURSOR_ORDER_MISMATCH` (FR-061, FR-062, D-033)
+- [ ] T172 [P] [US10] Test de contrato en `tests/contract/owner/reservas.test.ts` para `GET /gestion/reservas`: forma de `BookingListPage`, `query` normalizada en la respuesta, 400 con `nextAction` y 401 sin sesión
+- [ ] T173 [P] [US10] Test de integración en `tests/integration/use-cases/list-bookings.test.ts` contra PostgreSQL real: los dos órdenes, cada filtro y sus combinaciones, el rango sobre el día de la cita en los dos órdenes, una cita de varios servicios con todos en orden, una cancelada con su fecha y `cancelledBy`, una anonimizada sin datos personales (FR-060 a FR-063, FR-067)
+- [ ] T174 [P] [US10] Test de paginación en `tests/integration/use-cases/list-bookings.test.ts`: 45 citas en tres páginas sin repetir ni saltarse ninguna, también con una reserva insertada entre página y página (FR-064, D-033)
+- [ ] T175 [P] [US10] Test de rendimiento en `tests/integration/performance/booking-list-performance.test.ts`: **una** consulta por página, igual con la base vacía que con las 10.000 citas de `db:seed:history` y con cuatro servicios por cita (FR-066, SC-013)
+- [ ] T176 [P] [US10] E2E en `tests/e2e/us10-bookings.spec.ts`: los ocho escenarios de la historia y el escenario 6 de la US5 —una cita cancelada desde la gestión aparece como «Cancelada por ti» y una cancelada desde el enlace como «Cancelada por el cliente»—, con `clickAndNavigate` en cada cambio de filtro, de orden y de página, más axe; a 360 px y a 1280 px (D-034)
+
+### Implementación de la Historia 10
+
+- [ ] T177 [US10] Implementar `src/domain/owner/booking-list.ts`: `BOOKING_LIST_PAGE_SIZE` y `parseBookingListQuery` (contracts/domain-api.md)
+- [ ] T178 [US10] Declarar `BookingListReader` en `src/application/ports/index.ts` e implementarlo en `src/infrastructure/db/booking-list-reader.ts`: una consulta con los servicios agregados por `json_agg` en una subconsulta lateral, `LIMIT` de 21 y la clave del cursor según el orden (D-033)
+- [ ] T179 [US10] Implementar `src/application/use-cases/list-bookings.ts` y registrarlo en `src/app/_lib/container.ts`
+- [ ] T180 [US10] Implementar `src/app/api/gestion/reservas/route.ts` (`GET`) con el guardián de T050, validación Zod de los parámetros, la traducción de sus valores en español (`proximas`, `mano`…) a los del dominio (`UPCOMING`, `OWNER`…) y el cursor opaco codificado en la frontera HTTP
+- [ ] T181 [P] [US10] Implementar `src/components/owner/booking-list.tsx`: una fila por cita con día y hora, servicios y precio (`service-summary.tsx`), nombre, teléfono, estado, origen y fecha de reserva; «Cancelada» con icono, fecha y «por el cliente» o «por ti»; origen y fecha de reserva en `.wide-only` a 1024 px; cada fila enlaza a `/gestion/agenda?fecha=…` (FR-060, FR-063, FR-065)
+- [ ] T182 [US10] Implementar la pantalla `src/app/gestion/reservas/page.tsx`: filtros y orden con `NavForm` en `.col-side`, filas en `.col-main` dentro de `.page--split`, *Página siguiente* y *Volver al principio*, estado vacío con vuelta a los filtros por defecto (FR-064, FR-068, D-034)
+- [ ] T183 [P] [US10] Añadir el enlace al listado en la navegación de gestión, junto a la agenda
+- [ ] T184 [P] [US10] Añadir a `src/messages/es-ES.ts` los textos del listado: órdenes, filtros, «Cancelada por el cliente», «Cancelada por ti», datos borrados por antigüedad, estado vacío y paginación
+
+**Checkpoint**: 🎯 **MVP mínimo**. Con US1, US2 y US10 la dueña entra, ve su día y ve todas sus reservas, y nadie más puede verlos.
 
 ---
 
@@ -189,20 +231,20 @@ Proyecto único con arquitectura hexagonal, heredado de `001-client-appointment-
 
 ### Tests de la Historia 4 ⚠️
 
-- [ ] T083 [P] [US4] Test unitario en `tests/unit/domain/owner/manual-booking.test.ts`, caso por caso de la tabla de D-025: bloquea el pasado, bloquea el cuarto contacto, bloquea la granularidad; **no** objeta antelación, horizonte ni plazo; **avisa** fuera de horario
-- [ ] T084 [P] [US4] Test unitario en `tests/unit/domain/owner/conflict.test.ts`: `detectConflicts` con la media abierta `[)`, un minuto de intersección es conflicto, y cada `Conflict` lleva lo necesario para nombrarlo (FR-033, SC-005)
+- [ ] T083 [P] [US4] Test unitario en `tests/unit/domain/owner/manual-booking.test.ts`, caso por caso de la tabla de D-025: bloquea el pasado, bloquea el cuarto contacto, bloquea la granularidad; **no** objeta antelación, horizonte ni plazo; **avisa** fuera de horario; con dos servicios, `endsAt` es el inicio más la suma (FR-027, D-030)
+- [ ] T084 [P] [US4] Test unitario en `tests/unit/domain/owner/conflict.test.ts`: `detectConflicts` con la media abierta `[)`, un minuto de intersección es conflicto, y cada `Conflict` lleva lo necesario para nombrarlo, con **todos** los servicios de la cita en `serviceNames` (FR-033, SC-005)
 - [ ] T085 [P] [US4] Test de contrato en `tests/contract/owner/citas.test.ts` para `POST /gestion/citas`, incluida la respuesta de conflicto
-- [ ] T086 [P] [US4] Test de integración en `tests/integration/use-cases/create-manual-appointment.test.ts`: cita sin email válida, sin nombre o sin teléfono rechazada, cuarta cita del contacto rechazada, sin `token_hash` y con `origin = 'OWNER'`, duración tomada del servicio elegido en el instante de guardar aunque la petición llegue con otra (FR-024, FR-026, FR-027, FR-029)
+- [ ] T086 [P] [US4] Test de integración en `tests/integration/use-cases/create-manual-appointment.test.ts`: cita sin email válida, sin nombre o sin teléfono rechazada, cuarta cita del contacto rechazada, sin `token_hash` y con `origin = 'OWNER'`, varios servicios guardados en `appointment_service` en el orden del catálogo con su snapshot, duración igual a su suma en el instante de guardar, y rechazo de una selección vacía, repetida o con un servicio retirado (FR-024, FR-026, FR-027, FR-029)
 - [ ] T087 [P] [US4] Test de regresión del origen permanente en `tests/integration/use-cases/create-manual-appointment.test.ts`: reprogramar una cita manual la deja manual (FR-025)
-- [ ] T088 [P] [US4] E2E en `tests/e2e/us4-manual-booking.spec.ts`: los seis escenarios de la historia, incluido el aviso de fuera de horario, más axe y la medición de SC-002
+- [ ] T088 [P] [US4] E2E en `tests/e2e/us4-manual-booking.spec.ts`: los ocho escenarios de la historia, incluido el aviso de fuera de horario y la duración total con dos servicios, más axe y la medición de SC-002; a 360 px y a 1280 px
 
 ### Implementación de la Historia 4
 
-- [ ] T089 [US4] Implementar `src/domain/owner/manual-booking.ts`: `planManualBooking` devolviendo `Result<ManualBookingPlan, ManualBookingBlocker>` con los avisos **dentro** del éxito (D-025)
+- [ ] T089 [US4] Implementar `src/domain/owner/manual-booking.ts`: `planManualBooking` sobre una `NonEmptyServiceList`, con la duración de `durationOfServices`, devolviendo `Result<ManualBookingPlan, ManualBookingBlocker>` con los avisos **dentro** del éxito (D-025, D-030)
 - [ ] T090 [US4] Implementar `detectConflicts` en `src/domain/owner/conflict.ts`, reutilizando la función `overlaps` existente (contracts/domain-api.md)
-- [ ] T091 [US4] Implementar `src/application/use-cases/create-manual-appointment.ts`, apoyándose en el recuento por contacto ya existente y sin tocarlo (D-026)
+- [ ] T091 [US4] Implementar `src/application/use-cases/create-manual-appointment.ts`: la selección con `selectServices` contra el catálogo activo, apoyándose en el recuento por contacto ya existente y sin tocarlo (D-026, D-030)
 - [ ] T092 [US4] Implementar `src/app/api/gestion/citas/route.ts` (`POST`) con validación Zod y el guardián
-- [ ] T093 [P] [US4] Implementar `src/components/owner/manual-booking-form.tsx`: servicio, hora en rejilla de 15 min, nombre y teléfono obligatorios, email opcional, en cuatro toques desde la agenda (SC-002)
+- [ ] T093 [P] [US4] Implementar `src/components/owner/manual-booking-form.tsx`: uno o varios servicios con la duración total a la vista, reutilizando `src/components/service-picker.tsx` de la 005; hora en rejilla de 15 min; nombre y teléfono obligatorios, email opcional; en cuatro toques desde la agenda (SC-002, FR-027)
 - [ ] T094 [US4] Enganchar el formulario a los huecos de `src/app/gestion/agenda/page.tsx`
 - [ ] T095 [P] [US4] Añadir los textos de cita manual, avisos y bloqueos a `src/messages/es-ES.ts`
 
@@ -219,15 +261,17 @@ Proyecto único con arquitectura hexagonal, heredado de `001-client-appointment-
 ### Tests de la Historia 5 ⚠️
 
 - [ ] T096 [P] [US5] Test de contrato en `tests/contract/owner/citas-cambios.test.ts` para `POST /gestion/citas/{id}/reprogramacion` y `POST /gestion/citas/{id}/cancelacion`
-- [ ] T097 [P] [US5] Test de integración en `tests/integration/use-cases/reschedule-appointment-as-owner.test.ts`: conserva servicio, datos y **enlace de gestión vivo** (FR-039, FR-041)
-- [ ] T098 [P] [US5] Test de integración en `tests/integration/use-cases/cancel-appointment-as-owner.test.ts`: la dueña cancela dentro del plazo vedado al cliente, y una cita cancelada no se reactiva ni se mueve (FR-042, BR-007, BR-008)
+- [ ] T097 [P] [US5] Test de integración en `tests/integration/use-cases/reschedule-appointment-as-owner.test.ts`: una cita de dos servicios conserva los dos, su duración total —aunque uno haya cambiado de duración o se haya retirado del catálogo—, sus datos y su **enlace de gestión vivo** (FR-039, FR-041, BR-020)
+- [ ] T098 [P] [US5] Test de integración en `tests/integration/use-cases/cancel-appointment-as-owner.test.ts`: la dueña cancela dentro del plazo vedado al cliente, la cita queda con `cancelled_by = 'OWNER'`, y una cita cancelada no se reactiva ni se mueve (FR-040a, FR-042, BR-007, BR-008)
+- [ ] T185 [P] [US5] Test unitario en `tests/unit/domain/owner/cancellation.test.ts`: `applyOwnerCancellation` fija `cancelledBy: 'OWNER'`, no consulta el plazo, rechaza `ALREADY_CANCELLED` e `IN_THE_PAST` y deja cancelar una cita en curso (FR-016, FR-040a, BR-007)
 - [ ] T099 [P] [US5] Test de integración de que ni crear ni mover al pasado es posible, con una cita **en curso** que sí se mueve, en `tests/integration/use-cases/reschedule-appointment-as-owner.test.ts` (FR-030, BR-009)
-- [ ] T100 [P] [US5] E2E en `tests/e2e/us5-manage.spec.ts`: mover, cancelar con confirmación explícita que nombra la cita, y el recordatorio de FR-043 con el teléfono a la vista, más axe
+- [ ] T100 [P] [US5] E2E en `tests/e2e/us5-manage.spec.ts`: mover, cancelar con confirmación explícita que nombra la cita, y el recordatorio de FR-043 con el teléfono a la vista, más axe. El escenario 6 —la cancelada aparece en el listado como «Cancelada por ti»— lo comprueba T176, porque necesita la pantalla de la US10
 
 ### Implementación de la Historia 5
 
-- [ ] T101 [P] [US5] Implementar `src/application/use-cases/reschedule-appointment-as-owner.ts`
-- [ ] T102 [P] [US5] Implementar `src/application/use-cases/cancel-appointment-as-owner.ts`
+- [ ] T186 [US5] Implementar `src/domain/owner/cancellation.ts`: `applyOwnerCancellation` apoyada en `isPastSlot` (contracts/domain-api.md)
+- [ ] T101 [P] [US5] Implementar `src/application/use-cases/reschedule-appointment-as-owner.ts`, con la duración de `durationOf(appointment)` y nunca la del catálogo (D-030)
+- [ ] T102 [P] [US5] Implementar `src/application/use-cases/cancel-appointment-as-owner.ts` sobre `applyOwnerCancellation`, pasando `OWNER` al repositorio
 - [ ] T103 [P] [US5] Implementar `src/app/api/gestion/citas/[id]/reprogramacion/route.ts` (`POST`)
 - [ ] T104 [P] [US5] Implementar `src/app/api/gestion/citas/[id]/cancelacion/route.ts` (`POST`)
 - [ ] T105 [US5] Añadir a `src/app/gestion/agenda/page.tsx` las acciones de mover y cancelar, con confirmación explícita que nombra la cita concreta (FR-040)
@@ -258,12 +302,12 @@ Proyecto único con arquitectura hexagonal, heredado de `001-client-appointment-
 ### Implementación de la Historia 6
 
 - [ ] T114 [US6] Completar `src/domain/owner/conflict.ts` con `computeStateToken` —con el `hash` inyectado como puerto— y `buildResolutionPlan` con sus tres modos de fallo tipados
-- [ ] T115 [US6] Implementar `src/infrastructure/db/owner-appointment-writer.ts`: `applyPlan` que re-detecta el conflicto **dentro** de la transacción, compara el `stateToken` y aplica el plan entero o nada (D-023, D-024)
+- [ ] T115 [US6] Implementar `src/infrastructure/db/owner-appointment-writer.ts`: `applyPlan` que re-detecta el conflicto **dentro** de la transacción, compara el `stateToken` y aplica el plan entero o nada, con las filas de `appointment_service` de la cita nueva y `cancelled_by = 'OWNER'` en las cancelaciones de la resolución (D-023, D-024, FR-040a)
 - [ ] T116 [US6] Integrar el protocolo de dos pasos en los handlers de `src/app/api/gestion/citas/`, `citas/[id]/reprogramacion/` y `periodos/`
-- [ ] T117 [US6] Implementar `src/components/owner/conflict-dialog.tsx`: `dialog` modal accesible que nombra cada elemento en conflicto y ofrece **sólo** salidas explícitas (FR-033, FR-034)
+- [ ] T117 [US6] Implementar `src/components/owner/conflict-dialog.tsx`: `dialog` modal accesible que nombra cada elemento en conflicto —con todos los servicios de una cita— y ofrece **sólo** salidas explícitas (FR-033, FR-034)
 - [ ] T118 [P] [US6] Añadir los textos del diálogo de conflicto a `src/messages/es-ES.ts`, con el nombre del cliente en pantalla y **nunca** en el log (FR-057)
 
-**Checkpoint**: las seis historias P1 están completas. La feature es usable de punta a punta; SC-004, SC-005 y SC-006 se cumplen.
+**Checkpoint**: las siete historias P1 —US1 a US6 y US10— están completas. La feature es usable de punta a punta; SC-004, SC-005 y SC-006 se cumplen.
 
 ---
 
@@ -288,7 +332,7 @@ Proyecto único con arquitectura hexagonal, heredado de `001-client-appointment-
 - [ ] T126 [US7] Implementar `src/application/use-cases/update-weekly-schedule.ts`, devolviendo la lista de citas que quedan fuera antes de guardar
 - [ ] T127 [P] [US7] Implementar `src/app/api/gestion/horario/route.ts` (`GET`) y `src/app/api/gestion/horario/[weekday]/route.ts` (`PUT`)
 - [ ] T128 [P] [US7] Implementar `src/components/owner/schedule-editor.tsx` con varios tramos por día y errores que dicen cuál y dónde
-- [ ] T129 [US7] Implementar la pantalla `src/app/gestion/horario/page.tsx` (SC-012: sin ayuda ni documentación, al primer intento)
+- [ ] T129 [US7] Implementar la pantalla `src/app/gestion/horario/page.tsx` (SC-012: sin ayuda ni documentación, al primer intento), en una columna con la base de la 003 (D-034)
 - [ ] T130 [P] [US7] Añadir los textos de horario y de rechazo de tramos a `src/messages/es-ES.ts`
 
 **Checkpoint**: el horario deja de ser dato de arranque.
@@ -303,25 +347,25 @@ Proyecto único con arquitectura hexagonal, heredado de `001-client-appointment-
 
 ### Tests de la Historia 8 ⚠️
 
-- [ ] T131 [P] [US8] Test unitario en `tests/unit/domain/catalog/service-edit.test.ts`: `EMPTY_NAME`, `NON_POSITIVE_DURATION`, `NEGATIVE_PRICE` y `canRetireService` con `LAST_ACTIVE_SERVICE` (FR-051, FR-053)
-- [ ] T132 [P] [US8] Test de contrato en `tests/contract/owner/servicios.test.ts` para `GET`/`POST /gestion/servicios`, `PATCH /gestion/servicios/{id}` (incluido que acepta y persiste un `displayOrder` nuevo, FR-049) y `PUT /gestion/servicios/{id}/activo`
-- [ ] T133 [P] [US8] Test de regresión en `tests/integration/use-cases/config-change-preserves-appointments.test.ts` (ampliar): retirar un servicio deja el 100 % de sus citas futuras intactas en fecha, hora, duración, precio y estado (SC-008, BR-003)
-- [ ] T134 [P] [US8] Test de regresión del snapshot congelado: cambiar la duración de 45 a 60 min no toca las citas ya confirmadas (FR-052, US8-5)
+- [ ] T131 [P] [US8] Test unitario en `tests/unit/domain/catalog/service-edit.test.ts`: `EMPTY_NAME`, `NON_POSITIVE_DURATION`, `NON_POSITIVE_PRICE` con 0 y con negativos, `priceCents: null` válido, y `canRetireService` con `LAST_ACTIVE_SERVICE` (FR-051, FR-053, D-031)
+- [ ] T132 [P] [US8] Test de contrato en `tests/contract/owner/servicios.test.ts` para `GET`/`POST /gestion/servicios`, `PATCH /gestion/servicios/{id}` (incluido que acepta y persiste un `displayOrder` nuevo, FR-049, y que acepta `priceCents: null`) y `PUT /gestion/servicios/{id}/activo`
+- [ ] T133 [P] [US8] Test de regresión en `tests/integration/use-cases/config-change-preserves-appointments.test.ts` (ampliar): retirar un servicio deja el 100 % de sus citas futuras intactas en fecha, hora, duración, precio y estado, incluidas las que lo llevan junto a otros servicios (SC-008, BR-003)
+- [ ] T134 [P] [US8] Test de regresión del snapshot congelado: cambiar la duración de 45 a 60 min, o poner precio a un servicio que no lo tenía, no toca las citas ya confirmadas (FR-052, US8-5, US8-8)
 - [ ] T135 [P] [US8] Test de integración de la retirada concurrente en `tests/integration/use-cases/manage-services.test.ts`: dos retiradas simultáneas no dejan el catálogo vacío, porque el recuento va **dentro** de la transacción (FR-051)
-- [ ] T136 [P] [US8] Test unitario en `tests/unit/domain/booking/confirm.test.ts` (ampliar): `SERVICE_UNAVAILABLE` cuando el servicio se retiró mientras el cliente rellenaba, sin dejar la cita a medias (US8-6)
-- [ ] T137 [P] [US8] E2E en `tests/e2e/us8-services.spec.ts`: los seis escenarios —incluido SC-007, servicio nuevo seleccionable de inmediato—, más axe
+- [ ] T136 [P] [US8] Test de integración en `tests/integration/use-cases/confirm-booking.test.ts` (ampliar): la dueña retira con `setServiceActive` uno de los servicios elegidos entre la consulta de disponibilidad y la confirmación del cliente, y la confirmación devuelve `SERVICE_UNAVAILABLE` sin dejar la cita a medias (US8-6; el modo de fallo es de la 005)
+- [ ] T137 [P] [US8] E2E en `tests/e2e/us8-services.spec.ts`: los ocho escenarios —incluido SC-007, servicio nuevo seleccionable de inmediato, y el servicio sin precio que el cliente ve como «Precio a consultar en el salón»—, más axe
 
 ### Implementación de la Historia 8
 
-- [ ] T138 [P] [US8] Implementar `src/domain/catalog/service-edit.ts`: `validateService` y `canRetireService`
-- [ ] T139 [US8] Añadir `SERVICE_UNAVAILABLE` a `ConfirmBookingError` en `src/domain/booking/confirm.ts` y comprobar el catálogo activo **en el instante de confirmar**
-- [ ] T140 [US8] Propagar el modo de fallo nuevo por `src/application/use-cases/confirm-booking.ts`, `src/app/reservar/` y `src/app/api/appointments/route.ts`
-- [ ] T141 [US8] Implementar `createService`, `updateService` y `setServiceActive` en `src/infrastructure/db/salon-config-writer.ts`, con el recuento de activos dentro de la misma transacción
+- [ ] T138 [P] [US8] Implementar `src/domain/catalog/service-edit.ts`: `validateService` con precio opcional y `canRetireService` (D-031)
+- [x] T139 [US8] ~~Añadir `SERVICE_UNAVAILABLE` a `confirmBooking` y comprobar el catálogo activo en el instante de confirmar~~ — hecho en la 005 (FR-015 de la 005): `confirm-booking.ts` valida la selección con `selectServices` y devuelve `SERVICE_UNAVAILABLE`
+- [x] T140 [US8] ~~Propagar el modo de fallo por el caso de uso, la pantalla y `POST /api/appointments`~~ — hecho en la 005, con su test de contrato
+- [ ] T141 [US8] Implementar `createService`, `updateService` y `setServiceActive` en `src/infrastructure/db/salon-config-writer.ts`, con el precio anulable y el recuento de activos dentro de la misma transacción
 - [ ] T142 [US8] Implementar `src/application/use-cases/manage-services.ts`
-- [ ] T143 [P] [US8] Implementar `src/app/api/gestion/servicios/route.ts`, `src/app/api/gestion/servicios/[id]/route.ts` y `src/app/api/gestion/servicios/[id]/activo/route.ts`
-- [ ] T144 [P] [US8] Implementar `src/components/owner/service-list.tsx` con el orden de presentación editable
-- [ ] T145 [US8] Implementar la pantalla `src/app/gestion/servicios/page.tsx`
-- [ ] T146 [P] [US8] Añadir los textos de catálogo, incluido el de "el salón se quedaría sin nada que reservar", a `src/messages/es-ES.ts`
+- [ ] T143 [P] [US8] Implementar `src/app/api/gestion/servicios/route.ts`, `src/app/api/gestion/servicios/[id]/route.ts` y `src/app/api/gestion/servicios/[id]/activo/route.ts`, con `priceLabel` redactado igual que en la API de cliente
+- [ ] T144 [P] [US8] Implementar `src/components/owner/service-list.tsx` con el orden de presentación editable y el precio como campo opcional: vacío viaja como `null`, nunca como 0 (D-031)
+- [ ] T145 [US8] Implementar la pantalla `src/app/gestion/servicios/page.tsx`, en una columna con la base de la 003 (D-034)
+- [ ] T146 [P] [US8] Añadir los textos de catálogo, incluidos "el salón se quedaría sin nada que reservar" y "si no quieres poner precio, deja el campo vacío", a `src/messages/es-ES.ts`
 
 **Checkpoint**: el catálogo es editable en vivo y ninguna cita existente se ve afectada.
 
@@ -346,23 +390,24 @@ Proyecto único con arquitectura hexagonal, heredado de `001-client-appointment-
 - [ ] T152 [US9] Implementar `updateBookingParameters` en `src/infrastructure/db/salon-config-writer.ts`
 - [ ] T153 [US9] Implementar `src/application/use-cases/update-booking-parameters.ts`
 - [ ] T154 [US9] Implementar `src/app/api/gestion/parametros/route.ts` (`GET`, `PUT`), sirviendo los límites desde el dominio
-- [ ] T155 [US9] Implementar la pantalla `src/app/gestion/parametros/page.tsx`, que **recibe** los límites y no los reescribe (Principio I)
+- [ ] T155 [US9] Implementar la pantalla `src/app/gestion/parametros/page.tsx`, que **recibe** los límites y no los reescribe (Principio I), en una columna con la base de la 003 (D-034)
 - [ ] T156 [P] [US9] Añadir los textos de parámetros a `src/messages/es-ES.ts`
 
-**Checkpoint**: las nueve historias están completas.
+**Checkpoint**: las diez historias están completas.
 
 ---
 
 ## Phase 12: Polish & Cross-Cutting Concerns
 
-- [ ] T157 [P] Auditoría de accesibilidad de las seis pantallas y del diálogo de conflicto en `tests/e2e/accessibility.spec.ts` (ampliar), sin ninguna incidencia AA y operable íntegramente con teclado (SC-011)
+- [ ] T157 [P] Auditoría de accesibilidad de las siete pantallas y del diálogo de conflicto en `tests/e2e/accessibility.spec.ts` (ampliar), sin ninguna incidencia AA y operable íntegramente con teclado, en los tres tamaños de la 003 (SC-011)
+- [ ] T187 [P] Ampliar `tests/e2e/responsive.spec.ts` con las pantallas de gestión a 1280 px —agenda y listado en dos columnas, el resto en una, sin desplazamiento horizontal— y comprobar que `tests/unit/ui/layout-breakpoints.test.ts` sigue en verde sin excepciones nuevas (FR-058, D-034)
 - [ ] T158 [P] Barrido manual de PII en los logs siguiendo `quickstart.md`, y ampliación de `tests/integration/logging/no-pii.test.ts` con los cuerpos de agenda y conflicto (FR-057)
 - [ ] T159 [P] Revisar que ningún texto de gestión vive fuera de `src/messages/es-ES.ts` con un test en `tests/unit/messages/actionable-errors.test.ts` (ampliar)
-- [ ] T160 [P] Actualizar `CLAUDE.md`: los cierres pasan a periodos no disponibles, la configuración deja de ser precargada y aparece `owner:provision`
-- [ ] T161 [P] Actualizar `specs/README.md` con el estado de la feature 002
+- [ ] T160 [P] Actualizar `CLAUDE.md`: los cierres pasan a periodos no disponibles, la configuración deja de ser precargada, aparece `owner:provision` y cada cancelación guarda quién la hizo
+- [ ] T161 [P] Actualizar `README.md` (estado del producto, features y checks) y `docs/roadmap.md` con el estado de la feature 002
 - [ ] T162 Verificar el despliegue según `quickstart.md`: aprovisionar, retirar `OWNER_INITIAL_PASSWORD` del entorno y comprobar que la cookie `__Host-` exige HTTPS
 - [ ] T163 Ejecutar `npm run test:all`, `npm run lint` y `npm run check:layers` en verde, con cero tests saltados
-- [ ] T164 Recorrer los 18 pasos de la comprobación rápida de `quickstart.md` a mano
+- [ ] T164 Recorrer los 22 pasos de la comprobación rápida de `quickstart.md` a mano, y los del listado otra vez a 1280 px
 
 ---
 
@@ -372,7 +417,8 @@ Proyecto único con arquitectura hexagonal, heredado de `001-client-appointment-
 
 - **Setup (Fase 1)**: sin dependencias.
 - **Foundational (Fase 2)**: depende de la Fase 1. **Bloquea todas las historias.**
-- **US1 (Fase 3)**: depende de la Fase 2. **Bloquea US2 … US9**, porque entrega `requireOwnerSession()`, sin el cual ninguna pantalla ni handler de gestión puede existir sin filtrar datos (FR-002).
+- **US1 (Fase 3)**: depende de la Fase 2. **Bloquea US2 … US10**, porque entrega `requireOwnerSession()`, sin el cual ninguna pantalla ni handler de gestión puede existir sin filtrar datos (FR-002).
+- **US10 (Fase 4b)**: depende de US1 y de la Fase 2 (`cancelled_by`, citas con servicios). Tiene pantalla propia, `reservas/page.tsx`, y no toca `agenda/page.tsx`; sólo su e2e del escenario 7 —ir de una fila a la agenda— necesita T068 (US2). Las cancelaciones hechas por la dueña aparecen cuando existe US5, pero el listado ya las muestra con los datos de prueba.
 - **US2**: depende de US1. Es la historia que crea `src/app/gestion/agenda/page.tsx` (T068). US3, US4 y US5
   se integran **dentro** de esa página, así que no pueden cerrarse hasta que T068 exista.
 - **US3**: depende de US1. Su dominio, casos de uso, rutas y componente (T077-T080) son independientes de
@@ -396,7 +442,8 @@ Proyecto único con arquitectura hexagonal, heredado de `001-client-appointment-
 ### Parallel Opportunities
 
 - Fase 1: T002, T003, T004 y T005 en paralelo.
-- Fase 2: los ocho tests T006–T013 en paralelo; después las cuatro migraciones **en serie**, por orden.
+- Fase 2: los doce tests T006–T013 y T165–T168 en paralelo (T165 escribe en `constraints.test.ts`, como T007 y T008: esos tres se reparten por bloques `describe`); después las cuatro migraciones **en serie**, por orden.
+- Con equipo, una vez cerrada US1, US2 y US10 pueden avanzar a la vez: son las dos pantallas del MVP mínimo y no comparten archivos.
 - En cada historia, todos los tests marcados `[P]` se escriben a la vez.
 - Con equipo: una vez cerrada US1, US7, US8 y US9 pueden repartirse entre personas distintas de inmediato.
   El dominio, los casos de uso, las rutas y los componentes de US3, US4 y US5 también pueden avanzar en
@@ -428,18 +475,19 @@ Task: "Implementar src/infrastructure/security/session-token.ts"
 
 ### MVP First
 
-El MVP de esta feature **no es una sola historia**: es US1 más US2. Un acceso privado que no enseña nada no sustituye al papel, y una agenda sin frontera de acceso viola FR-002. El corte mínimo desplegable es:
+El MVP de esta feature **no es una sola historia**: es US1, US2 y US10. Un acceso privado que no enseña nada no sustituye al papel, una agenda sin frontera de acceso viola FR-002, y sin el listado la dueña no se entera de las reservas online nuevas mientras v1 no avisa. El corte mínimo desplegable es:
 
 1. Fase 1: Setup
 2. Fase 2: Foundational (crítica — bloquea todo)
 3. Fase 3: US1 — la frontera de acceso, con el barrido de SC-001 en verde
 4. Fase 4: US2 — la agenda del día
-5. **PARAR Y VALIDAR**: la dueña ve su día y nadie más lo ve.
+5. Fase 4b: US10 — el listado de reservas
+6. **PARAR Y VALIDAR**, en el navegador y con la dueña del producto: ve su día y todas sus reservas, y nadie más las ve.
 
 ### Incremental Delivery
 
-1. Setup + Foundational → los cierres migrados y la configuración editable en vivo
-2. US1 + US2 → MVP desplegable
+1. Setup + Foundational → los cierres migrados, la configuración editable en vivo y quién canceló registrado
+2. US1 + US2 + US10 → MVP mínimo desplegable
 3. US3 → el hueco fantasma resuelto
 4. US4 + US5 + US6 → la gestión manual completa, con la garantía de no-superposición intacta
 5. US7 + US8 + US9 → la autonomía de configuración
@@ -448,8 +496,9 @@ El MVP de esta feature **no es una sola historia**: es US1 más US2. Un acceso p
 ### Riesgos a vigilar
 
 - **La Fase 2 toca código en verde de la 001.** Cada línea de la tabla "Lo que esta feature modifica de la 001" de [plan.md](./plan.md) es trabajo de migración con su test de regresión, no un ajuste de paso.
-- **La migración 0004 es la única que convierte datos y la única que borra una tabla.** Su test es innegociable.
-- **La migración 0006 impone el `EXCLUDE` de `opening_interval` sobre datos ya cargados.** Si falla, falla ahí y no a medio camino: es el comportamiento correcto.
+- **La migración 0005 es la única que convierte cierres y la única que borra una tabla.** Su test es innegociable. La 0006 también convierte datos —marca como del cliente las cancelaciones existentes— y tiene el suyo (T165).
+- **La migración 0007 impone el `EXCLUDE` de `opening_interval` sobre datos ya cargados.** Si falla, falla ahí y no a medio camino: es el comportamiento correcto.
+- **Los servicios de cada cita se leen en la misma consulta, en la agenda y en el listado.** Una consulta por cita es la trampa natural al pintar varios servicios; T062 y T175 la cazan.
 - **El diálogo de conflicto es el punto de mayor riesgo de PII en logs** y el de mayor riesgo de trampa de foco. Recibe atención doble: T070, T118, T113 y T158.
 
 ---

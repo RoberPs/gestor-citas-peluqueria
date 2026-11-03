@@ -1,8 +1,8 @@
 # Phase 0 — Research: Gestión del salón (cara a la dueña) v1
 
-**Feature**: `002-salon-management` | **Date**: 2026-09-16
+**Feature**: `002-salon-management` | **Date**: 2026-09-16 | **Revised**: 2026-11-03 (D-030 … D-034)
 
-Este documento fija las decisiones técnicas de la feature y deja constancia de lo descartado. La numeración continúa la de `001-client-appointment-booking` (D-001 … D-014), porque las decisiones de aquella siguen vigentes y algunas de éstas las modifican expresamente.
+Este documento fija las decisiones técnicas de la feature y deja constancia de lo descartado. La numeración continúa la de `001-client-appointment-booking` (D-001 … D-014). La `005-multiple-services` numera las suyas aparte (D-001 … D-012 de la 005) y aquí se citan siempre con el sufijo «de la 005», porque las decisiones de aquella siguen vigentes y algunas de éstas las modifican expresamente.
 
 **Contexto de partida**: la 001 está construida y en verde. Esta feature no arranca de cero: convierte configuración de sólo lectura en configuración editable, generaliza el cierre de día completo y añade una segunda cara a la aplicación. Cada decisión de abajo dice, cuando procede, **qué decisión anterior modifica**.
 
@@ -198,6 +198,8 @@ Relajarla no puede significar debilitarla, porque es lo que garantiza que no exi
 
 **Citas canceladas (FR-015)**: no entran en la consulta por defecto. Mostrarlas es un control explícito y una segunda consulta que sólo se paga cuando se pide.
 
+**Los servicios de cada cita (revisado el 2026-11-03)**: desde la 005, las citas del día se leen **con** sus servicios de `appointment_service` en la misma consulta, como ya hace el repositorio de citas para la disponibilidad y el enlace (D-011 de la 005). La consulta de las citas del día no pasa a ser una más por cita: sigue siendo una (FR-014).
+
 ---
 
 ## D-028 — Superficie HTTP: Route Handlers bajo `/api/gestion`
@@ -220,7 +222,102 @@ Relajarla no puede significar debilitarla, porque es lo que garantiza que no exi
 
 Los cinco casos límite que la constitución exige siguen cubiertos, y esta feature añade la cara de la dueña a cuatro de ellos: doble reserva y solapamiento ahora también por acción manual y por resolución de conflicto; petición fuera de horario ahora como **aviso** además de como bloqueo; cancelación fuera de plazo ahora con la dueña exenta. El quinto —recordatorio de cita cancelada— sigue sin aplicar: v1 no envía nada.
 
-**Accesibilidad**: `@axe-core/playwright` se extiende a las seis pantallas de gestión, incluido el diálogo de conflicto, que es un `dialog` modal y el elemento con más riesgo de trampa de foco de toda la feature.
+**Accesibilidad**: `@axe-core/playwright` se extiende a las siete pantallas de gestión, incluido el diálogo de conflicto, que es un `dialog` modal y el elemento con más riesgo de trampa de foco de toda la feature, y a los tres tamaños de la 003: los e2e corren en `mobile-360` y `desktop-1280`, y `accessibility.spec.ts` además en `tablet-768`.
+
+---
+
+## D-030 — Varios servicios por cita en la cara de la dueña
+
+**Decisión** (2026-11-03): la gestión usa el modelo de la 005 sin reinterpretarlo. Las reglas existen ya en el dominio y no se duplican:
+
+| Necesidad de la 002 | Pieza de la 005 que se reutiliza |
+|---|---|
+| Elegir servicios al apuntar una cita (FR-024) | `selectServices` contra el catálogo **activo**: `EMPTY`, `DUPLICATE` y `UNKNOWN_SERVICE` ya tipados |
+| Duración de una cita manual (FR-027) | `durationOfServices` sobre los snapshots elegidos |
+| Duración al mover (FR-039, BR-020) | `durationOf(appointment)`, que suma los snapshots guardados, no el catálogo de hoy (D-008 de la 005) |
+| Precio total en agenda y listado | `totalPriceOf`, la misma frase que ve el cliente (FR-020 de la 005) |
+| Persistir los servicios | El `insert` del repositorio de citas, que ya escribe `appointment_service` en la misma transacción |
+
+`planManualBooking` recibe una `NonEmptyServiceList` en lugar de un `ServiceSnapshot`: el tipo impide por construcción una cita manual sin servicios. `Conflict` de tipo cita lleva `serviceNames` —una lista no vacía— en lugar de un solo nombre de servicio, para que el aviso nombre todos los servicios de la cita que estorba (FR-033).
+
+**Rationale**: el Principio I exige que una regla viva en un solo sitio. Si la dueña sumara duraciones por su cuenta, una cita manual y una online con los mismos servicios podrían durar distinto.
+
+**Descartado**: cambiar los servicios de una cita al moverla. La 005 lo dejó fuera para el cliente (cancelar y reservar de nuevo) y la dueña sigue la misma regla en v1; reabrirlo obligaría a recalcular el conflicto con otra duración en mitad del protocolo de dos pasos.
+
+---
+
+## D-031 — Precio opcional en el catálogo editable
+
+**Decisión** (2026-11-03): `validateService` acepta `priceCents: number | null`. `null` es «sin precio»; un número tiene que ser mayor que cero. El modo de fallo `NEGATIVE_PRICE` se sustituye por `NON_POSITIVE_PRICE`, que cubre también el 0 (FR-053).
+
+**Rationale**: la migración `0003_multiple_services.sql` de la 005 ya dejó en la base `price_cents IS NULL OR price_cents > 0` y retiró el `CHECK (price_cents >= 0)` original. La 002 no tiene que añadir ningún `CHECK` de precio ni de duración a `service` —`service_positive_duration` existe desde la 0001—, sólo que el dominio diga lo mismo que la base y explique el rechazo: «si no quieres poner precio, deja el campo vacío».
+
+**En el formulario**: el precio es un campo opcional. Vacío viaja como `null`, nunca como `0`.
+
+---
+
+## D-032 — Quién canceló una cita
+
+**Decisión** (2026-11-03, a petición de la dueña del producto): `appointment` gana la columna `cancelled_by`, de un tipo enumerado `appointment_actor` (`CUSTOMER` | `OWNER`). Se escribe en el mismo `UPDATE` que pone `status = 'CANCELLED'` y `cancelled_at`, y una restricción la ata al estado:
+
+```sql
+CHECK ((status = 'CANCELLED') = (cancelled_by IS NOT NULL))
+```
+
+Las citas ya canceladas migran a `CUSTOMER`: antes de la 002 la única forma de cancelar era el enlace del cliente.
+
+**En el dominio**: `applyCancellation` recibe quién cancela y `Appointment` expone `cancelledBy: 'CUSTOMER' | 'OWNER' | null`. El caso de uso del cliente de la 001 pasa `CUSTOMER`; el de la dueña, `OWNER`. El cliente no ve el dato: su vista de la cita no cambia.
+
+**Rationale**: el listado de reservas lo muestra (FR-063) y responde a la pregunta real de la dueña —«¿esta la anulé yo o me la anularon?»—. No es un dato personal: no identifica a nadie fuera de la cita y no se borra al anonimizar.
+
+**Descartado**:
+
+- **Una tabla de auditoría de cambios**: la especificación deja la auditoría fuera de alcance. Guardar quién canceló es un hecho de la cita, no un historial.
+- **Un booleano `cancelled_by_owner`**: dice lo mismo con menos claridad, y no admite un tercer valor si mañana el salón tiene más personal.
+- **Deducirlo del origen de la cita**: una cita online la puede cancelar la dueña, y es justo el caso que más interesa distinguir.
+
+---
+
+## D-033 — El listado de reservas: una consulta, paginación por cursor
+
+**Decisión** (2026-11-03): `GET /api/gestion/reservas` y la pantalla `/gestion/reservas`. Una página son **20 filas**, resueltas con **una sola consulta** que trae las citas con sus servicios agregados (`json_agg` sobre `appointment_service` en una subconsulta lateral), con `LIMIT 21` para saber si hay página siguiente sin contar el total.
+
+**Orden y paginación**:
+
+| Orden | Filas | Clave de orden | Cursor |
+|---|---|---|---|
+| *Próximas citas* (por defecto) | `starts_at >=` inicio de hoy en la zona del salón | `(starts_at, id)` ascendente | la última `(starts_at, id)` vista |
+| *Últimas reservas recibidas* | todas | `(created_at, id)` descendente | la última `(created_at, id)` vista |
+
+La paginación es **por cursor** (*keyset*), no por desplazamiento. Una reserva online que entra mientras la dueña pasa de página no desplaza las filas siguientes, de modo que no se repite ni se salta ninguna (FR-064). El cursor es opaco para la pantalla y viaja en la URL, así que *Atrás* del navegador vuelve a la página anterior sin estado guardado. Hay *Página siguiente* y *Volver al principio*; no hay salto a la página N, que con cursor no tiene sentido y que con 20 filas por página la dueña no necesita.
+
+**Dónde vive cada regla**: el dominio (`owner/booking-list.ts`) normaliza la consulta —valores por defecto, rango de fechas válido, inicio de hoy calculado con el reloj y la zona del salón— y fija `BOOKING_LIST_PAGE_SIZE`. El repositorio sólo traduce esa consulta ya decidida a SQL.
+
+**Índices nuevos**: el orden por defecto con el filtro *Confirmadas* ya lo sirve `appointment_confirmed_starts_at_idx`. Se añaden `appointment_starts_at_id_idx (starts_at, id)` para *Canceladas* y *Todas*, y `appointment_created_at_id_idx (created_at DESC, id DESC)` para *Últimas reservas recibidas*. Una prueba de integración comprueba que una página cuesta las mismas consultas con la base vacía que con las 10.000 citas de `db:seed:history` (SC-013).
+
+**Rationale**: FR-066 prohíbe el N+1 igual que la disponibilidad lo prohíbe en la 001, y una página de citas con varios servicios es el sitio natural donde aparecería.
+
+**Descartado**:
+
+- **Paginación por número de página con `OFFSET`**: más simple, pero una reserva nueva desplaza las filas y repite una al pasar de página, justo lo que FR-064 prohíbe. Además `OFFSET` se encarece al crecer el histórico.
+- **Contar el total para mostrar «página 3 de 12»**: una segunda consulta por página para un dato que la dueña no ha pedido.
+- **Reutilizar la consulta de la agenda en un bucle de días**: N consultas para un rango de N días.
+
+---
+
+## D-034 — Las pantallas de la dueña nacen responsive
+
+**Decisión** (2026-11-03): las siete pantallas de gestión usan la base de la `003-responsive-desktop` sin añadir anchos propios: móvil por debajo de 640 px, tablet desde 640 px y ordenador desde 1024 px, con las clases `.page--split`, `.site-header--split`, `.col-main`, `.col-side` y `.wide-only` de `src/app/globals.css`. `tests/unit/ui/layout-breakpoints.test.ts` ya rechaza cualquier otro ancho y cualquier `order`.
+
+| Pantalla | En ordenador (≥ 1024 px) |
+|---|---|
+| Agenda | Línea temporal en `.col-main`; navegación de días y formulario de cita a mano en `.col-side` |
+| Listado de reservas | Filtros en `.col-side`; filas en `.col-main`, con las columnas secundarias (origen, fecha de reserva) en `.wide-only` |
+| Horario, servicios, parámetros, cuenta, acceso | Una columna, como el formulario de reserva en tablet |
+
+Los formularios GET de navegación —cambiar de día en la agenda, los filtros y el orden del listado— usan `NavForm` (`src/components/nav-form.tsx`), que conserva el `name`/`value` del botón pulsado. Los e2e esperan cada clic que navega con `clickAndNavigate` y corren a 360 px y a 1280 px, como los de la 001.
+
+**Rationale**: la 003 se hizo antes que la 002 precisamente para esto (roadmap, paso 1). Las mutaciones siguen siendo Route Handlers (D-028); `NavForm` sólo cubre la navegación.
 
 ---
 
@@ -243,3 +340,8 @@ Los cinco casos límite que la constitución exige siguen cubiertos, y esta feat
 | Rejilla de inicios de las citas manuales | D-025 | Múltiplos de 15 minutos |
 | Restricciones a relajar por el email y el enlace | D-026 | `appointment_anonymization_is_atomic` reescrita |
 | Superficie HTTP de la gestión | D-028 | Route Handlers bajo `/api/gestion`, OpenAPI propio |
+| Varios servicios por cita en la gestión (005) | D-030 | Las reglas de la 005 se reutilizan; `NonEmptyServiceList` en la cita manual |
+| Precio opcional en el catálogo editable (005) | D-031 | `priceCents: number \| null`, `NON_POSITIVE_PRICE`; la base ya lo impone |
+| Quién canceló una cita | D-032 | Columna `cancelled_by` (`CUSTOMER` \| `OWNER`), atada al estado |
+| Paginación y coste del listado de reservas | D-033 | 20 filas, una consulta, cursor por `(starts_at, id)` o `(created_at, id)` |
+| Responsive de las pantallas de la dueña | D-034 | Base de la 003, `NavForm` y los proyectos de Playwright por tamaño |
