@@ -4,7 +4,12 @@ import { computeRangeDays, horizonEndOf, openingOf } from '@/domain/availability
 import { findNextAvailableDate } from '@/domain/availability/next-available';
 import type { RangeDay, Slot } from '@/domain/booking/appointment';
 import type { Salon } from '@/domain/catalog/salon';
-import type { Service, ServiceSnapshot } from '@/domain/catalog/service';
+import {
+  durationOfServices,
+  selectServices,
+  type NonEmptyServiceList,
+  type ServiceSelection,
+} from '@/domain/catalog/selection';
 import type { Clock } from '@/domain/shared/clock';
 import { err, ok, type Result } from '@/domain/shared/result';
 import { localDateOf } from '@/domain/shared/time';
@@ -21,8 +26,8 @@ import type { AppointmentRepository, SalonConfigRepository } from '../ports';
  */
 
 export type AvailabilityView = {
-  readonly serviceId: string;
-  readonly service: ServiceSnapshot;
+  /** The services asked about, in catalogue order, and their total duration. */
+  readonly selection: ServiceSelection;
   readonly salon: Salon;
   readonly range: {
     readonly start: string;
@@ -38,21 +43,30 @@ export type AvailabilityView = {
 };
 
 export type AvailabilityRejection =
-  | { readonly kind: 'UNKNOWN_SERVICE' }
+  | { readonly kind: 'EMPTY_SELECTION' }
+  | { readonly kind: 'DUPLICATE_SERVICE' }
+  | { readonly kind: 'UNKNOWN_SERVICE'; readonly serviceIds: readonly string[] }
   | { readonly kind: 'RANGE_OUT_OF_BOUNDS' };
 
 export type GetAvailabilityInput = {
-  readonly serviceId: string;
   readonly rangeStart?: string | undefined;
   readonly selectedDate?: string | undefined;
-  /**
-   * Set while rescheduling: the service is forced to the appointment's frozen
-   * snapshot, and its own slot stops counting as busy (FR-024, FR-027).
-   */
-  readonly currentAppointment?:
-    | { readonly service: ServiceSnapshot; readonly startsAt: Temporal.Instant }
-    | undefined;
-};
+} & (
+  | { readonly serviceIds: readonly string[]; readonly currentAppointment?: undefined }
+  | {
+      /**
+       * Set while rescheduling: the services are the appointment's frozen
+       * snapshots, whatever the catalogue says today, so the hours offered are
+       * for the duration that was booked; and its own slot stops counting as
+       * busy (FR-017, FR-027, D-008). No ids can be passed alongside it.
+       */
+      readonly currentAppointment: {
+        readonly services: NonEmptyServiceList;
+        readonly startsAt: Temporal.Instant;
+      };
+      readonly serviceIds?: undefined;
+    }
+);
 
 function parseDate(value: string | undefined): Temporal.PlainDate | null {
   if (value === undefined) return null;
@@ -63,15 +77,27 @@ function parseDate(value: string | undefined): Temporal.PlainDate | null {
   }
 }
 
-function snapshotOf(service: Service | undefined): ServiceSnapshot | null {
-  return service === undefined
-    ? null
-    : {
-        serviceId: service.id,
-        name: service.name,
-        durationMinutes: service.durationMinutes,
-        priceCents: service.priceCents,
-      };
+/** The domain's reasons for refusing a selection, in this use case's words. */
+function selectionFor(
+  input: GetAvailabilityInput,
+  catalogue: Parameters<typeof selectServices>[0],
+): Result<ServiceSelection, AvailabilityRejection> {
+  if (input.currentAppointment !== undefined) {
+    const { services } = input.currentAppointment;
+    return ok({ services, durationMinutes: durationOfServices(services) });
+  }
+
+  const selected = selectServices(catalogue, input.serviceIds);
+  if (selected.ok) return selected;
+
+  switch (selected.error.kind) {
+    case 'EMPTY':
+      return err({ kind: 'EMPTY_SELECTION' });
+    case 'DUPLICATE':
+      return err({ kind: 'DUPLICATE_SERVICE' });
+    case 'UNKNOWN_SERVICE':
+      return err({ kind: 'UNKNOWN_SERVICE', serviceIds: selected.error.serviceIds });
+  }
 }
 
 function startOfDay(date: Temporal.PlainDate, timezone: string): Temporal.Instant {
@@ -94,11 +120,9 @@ export function createGetAvailability(deps: {
     const timezone = salon.timezone;
     const now = deps.clock.now();
 
-    const service =
-      input.currentAppointment?.service ??
-      snapshotOf(configuration.services.find((candidate) => candidate.id === input.serviceId));
-
-    if (service === null) return err({ kind: 'UNKNOWN_SERVICE' });
+    const selected = selectionFor(input, configuration.services);
+    if (!selected.ok) return selected;
+    const selection = selected.value;
 
     const today = localDateOf(now, timezone);
     const horizonEnd = horizonEndOf(now, policy, timezone);
@@ -128,7 +152,7 @@ export function createGetAvailability(deps: {
     const shared = {
       salonSchedule: configuration.schedule,
       closures: configuration.closures,
-      serviceDurationMinutes: service.durationMinutes,
+      serviceDurationMinutes: selection.durationMinutes,
       confirmedAppointments: busy,
       now,
       policy,
@@ -179,8 +203,7 @@ export function createGetAvailability(deps: {
     });
 
     return ok({
-      serviceId: service.serviceId,
-      service,
+      selection,
       salon,
       range: {
         start: rangeStart.toString(),

@@ -137,7 +137,7 @@ test('escenario 5 — a slot taken meanwhile is explained, with what is left off
   const other = await context?.newPage();
   if (other === undefined || context === undefined) throw new Error('no second browser context');
   await other.setExtraHTTPHeaders({ 'x-forwarded-for': '198.51.100.77' });
-  await other.goto(`/reservar?serviceId=00000000-0000-4000-8000-000000000011&startsAt=${startsAt}`);
+  await other.goto(`/reservar?serviceIds=00000000-0000-4000-8000-000000000011&startsAt=${startsAt}`);
   await other.getByLabel('Nombre').fill('Otro');
   await other.getByLabel('Teléfono').fill('700112233');
   await other.getByLabel('Email').fill('otro@example.com');

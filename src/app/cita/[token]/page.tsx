@@ -52,6 +52,7 @@ export default async function AppointmentPage({
   if (!allowed || detail === null) notFound();
 
   const { appointment, salon, view } = detail;
+  const [service] = appointment.services;
   const timezone = salon.timezone;
   const date = localDateOf(appointment.startsAt, timezone).toString();
   const status = messages.appointment.status[view];
@@ -88,7 +89,7 @@ export default async function AppointmentPage({
               </dd>
 
               <dt>{messages.booking.summaryService}</dt>
-              <dd>{appointment.service.name}</dd>
+              <dd>{service.name}</dd>
 
               <dt>{messages.booking.summaryDate}</dt>
               <dd>{longDateLabel(date)}</dd>
@@ -100,10 +101,10 @@ export default async function AppointmentPage({
               </dd>
 
               <dt>{messages.booking.summaryDuration}</dt>
-              <dd>{durationLabel(appointment.service.durationMinutes)}</dd>
+              <dd>{durationLabel(service.durationMinutes)}</dd>
 
               <dt>{messages.booking.summaryPrice}</dt>
-              <dd>{priceLabel(appointment.service.priceCents)}</dd>
+              <dd>{priceLabel(service.priceCents)}</dd>
 
               <dt>{messages.booking.summaryCancellationPolicy}</dt>
               <dd>{messages.booking.cancellationPolicyValue(detail.policy.cancellationDeadlineHours)}</dd>

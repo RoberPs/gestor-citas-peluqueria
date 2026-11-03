@@ -79,19 +79,16 @@ export default async function ReschedulePage({
   // their own hour, marked as theirs — behind two taps.
   const ownDate = localDateOf(appointment.startsAt, timezone).toString();
 
+  const currentAppointment = { services: appointment.services, startsAt: appointment.startsAt };
+  const serviceIds = appointment.services.map((service) => service.serviceId);
+
   const result = await container().getAvailability({
-    serviceId: appointment.service.serviceId,
     rangeStart: first(query, 'rangeStart') ?? ownDate,
     selectedDate: first(query, 'selectedDate') ?? ownDate,
-    currentAppointment: { service: appointment.service, startsAt: appointment.startsAt },
+    currentAppointment,
   });
 
-  const fallback = result.ok
-    ? result
-    : await container().getAvailability({
-        serviceId: appointment.service.serviceId,
-        currentAppointment: { service: appointment.service, startsAt: appointment.startsAt },
-      });
+  const fallback = result.ok ? result : await container().getAvailability({ currentAppointment });
 
   if (!fallback.ok) notFound();
 
@@ -113,7 +110,7 @@ export default async function ReschedulePage({
       <main className="page--split">
         <h1>{messages.reschedule.title}</h1>
 
-        <p>{messages.reschedule.sameServiceNotice(appointment.service.name)}</p>
+        <p>{messages.reschedule.sameServiceNotice(appointment.services[0].name)}</p>
 
         <div className="col-main">
           <div className="card">
@@ -144,7 +141,7 @@ export default async function ReschedulePage({
           <div className={chosen === undefined ? undefined : 'wide-only'}>
             <DayRangePicker
               availability={availability}
-              serviceId={appointment.service.serviceId}
+              serviceIds={serviceIds}
               previousRangeStart={shiftRange(availability.range.start, -availability.days.length)}
               nextRangeStart={shiftRange(availability.range.end, 1)}
               action={here}
@@ -156,7 +153,7 @@ export default async function ReschedulePage({
           <div className={chosen === undefined ? undefined : 'wide-only'}>
             <SlotList
               availability={availability}
-              serviceId={appointment.service.serviceId}
+              serviceIds={serviceIds}
               action={here}
               browseAction={here}
               {...(chosen === undefined ? {} : { selectedStartsAt: chosen, live: false })}

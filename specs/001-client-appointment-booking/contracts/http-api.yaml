@@ -2,9 +2,13 @@ openapi: 3.1.0
 
 info:
   title: API de reserva de citas — cara al cliente
-  version: 1.0.0
+  version: 2.0.0
   description: |
     Interfaz HTTP de la feature `001-client-appointment-booking`.
+
+    **Versión 2.0.0** (feature `005-multiple-services`): una cita lleva uno o varios
+    servicios y un servicio puede no tener precio. Los cambios respecto a la 1.0.0
+    están en `specs/005-multiple-services/contracts/http-api-changes.md`.
 
     Notas transversales, válidas para toda la API:
 
@@ -39,7 +43,8 @@ paths:
       summary: Catálogo de servicios del salón
       description: |
         Devuelve los servicios activos con nombre, duración y precio (FR-001).
-        El precio es informativo: v1 no cobra nada (asunción 12).
+        El precio es informativo: v1 no cobra nada (asunción 12). Un servicio
+        puede no tener precio (005, FR-018).
       responses:
         '200':
           description: Catálogo
@@ -64,8 +69,9 @@ paths:
         Resuelve en **una sola respuesta** —alimentada por **una sola consulta**
         (FR-005b, SC-005)— las tres cosas que la pantalla de reserva necesita:
 
-        1. El estado de cada uno de los 14 días del rango para el servicio elegido:
-           `CLOSED`, `FULL` o `AVAILABLE` (FR-005).
+        1. El estado de cada uno de los 14 días del rango para los servicios
+           elegidos, con su duración total: `CLOSED`, `FULL` o `AVAILABLE` (FR-005;
+           005, FR-008).
         2. Los huecos del día seleccionado (FR-005a).
         3. El siguiente día con disponibilidad, aunque caiga en un rango posterior
            (FR-006).
@@ -73,10 +79,15 @@ paths:
         Todo hueco devuelto es reservable en el instante en que se devuelve: cumple
         las cuatro condiciones de FR-003 (SC-003, Principio VI).
       parameters:
-        - name: serviceId
+        - name: serviceIds
           in: query
           required: true
-          schema: { type: string, format: uuid }
+          description: |
+            Ids de los servicios elegidos, separados por comas
+            (`?serviceIds=uuid1,uuid2`). El orden no importa: la respuesta los
+            devuelve en el orden del catálogo (005, FR-006). Los repetidos se
+            descartan antes de calcular nada.
+          schema: { type: string, example: '00000000-0000-4000-8000-000000000011,00000000-0000-4000-8000-000000000013' }
         - name: rangeStart
           in: query
           required: false
@@ -101,8 +112,10 @@ paths:
                 $ref: '#/components/schemas/AvailabilityResponse'
         '400':
           description: |
-            Servicio inexistente o inactivo, o rango fuera de los límites
-            permitidos: antes de hoy o más allá del horizonte de 60 días.
+            `EMPTY_SELECTION`: `serviceIds` vacío; hay que elegir al menos un
+            servicio (005, FR-004). `UNKNOWN_SERVICE`: algún servicio no existe o
+            está inactivo. `RANGE_OUT_OF_BOUNDS`: rango antes de hoy o más allá del
+            horizonte de 60 días.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -146,19 +159,28 @@ paths:
         '400':
           description: |
             Datos de contacto con formato inválido. El cuerpo señala el campo
-            concreto a corregir y cómo (FR-009).
+            concreto a corregir y cómo (FR-009). También `INVALID_REQUEST` si
+            `serviceIds` está vacío o repite un servicio (005, FR-003).
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ValidationError' }
         '409':
           description: |
-            El hueco ya no es reservable. Cubre tres situaciones distinguibles por
-            `code`, y **siempre devuelve la disponibilidad actualizada del día**
-            para que el cliente pueda elegir otro sin volver atrás (Historia 2,
-            escenario 5).
+            La reserva ya no es posible tal como se pidió:
+
+            - El hueco ya no es reservable. Tres situaciones distinguibles por
+              `code`, que **siempre devuelven la disponibilidad actualizada del día**
+              para la misma selección, para que el cliente elija otro sin volver
+              atrás (Historia 2, escenario 5).
+            - `SERVICE_UNAVAILABLE`: algún servicio ha dejado de ofrecerse entre la
+              consulta y la confirmación. Lleva sus ids para que el cliente revise
+              la selección (005, FR-015).
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/SlotConflictError' }
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/SlotConflictError'
+                  - $ref: '#/components/schemas/ServiceUnavailableError'
         '422':
           description: |
             El contacto ya tiene 3 citas confirmadas futuras. El mensaje explica el
@@ -208,8 +230,8 @@ paths:
         Misma forma que `/availability`, con dos diferencias impuestas por la
         Historia 6:
 
-        - El servicio **no se puede cambiar**: se usa siempre el de la cita, con la
-          duración congelada en su snapshot (FR-024, D-011).
+        - Los servicios **no se pueden cambiar**: se usan siempre los de la cita,
+          con la duración total de sus snapshots (FR-024, D-011; 005, FR-017).
         - El hueco que ocupa la propia cita se devuelve con
           `isCurrentAppointment: true` y **no cuenta como ocupado** (FR-027).
       parameters:
@@ -286,7 +308,8 @@ paths:
       tags: [Gestión de la cita]
       summary: Reprogramar la cita a otro hueco
       description: |
-        Mueve la cita a una franja nueva **del mismo servicio**, de forma atómica.
+        Mueve la cita a una franja nueva **con los mismos servicios y la misma
+        duración total**, de forma atómica (005, FR-017).
 
         Si el hueco nuevo ha sido ocupado entre la selección y la confirmación, la
         transacción revierte entera y **la cita original queda intacta en su hora
@@ -412,21 +435,77 @@ components:
 
     Service:
       type: object
-      required: [id, name, durationMinutes, priceCents]
+      required: [id, name, durationMinutes, priceCents, priceLabel]
       properties:
         id: { type: string, format: uuid }
         name: { type: string, example: Corte }
-        durationMinutes: { type: integer, example: 30 }
+        durationMinutes: { type: integer, minimum: 1, example: 30 }
         priceCents:
-          type: integer
-          description: Entero en céntimos, nunca coma flotante. Informativo.
+          type: [integer, 'null']
+          minimum: 1
+          description: |
+            Entero en céntimos, nunca coma flotante. Informativo. `null` es un
+            servicio sin precio (005, FR-018); nunca 0.
           example: 1800
+        priceLabel:
+          type: string
+          description: |
+            Ya redactado: "18,00 €" o "Precio a consultar en el salón". Nunca
+            "0,00 €" (005, FR-019).
+          example: 18,00 €
+
+    PriceTotal:
+      type: object
+      description: |
+        El precio total de una selección o de una cita, ya decidido por el dominio
+        y ya redactado (005, FR-020). El cliente no suma importes ni elige la frase.
+      required: [kind, knownCents, label]
+      properties:
+        kind:
+          type: string
+          enum: [ALL_PRICED, NONE_PRICED, PARTIALLY_PRICED]
+          description: |
+            `ALL_PRICED`: todos los servicios tienen precio; el total es su suma.
+            `NONE_PRICED`: ninguno lo tiene. `PARTIALLY_PRICED`: unos sí y otros no;
+            el total suma los conocidos y añade "+ precio a consultar en el salón".
+        knownCents:
+          type: [integer, 'null']
+          description: Suma de los precios conocidos. `null` si `kind` es `NONE_PRICED`.
+        label:
+          type: string
+          example: 12,00 € + precio a consultar en el salón
 
     AvailabilityResponse:
       type: object
-      required: [serviceId, range, days, selectedDate, slots, cancellationPolicyHours]
+      required:
+        [serviceIds, services, durationMinutes, range, days, selectedDate, slots,
+         cancellationPolicyHours]
       properties:
-        serviceId: { type: string, format: uuid }
+        serviceIds:
+          type: array
+          minItems: 1
+          description: Los servicios de la selección, en el orden del catálogo (005, FR-006).
+          items: { type: string, format: uuid }
+        services:
+          type: array
+          minItems: 1
+          description: |
+            Los servicios de la selección, en el orden del catálogo. Al
+            reprogramar, los snapshots de la cita (FR-024, D-011).
+          items:
+            $ref: '#/components/schemas/Service'
+        durationMinutes:
+          type: integer
+          minimum: 1
+          description: La suma de las duraciones (005, FR-007). Días y huecos se calculan con ella.
+        price:
+          $ref: '#/components/schemas/PriceTotal'
+        fitsOpeningHours:
+          type: boolean
+          description: |
+            `false` si la selección dura más que cualquier tramo de apertura del
+            salón: ningún día tendrá nunca hueco, y lo útil es quitar algún
+            servicio o llamar (005, FR-010, D-007).
         range:
           $ref: '#/components/schemas/RangeWindow'
         days:
@@ -528,9 +607,17 @@ components:
 
     BookingRequest:
       type: object
-      required: [serviceId, startsAt, customer]
+      required: [serviceIds, startsAt, customer]
+      additionalProperties: false
       properties:
-        serviceId: { type: string, format: uuid }
+        serviceIds:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          description: |
+            Los servicios de la cita. El orden no importa: la cita los guarda en
+            el orden del catálogo (005, FR-006). Sin repetidos (005, FR-003).
+          items: { type: string, format: uuid }
         startsAt:
           type: string
           format: date-time
@@ -565,7 +652,7 @@ components:
     AppointmentDetail:
       type: object
       required:
-        [view, service, date, startsLocalTime, endsLocalTime, durationMinutes,
+        [view, services, date, startsLocalTime, endsLocalTime, durationMinutes,
          startsAt, canCancel, canReschedule, salon]
       properties:
         view:
@@ -575,16 +662,24 @@ components:
             `COMPLETED` es **derivado del reloj**, no un estado persistido: una
             cita confirmada cuya hora de fin ya pasó (FR-031). No hay ningún
             proceso en segundo plano que la marque.
-        service:
-          $ref: '#/components/schemas/Service'
+        services:
+          type: array
+          minItems: 1
           description: |
-            El **snapshot** guardado al reservar, no el catálogo actual. Si el
-            salón cambia el precio o la duración, la cita conserva lo que se
-            reservó (FR-016, D-011).
+            El **snapshot** de cada servicio guardado al reservar, en el orden del
+            catálogo, no el catálogo actual. Si el salón cambia un precio o una
+            duración, la cita conserva lo que se reservó (FR-016, D-011; 005,
+            FR-014).
+          items:
+            $ref: '#/components/schemas/Service'
+        price:
+          $ref: '#/components/schemas/PriceTotal'
         date: { type: string, format: date }
         startsLocalTime: { type: string, example: '11:30' }
         endsLocalTime: { type: string, example: '13:00' }
-        durationMinutes: { type: integer }
+        durationMinutes:
+          type: integer
+          description: La suma de las duraciones de sus servicios (005, FR-007).
         startsAt: { type: string, format: date-time }
         canCancel:
           type: boolean
@@ -642,6 +737,23 @@ components:
                     example: >-
                       Escribe un teléfono español de 9 cifras, por ejemplo
                       600 11 22 33.
+
+    ServiceUnavailableError:
+      allOf:
+        - $ref: '#/components/schemas/Error'
+        - type: object
+          required: [unavailableServiceIds]
+          properties:
+            code:
+              type: string
+              const: SERVICE_UNAVAILABLE
+            unavailableServiceIds:
+              type: array
+              minItems: 1
+              description: |
+                Los servicios de la selección que han dejado de ofrecerse. El
+                cliente revisa la selección sin ellos (005, FR-015).
+              items: { type: string, format: uuid }
 
     SlotConflictError:
       allOf:

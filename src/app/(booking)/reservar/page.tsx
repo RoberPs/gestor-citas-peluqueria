@@ -48,7 +48,7 @@ export default async function BookingDetailsPage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
-  const serviceId = first(params, 'serviceId');
+  const serviceIds = first(params, 'serviceIds')?.split(',') ?? [];
   const startsAt = first(params, 'startsAt');
 
   let start: Temporal.Instant | null = null;
@@ -70,25 +70,25 @@ export default async function BookingDetailsPage({
   // One availability query, in parallel with the catalogue (D-008).
   const [catalogue, requested] = await Promise.all([
     listServices(),
-    serviceId === undefined || startDate === undefined
+    serviceIds.length === 0 || startDate === undefined
       ? null
       : getAvailability({
-          serviceId,
+          serviceIds,
           rangeStart: first(params, 'rangeStart') ?? startDate,
           selectedDate: first(params, 'selectedDate') ?? startDate,
         }),
   ]);
-  const service = catalogue.services.find((candidate) => candidate.id === serviceId);
+  const service = catalogue.services.find((candidate) => candidate.id === serviceIds[0]);
 
   // A malformed or out-of-range day falls back to the range that starts on the
   // chosen hour's day, as `/` does: never an error page for these two.
   const result =
-    requested === null || requested.ok || serviceId === undefined
+    requested === null || requested.ok
       ? requested
-      : await getAvailability({ serviceId, rangeStart: startDate, selectedDate: startDate });
+      : await getAvailability({ serviceIds, rangeStart: startDate, selectedDate: startDate });
   const availability = result?.ok ? availabilityResponse(result.value) : null;
 
-  if (service === undefined || start === null || serviceId === undefined) {
+  if (service === undefined || start === null) {
     // Reached without a slot: nothing to confirm, so the way back is offered
     // instead of an empty form.
     return (
@@ -123,11 +123,11 @@ export default async function BookingDetailsPage({
           <div className="col-main wide-only">
             <ServicePicker
               services={catalogue.services.map(serviceDto)}
-              selectedServiceId={serviceId}
+              selectedServiceId={service.id}
             />
             <DayRangePicker
               availability={availability}
-              serviceId={serviceId}
+              serviceIds={serviceIds}
               previousRangeStart={shiftRange(availability.range.start, -availability.days.length)}
               nextRangeStart={shiftRange(availability.range.end, 1)}
             />
@@ -139,7 +139,7 @@ export default async function BookingDetailsPage({
             <div className="wide-only">
               <SlotList
                 availability={availability}
-                serviceId={serviceId}
+                serviceIds={serviceIds}
                 selectedStartsAt={start.toString()}
                 live={false}
               />
@@ -178,7 +178,7 @@ export default async function BookingDetailsPage({
 
           <section aria-labelledby="form-heading">
             <h2 id="form-heading">{messages.booking.formTitle}</h2>
-            <BookingForm serviceId={serviceId} startsAt={start.toString()} />
+            <BookingForm serviceIds={serviceIds} startsAt={start.toString()} />
           </section>
 
           <p>
@@ -186,7 +186,7 @@ export default async function BookingDetailsPage({
                 at the foot of a form is the easiest one to miss on a phone. */}
             <Link
               className="button-secondary"
-              href={`/?serviceId=${serviceId}&selectedDate=${date.toString()}`}
+              href={`/?serviceIds=${serviceIds.join(',')}&selectedDate=${date.toString()}`}
             >
               {messages.common.back}
             </Link>

@@ -28,7 +28,7 @@ function appointment(overrides: Partial<Appointment> = {}): Appointment {
     status: 'CONFIRMED',
     startsAt: at('2026-09-18', '11:30'),
     endsAt: at('2026-09-18', '13:00'),
-    service: COLOR_SNAPSHOT,
+    services: [COLOR_SNAPSHOT],
     customer: { name: 'Ana', phone: '600112233', email: 'ana@example.com' },
     createdAt: at('2026-09-15', '10:00'),
     cancelledAt: null,
@@ -100,7 +100,7 @@ describe('MOVED — the appointment changes slot', () => {
     if (!result.ok || result.value.kind !== 'MOVED') throw new Error('unreachable');
     // 90 minutes, as agreed when it was booked.
     expect(result.value.appointment.endsAt.equals(at('2026-09-18', '17:30'))).toBe(true);
-    expect(result.value.appointment.service).toEqual(COLOR_SNAPSHOT);
+    expect(result.value.appointment.services).toEqual([COLOR_SNAPSHOT]);
   });
 
   it('leaves the original value untouched', () => {

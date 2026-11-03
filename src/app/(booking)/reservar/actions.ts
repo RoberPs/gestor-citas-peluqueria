@@ -52,8 +52,9 @@ export async function submitBooking(
     };
   }
 
+  const serviceIds = text(formData, 'serviceIds');
   const result = await container().confirmBooking({
-    serviceId: text(formData, 'serviceId'),
+    serviceIds: serviceIds === '' ? [] : serviceIds.split(','),
     startsAt: text(formData, 'startsAt'),
     contact: values,
   });
@@ -77,7 +78,7 @@ export async function submitBooking(
     };
   }
 
-  if (failure.kind === 'UNKNOWN_SERVICE' || failure.kind === 'INVALID_START') {
+  if (failure.kind !== 'REJECTED') {
     return { fieldErrors: {}, summaryError: messages.booking.missingSlot, values };
   }
 

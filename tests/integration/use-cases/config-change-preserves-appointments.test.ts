@@ -8,7 +8,13 @@ import type { Clock } from '@/domain/shared/clock';
 import { createAppointmentRepository } from '@/infrastructure/db/appointment-repository';
 import { createSalonConfigRepository } from '@/infrastructure/db/salon-config-repository';
 import { generate, tokenGenerator } from '@/infrastructure/security/token';
-import { closeTestDb, ensureSchema, testPool, truncateAppointments } from '../helpers/test-db';
+import {
+  closeTestDb,
+  ensureSchema,
+  insertAppointmentRow,
+  testPool,
+  truncateAppointments,
+} from '../helpers/test-db';
 import { CORTE, seedContractDatabase } from '../../contract/helpers/seed-contract-db';
 
 /**
@@ -64,16 +70,21 @@ async function insertThursdayAppointment(): Promise<{ id: string; token: string 
   const id = randomUUID();
   const { token, hash } = generate();
 
-  await testPool().query(
-    `INSERT INTO appointment (
-       id, status, starts_at, ends_at, service_id, service_name,
-       service_duration_minutes, service_price_cents,
-       customer_name, customer_phone, customer_email,
-       customer_phone_normalized, customer_email_normalized, token_hash, created_at
-     ) VALUES ($1, 'CONFIRMED', $2, $2::timestamptz + interval '30 minutes',
-               $3, 'Corte', 30, 1800, 'Ana López', '600112233', 'ana@example.com',
-               '+34600112233', 'ana@example.com', $4, now())`,
-    [id, THURSDAY_1100, CORTE, Buffer.from(hash)],
+  const startsAt = new Date(THURSDAY_1100);
+  await insertAppointmentRow(
+    {
+      id,
+      status: 'CONFIRMED',
+      starts_at: startsAt,
+      ends_at: new Date(startsAt.getTime() + 30 * 60_000),
+      customer_name: 'Ana López',
+      customer_phone: '600112233',
+      customer_email: 'ana@example.com',
+      customer_phone_normalized: '+34600112233',
+      customer_email_normalized: 'ana@example.com',
+      token_hash: Buffer.from(hash),
+    },
+    { serviceId: CORTE, name: 'Corte', durationMinutes: 30, priceCents: 1800 },
   );
 
   return { id, token };
@@ -89,7 +100,9 @@ type AppointmentState = {
 
 async function stateOf(id: string): Promise<AppointmentState | undefined> {
   const { rows } = await testPool().query<AppointmentState>(
-    'SELECT status, cancelled_at, token_hash, starts_at, service_name FROM appointment WHERE id = $1',
+    `SELECT a.status, a.cancelled_at, a.token_hash, a.starts_at, s.name AS service_name
+       FROM appointment a JOIN appointment_service s ON s.appointment_id = a.id
+      WHERE a.id = $1`,
     [id],
   );
   return rows[0];
@@ -133,12 +146,14 @@ describe('(a) a closure appears on the day of a confirmed appointment (FR-007b)'
 
     // FR-007c: the client still sees their appointment exactly as booked.
     const detail = await build().viewAppointment(token);
-    expect(detail?.appointment.service).toEqual({
-      serviceId: CORTE,
-      name: 'Corte',
-      durationMinutes: 30,
-      priceCents: 1800,
-    });
+    expect(detail?.appointment.services).toEqual([
+      {
+        serviceId: CORTE,
+        name: 'Corte',
+        durationMinutes: 30,
+        priceCents: 1800,
+      },
+    ]);
     expect(detail?.appointment.startsAt.toString()).toBe(THURSDAY_1100);
     expect(detail?.view).toBe('CONFIRMED');
   });
@@ -151,7 +166,7 @@ describe('(a) a closure appears on the day of a confirmed appointment (FR-007b)'
       [randomUUID()],
     );
 
-    const result = await build().getAvailability({ serviceId: CORTE });
+    const result = await build().getAvailability({ serviceIds: [CORTE] });
     if (!result.ok) throw new Error('unreachable');
 
     expect(result.value.days.find((day) => day.date === '2026-09-17')?.status).toBe('CLOSED');
@@ -167,7 +182,7 @@ describe('(b) the opening stretch holding the appointment is withdrawn (BR-016b)
     await testPool().query('DELETE FROM opening_interval WHERE weekday = 4');
 
     const result = await build().getAvailability({
-      serviceId: CORTE,
+      serviceIds: [CORTE],
       selectedDate: '2026-09-17',
     });
     if (!result.ok) throw new Error('unreachable');
@@ -197,7 +212,7 @@ describe('(b) the opening stretch holding the appointment is withdrawn (BR-016b)
     );
 
     const restored = await build().getAvailability({
-      serviceId: CORTE,
+      serviceIds: [CORTE],
       selectedDate: '2026-09-17',
     });
     if (!restored.ok) throw new Error('unreachable');
@@ -222,8 +237,8 @@ describe('(c) neither change writes to the appointment table', () => {
     await testPool().query('DELETE FROM opening_interval WHERE weekday = 4');
 
     // Reload the configuration through the application, twice over.
-    await build(spy.pool).getAvailability({ serviceId: CORTE });
-    await build(spy.pool).getAvailability({ serviceId: CORTE, rangeStart: '2026-09-17' });
+    await build(spy.pool).getAvailability({ serviceIds: [CORTE] });
+    await build(spy.pool).getAvailability({ serviceIds: [CORTE], rangeStart: '2026-09-17' });
 
     const writes = spy.statements.filter((sql) =>
       /^\s*(update|delete)\s/i.test(sql) && /appointment/i.test(sql),

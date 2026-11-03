@@ -34,8 +34,12 @@ export function longDateLabel(isoDate: string): string {
   return `${weekdayLongLabel(weekday)} ${date.day} de ${monthLabel(isoDate)}`;
 }
 
-/** Cents to `18,00 €`. Money is an integer everywhere except on screen. */
-export function priceLabel(cents: number): string {
+/**
+ * Cents to `18,00 €`. Money is an integer everywhere except on screen.
+ * A service with no price says so in words, never as `0,00 €` (FR-019).
+ */
+export function priceLabel(cents: number | null): string {
+  if (cents === null) return messages.common.priceOnRequest;
   return `${(cents / 100).toFixed(2).replace('.', ',')} €`;
 }
 

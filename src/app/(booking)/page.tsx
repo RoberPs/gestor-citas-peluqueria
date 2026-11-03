@@ -50,19 +50,20 @@ export default async function BookingPage({
     );
   }
 
-  const requestedServiceId = first(params, 'serviceId');
-  const serviceId =
-    services.find((service) => service.id === requestedServiceId)?.id ?? fallbackService.id;
+  const requestedIds = first(params, 'serviceIds')?.split(',') ?? [];
+  const serviceIds = [
+    services.find((service) => requestedIds.includes(service.id))?.id ?? fallbackService.id,
+  ];
 
   const requested = await getAvailability({
-    serviceId,
+    serviceIds,
     rangeStart: first(params, 'rangeStart'),
     selectedDate: first(params, 'selectedDate'),
   });
 
   // Out-of-bounds dates fall back to the default range rather than dead-ending
   // the client on an error page.
-  const result = requested.ok ? requested : await getAvailability({ serviceId });
+  const result = requested.ok ? requested : await getAvailability({ serviceIds });
 
   if (!result.ok) {
     return (
@@ -100,18 +101,18 @@ export default async function BookingPage({
         )}
 
         <div className="col-main">
-          <ServicePicker services={services} selectedServiceId={serviceId} />
+          <ServicePicker services={services} selectedServiceId={serviceIds[0] ?? ''} />
 
           <DayRangePicker
             availability={availability}
-            serviceId={serviceId}
+            serviceIds={serviceIds}
             previousRangeStart={shiftRange(availability.range.start, -rangeLength)}
             nextRangeStart={shiftRange(availability.range.end, 1)}
           />
         </div>
 
         <div className="col-side">
-          <SlotList availability={availability} serviceId={serviceId} />
+          <SlotList availability={availability} serviceIds={serviceIds} />
           <p className="muted wide-only">{messages.availability.chooseHourHint}</p>
         </div>
       </main>

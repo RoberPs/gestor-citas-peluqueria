@@ -30,7 +30,7 @@ export function ServicePicker({
             <button
               key={service.id}
               type="submit"
-              name="serviceId"
+              name="serviceIds"
               value={service.id}
               className={isSelected ? 'service-option is-selected' : 'service-option'}
               aria-pressed={isSelected}

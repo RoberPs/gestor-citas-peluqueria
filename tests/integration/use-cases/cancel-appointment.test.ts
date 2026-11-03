@@ -41,7 +41,7 @@ let useCases: ReturnType<typeof build>;
 
 async function book(): Promise<string> {
   const result = await useCases.confirmBooking({
-    serviceId: CORTE,
+    serviceIds: [CORTE],
     startsAt: FRIDAY_1130,
     contact: { name: 'Ana López', phone: '600112233', email: 'ana@example.com' },
   });
@@ -51,7 +51,7 @@ async function book(): Promise<string> {
 
 async function slotsOnFriday(): Promise<readonly string[]> {
   const availability = await useCases.getAvailability({
-    serviceId: CORTE,
+    serviceIds: [CORTE],
     selectedDate: '2026-09-18',
   });
   if (!availability.ok) throw new Error('availability was rejected');
@@ -99,7 +99,7 @@ describe('cancelling', () => {
     await useCases.cancelAppointment(token);
 
     const other = await useCases.confirmBooking({
-      serviceId: CORTE,
+      serviceIds: [CORTE],
       startsAt: FRIDAY_1130,
       contact: { name: 'Otro', phone: '700112233', email: 'otro@example.com' },
     });
@@ -112,7 +112,8 @@ describe('cancelling', () => {
     await useCases.cancelAppointment(token);
 
     const { rows } = await testPool().query<{ status: string; service_name: string }>(
-      'SELECT status, service_name FROM appointment',
+      `SELECT a.status, s.name AS service_name
+         FROM appointment a JOIN appointment_service s ON s.appointment_id = a.id`,
     );
 
     expect(rows).toHaveLength(1);

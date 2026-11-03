@@ -1,11 +1,13 @@
 import { Temporal } from '@js-temporal/polyfill';
-import { and, asc, eq, gte, isNotNull, lt } from 'drizzle-orm';
+import { and, asc, eq, getTableColumns, gte, isNotNull, lt, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import type { Pool } from 'pg';
 import type { AppointmentRepository, NewAppointment } from '@/application/ports';
 import type { Appointment, BusyInterval } from '@/domain/booking/appointment';
+import type { NonEmptyServiceList } from '@/domain/catalog/selection';
+import type { ServiceSnapshot } from '@/domain/catalog/service';
 import { err, ok, type Result } from '@/domain/shared/result';
-import { appointment, schema } from './schema';
+import { appointment, appointmentService, schema } from './schema';
 
 /**
  * The only place that knows this feature stores anything in PostgreSQL.
@@ -20,6 +22,27 @@ const EXCLUSION_VIOLATION = '23P01';
 
 type AppointmentRow = typeof appointment.$inferSelect;
 
+/**
+ * The appointment's services as one JSON array, in position order, computed in
+ * the same statement that reads the appointment (D-011). One appointment is one
+ * query; the owner's agenda in 002 inherits a pattern with no N+1 in it.
+ */
+const servicesOfAppointment = sql<ServiceSnapshot[] | null>`(
+  SELECT json_agg(
+           json_build_object(
+             'serviceId', ${appointmentService.serviceId},
+             'name', ${appointmentService.name},
+             'durationMinutes', ${appointmentService.durationMinutes},
+             'priceCents', ${appointmentService.priceCents}
+           ) ORDER BY ${appointmentService.position})
+    FROM ${appointmentService}
+   WHERE ${appointmentService.appointmentId} = ${appointment.id}
+)`;
+
+const withServices = { ...getTableColumns(appointment), services: servicesOfAppointment };
+
+type AppointmentWithServices = AppointmentRow & { readonly services: ServiceSnapshot[] | null };
+
 function instantOf(value: Date): Temporal.Instant {
   return Temporal.Instant.fromEpochMilliseconds(value.getTime());
 }
@@ -28,18 +51,21 @@ function dateOf(instant: Temporal.Instant): Date {
   return new Date(instant.epochMilliseconds);
 }
 
-function toDomain(row: AppointmentRow): Appointment {
+function nonEmpty(services: readonly ServiceSnapshot[] | null, id: string): NonEmptyServiceList {
+  const [first, ...rest] = services ?? [];
+  // Every write goes through `insert`, which stores both in one transaction.
+  // Reaching this is a broken database, not a case for the client.
+  if (first === undefined) throw new Error(`Appointment ${id} has no services`);
+  return [first, ...rest];
+}
+
+function toDomain(row: AppointmentWithServices): Appointment {
   return {
     id: row.id,
     status: row.status,
     startsAt: instantOf(row.startsAt),
     endsAt: instantOf(row.endsAt),
-    service: {
-      serviceId: row.serviceId,
-      name: row.serviceName,
-      durationMinutes: row.serviceDurationMinutes,
-      priceCents: row.servicePriceCents,
-    },
+    services: nonEmpty(row.services, row.id),
     // Anonymised rows keep the slot and lose the person (BR-018). The three
     // fields go together, so testing one is enough — the database enforces it.
     customer:
@@ -62,7 +88,7 @@ export function createAppointmentRepository(getPool: () => Pool): AppointmentRep
   return {
     async findByTokenHash(hash) {
       const rows = await database()
-        .select()
+        .select(withServices)
         .from(appointment)
         .where(and(eq(appointment.tokenHash, Buffer.from(hash)), isNotNull(appointment.tokenHash)))
         .limit(1);
@@ -112,32 +138,44 @@ export function createAppointmentRepository(getPool: () => Pool): AppointmentRep
 
     async insert(input: NewAppointment): Promise<Result<Appointment, 'SLOT_TAKEN'>> {
       try {
-        const rows = await database()
-          .insert(appointment)
-          .values({
-            id: input.id,
-            status: 'CONFIRMED',
-            startsAt: dateOf(input.startsAt),
-            endsAt: dateOf(input.endsAt),
-            serviceId: input.service.serviceId,
-            serviceName: input.service.name,
-            serviceDurationMinutes: input.service.durationMinutes,
-            servicePriceCents: input.service.priceCents,
-            customerName: input.contact.name,
-            // What the client typed is kept: it is what the owner reads out
-            // when calling. The canonical form is what the count matches on.
-            customerPhone: input.contact.phone,
-            customerEmail: input.contact.email,
-            customerPhoneNormalized: input.contact.normalizedPhone,
-            customerEmailNormalized: input.contact.normalizedEmail,
-            tokenHash: Buffer.from(input.tokenHash),
-            createdAt: dateOf(input.createdAt),
-          })
-          .returning();
+        // One transaction: if the exclusion constraint refuses the appointment,
+        // no service row is left behind without it (D-011).
+        const row = await database().transaction(async (tx) => {
+          const inserted = await tx
+            .insert(appointment)
+            .values({
+              id: input.id,
+              status: 'CONFIRMED',
+              startsAt: dateOf(input.startsAt),
+              endsAt: dateOf(input.endsAt),
+              customerName: input.contact.name,
+              // What the client typed is kept: it is what the owner reads out
+              // when calling. The canonical form is what the count matches on.
+              customerPhone: input.contact.phone,
+              customerEmail: input.contact.email,
+              customerPhoneNormalized: input.contact.normalizedPhone,
+              customerEmailNormalized: input.contact.normalizedEmail,
+              tokenHash: Buffer.from(input.tokenHash),
+              createdAt: dateOf(input.createdAt),
+            })
+            .returning();
 
-        const row = rows[0];
+          await tx.insert(appointmentService).values(
+            input.services.map((service, index) => ({
+              appointmentId: input.id,
+              position: index + 1,
+              serviceId: service.serviceId,
+              name: service.name,
+              durationMinutes: service.durationMinutes,
+              priceCents: service.priceCents,
+            })),
+          );
+
+          return inserted[0];
+        });
+
         if (row === undefined) throw new Error('INSERT ... RETURNING produced no row');
-        return ok(toDomain(row));
+        return ok(toDomain({ ...row, services: [...input.services] }));
       } catch (error) {
         if (isExclusionViolation(error)) return err('SLOT_TAKEN');
         throw error;
@@ -153,7 +191,7 @@ export function createAppointmentRepository(getPool: () => Pool): AppointmentRep
           .update(appointment)
           .set({ startsAt: dateOf(start), endsAt: dateOf(end) })
           .where(and(eq(appointment.id, id), eq(appointment.status, 'CONFIRMED')))
-          .returning();
+          .returning(withServices);
 
         const row = rows[0];
         if (row === undefined) throw new Error(`Appointment ${id} is not confirmed`);
@@ -171,7 +209,7 @@ export function createAppointmentRepository(getPool: () => Pool): AppointmentRep
         .update(appointment)
         .set({ status: 'CANCELLED', cancelledAt: dateOf(at) })
         .where(and(eq(appointment.id, id), eq(appointment.status, 'CONFIRMED')))
-        .returning();
+        .returning(withServices);
 
       const row = rows[0];
       return row === undefined ? err('ALREADY_CANCELLED') : ok(toDomain(row));

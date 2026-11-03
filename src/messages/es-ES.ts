@@ -40,6 +40,8 @@ export const messages = {
       'diciembre',
     ],
     minutesSuffix: 'min',
+    /** FR-019: a service with no price yet. Never "0,00 €", which reads as free. */
+    priceOnRequest: 'Precio a consultar en el salón',
     loading: 'Cargando…',
     back: 'Volver',
   },
@@ -208,6 +210,11 @@ export const messages = {
     unknownService: {
       message: 'Ese servicio ya no está disponible.',
       nextAction: 'Elige otro servicio del catálogo para ver sus horas libres.',
+    },
+    /** 005, FR-004: no days or hours until at least one service is chosen. */
+    emptySelection: {
+      message: 'No has elegido ningún servicio.',
+      nextAction: 'Elige al menos un servicio para ver los días y las horas libres.',
     },
     rangeOutOfBounds: {
       message: 'Esas fechas están fuera de la agenda abierta.',

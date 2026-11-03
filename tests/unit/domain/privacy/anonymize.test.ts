@@ -16,7 +16,7 @@ function appointment(overrides: Partial<Appointment> = {}): Appointment {
     status: 'CONFIRMED',
     startsAt: at('2026-09-18', '11:30'),
     endsAt: at('2026-09-18', '12:00'),
-    service: { serviceId: 's1', name: 'Corte', durationMinutes: 30, priceCents: 1800 },
+    services: [{ serviceId: 's1', name: 'Corte', durationMinutes: 30, priceCents: 1800 }],
     customer: { name: 'Ana López', phone: '600112233', email: 'ana@example.com' },
     createdAt: at('2026-09-15', '10:00'),
     cancelledAt: null,
@@ -54,7 +54,7 @@ describe('anonymize — what stays (FR-035a)', () => {
 
     const result = anonymize(original, at('2027-09-18', '03:30'));
 
-    expect(result.service).toEqual(original.service);
+    expect(result.services).toEqual(original.services);
   });
 
   it('keeps the slot and the status', () => {

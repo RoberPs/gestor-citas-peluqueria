@@ -25,13 +25,14 @@ const STATUS = {
 
 export function DayRangePicker({
   availability,
-  serviceId,
+  serviceIds,
   previousRangeStart,
   nextRangeStart,
   action = '/',
 }: {
   readonly availability: AvailabilityDto;
-  readonly serviceId: string;
+  /** The selection in view, carried by every choice made here (005, D-004). */
+  readonly serviceIds: readonly string[];
   readonly previousRangeStart: string;
   readonly nextRangeStart: string;
   /** The screen the grid navigates within. Rescheduling reuses it on its own. */
@@ -44,7 +45,7 @@ export function DayRangePicker({
       <h2 id="day-heading">{messages.availability.daySectionTitle}</h2>
 
       <NavForm action={action}>
-        <input type="hidden" name="serviceId" value={serviceId} />
+        <input type="hidden" name="serviceIds" value={serviceIds.join(',')} />
         <input type="hidden" name="rangeStart" value={range.start} />
 
         <ul className="day-grid" aria-label={messages.availability.dayGridLabel}>
@@ -57,7 +58,7 @@ export function DayRangePicker({
       </NavForm>
 
       <NavForm action={action} className="range-nav">
-        <input type="hidden" name="serviceId" value={serviceId} />
+        <input type="hidden" name="serviceIds" value={serviceIds.join(',')} />
 
         <button
           type="submit"

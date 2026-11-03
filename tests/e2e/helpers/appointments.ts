@@ -25,7 +25,7 @@ export async function resetAppointments(): Promise<void> {
   }
 
   pool ??= new Pool({ connectionString, max: 2 });
-  await pool.query('TRUNCATE appointment RESTART IDENTITY');
+  await pool.query('TRUNCATE appointment, appointment_service RESTART IDENTITY');
 }
 
 export async function closeAppointmentsPool(): Promise<void> {
@@ -64,16 +64,22 @@ export async function seedAppointment(options: {
   const connectionString = process.env['DATABASE_URL_TEST'] ?? '';
   pool ??= new Pool({ connectionString, max: 2 });
 
+  // The appointment and its one service row, in one statement (005, D-001).
   await pool.query(
-    `INSERT INTO appointment (
-       id, status, starts_at, ends_at, service_id, service_name,
-       service_duration_minutes, service_price_cents,
-       customer_name, customer_phone, customer_email,
-       customer_phone_normalized, customer_email_normalized,
-       token_hash, created_at, cancelled_at
-     ) VALUES (gen_random_uuid(), $1, $2, $3, $4, 'Corte', $5, 1800,
-               'Ana López', '600112233', 'ana@example.com',
-               '+34600112233', 'ana@example.com', $6, now(), $7)`,
+    `WITH inserted AS (
+       INSERT INTO appointment (
+         id, status, starts_at, ends_at,
+         customer_name, customer_phone, customer_email,
+         customer_phone_normalized, customer_email_normalized,
+         token_hash, created_at, cancelled_at
+       ) VALUES (gen_random_uuid(), $1, $2, $3,
+                 'Ana López', '600112233', 'ana@example.com',
+                 '+34600112233', 'ana@example.com', $6, now(), $7)
+       RETURNING id
+     )
+     INSERT INTO appointment_service
+       (appointment_id, position, service_id, name, duration_minutes, price_cents)
+     SELECT id, 1, $4, 'Corte', $5, 1800 FROM inserted`,
     [
       status,
       options.startsAt,

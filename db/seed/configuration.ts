@@ -25,7 +25,8 @@ export type SalonConfiguration = {
     readonly id: string;
     readonly name: string;
     readonly minutes: number;
-    readonly cents: number;
+    /** `null` is "no price yet", shown as "Precio a consultar en el salón" (005, D-002). */
+    readonly cents: number | null;
     readonly order: number;
   }[];
   readonly closures: readonly { readonly id: string; readonly date: string; readonly reason: string }[];

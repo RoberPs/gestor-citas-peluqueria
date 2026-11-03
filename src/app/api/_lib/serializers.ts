@@ -1,11 +1,12 @@
 import type { AvailabilityView } from '@/application/use-cases/get-availability';
 import type { AppointmentDetail } from '@/application/use-cases/view-appointment';
+import { durationOf } from '@/domain/booking/appointment';
 import type { ModificationBlock } from '@/domain/booking/modification-rules';
 import type { Salon } from '@/domain/catalog/salon';
-import type { Service } from '@/domain/catalog/service';
+import { snapshotOf, type Service, type ServiceSnapshot } from '@/domain/catalog/service';
 import { formatIsoDate, formatLocalTime, localDateOf } from '@/domain/shared/time';
 import { messages, withPhone } from '@/messages/es-ES';
-import { dayLabel, weekdayLabel } from '../../_lib/format';
+import { dayLabel, priceLabel, weekdayLabel } from '../../_lib/format';
 
 /**
  * Domain and use-case types turned into the wire shapes of
@@ -38,21 +39,33 @@ export type ServiceDto = {
   readonly id: string;
   readonly name: string;
   readonly durationMinutes: number;
-  readonly priceCents: number;
+  readonly priceCents: number | null;
+  /** Already written out, so no screen formats cents or decides "no price" (FR-019). */
+  readonly priceLabel: string;
 };
 
-export function serviceDto(service: Service): ServiceDto {
+/** A service as booked: the snapshot an appointment or a selection carries. */
+export function snapshotDto(service: ServiceSnapshot): ServiceDto {
   return {
-    id: service.id,
+    id: service.serviceId,
     name: service.name,
     durationMinutes: service.durationMinutes,
     priceCents: service.priceCents,
+    priceLabel: priceLabel(service.priceCents),
   };
 }
 
+export function serviceDto(service: Service): ServiceDto {
+  return snapshotDto(snapshotOf(service));
+}
+
 export function availabilityResponse(view: AvailabilityView) {
+  const { selection } = view;
+
   return {
-    serviceId: view.serviceId,
+    serviceIds: selection.services.map((service) => service.serviceId),
+    services: selection.services.map(snapshotDto),
+    durationMinutes: selection.durationMinutes,
     range: view.range,
     days: view.days.map((day) => ({
       date: day.date,
@@ -102,16 +115,11 @@ export function appointmentDetailResponse(detail: AppointmentDetail) {
 
   return {
     view: detail.view,
-    service: {
-      id: appointment.service.serviceId,
-      name: appointment.service.name,
-      durationMinutes: appointment.service.durationMinutes,
-      priceCents: appointment.service.priceCents,
-    },
+    services: appointment.services.map(snapshotDto),
     date: formatIsoDate(localDateOf(appointment.startsAt, timezone)),
     startsLocalTime: formatLocalTime(appointment.startsAt, timezone),
     endsLocalTime: formatLocalTime(appointment.endsAt, timezone),
-    durationMinutes: appointment.service.durationMinutes,
+    durationMinutes: durationOf(appointment),
     startsAt: appointment.startsAt.toString(),
     canCancel: detail.canCancel,
     canReschedule: detail.canReschedule,

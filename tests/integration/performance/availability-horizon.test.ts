@@ -25,7 +25,7 @@ const HISTORY_BEFORE = new Date(CONTRACT_NOW.epochMilliseconds);
 
 function request(): Request {
   const url = new URL('http://localhost/api/availability');
-  url.searchParams.set('serviceId', CORTE);
+  url.searchParams.set('serviceIds', CORTE);
   return new Request(url);
 }
 

@@ -23,10 +23,10 @@ import { messages } from '@/messages/es-ES';
  * typed is lost (003, FR-009). After a rejected attempt the server's values win.
  */
 export function BookingForm({
-  serviceId,
+  serviceIds,
   startsAt,
 }: {
-  readonly serviceId: string;
+  readonly serviceIds: readonly string[];
   readonly startsAt: string;
 }) {
   const [state, action, pending] = useActionState<BookingFormState, FormData>(
@@ -37,7 +37,7 @@ export function BookingForm({
 
   return (
     <form action={action} noValidate>
-      <input type="hidden" name="serviceId" value={serviceId} />
+      <input type="hidden" name="serviceIds" value={serviceIds.join(',')} />
       <input type="hidden" name="startsAt" value={startsAt} />
 
       <div aria-live="polite">

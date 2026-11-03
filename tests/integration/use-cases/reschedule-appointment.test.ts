@@ -43,12 +43,12 @@ let useCases: ReturnType<typeof build>;
 
 async function book(
   startsAt = FRIDAY_1130,
-  serviceId = COLOR,
+  serviceId: string = COLOR,
   phone = '600112233',
   email = 'ana@example.com',
 ): Promise<string> {
   const result = await useCases.confirmBooking({
-    serviceId,
+    serviceIds: [serviceId],
     startsAt,
     contact: { name: 'Ana López', phone, email },
   });
@@ -101,7 +101,7 @@ describe('a move that goes through', () => {
     await useCases.rescheduleAppointment(token, FRIDAY_1600);
 
     const other = await useCases.confirmBooking({
-      serviceId: COLOR,
+      serviceIds: [COLOR],
       startsAt: FRIDAY_1130,
       contact: { name: 'Otro', phone: '700112233', email: 'otro@example.com' },
     });
@@ -132,7 +132,7 @@ describe('a move that goes through', () => {
 
     if (!result.ok) throw new Error('unreachable');
     const { appointment } = result.value.detail;
-    expect(appointment.service.name).toBe('Color');
+    expect(appointment.services[0].name).toBe('Color');
     expect(appointment.endsAt.since(appointment.startsAt).total('minutes')).toBe(90);
   });
 });
@@ -156,7 +156,7 @@ describe('the new slot is taken in between (FR-025, BR-006)', () => {
 
     // Somebody else takes 16:00 while the client is still choosing.
     const other = await useCases.confirmBooking({
-      serviceId: CORTE,
+      serviceIds: [CORTE],
       startsAt: FRIDAY_1600,
       contact: { name: 'Otro', phone: '700112233', email: 'otro@example.com' },
     });

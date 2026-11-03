@@ -51,5 +51,48 @@ export async function closeTestDb(): Promise<void> {
  * closures are loaded once and read from then on (FR-007).
  */
 export async function truncateAppointments(): Promise<void> {
-  await testPool().query('TRUNCATE appointment RESTART IDENTITY');
+  await testPool().query('TRUNCATE appointment, appointment_service RESTART IDENTITY');
+}
+
+/** The service an appointment written by hand is booked with, as its snapshot. */
+export type ServiceRow = {
+  readonly serviceId: string;
+  readonly name: string;
+  readonly durationMinutes: number;
+  readonly priceCents: number | null;
+};
+
+/**
+ * Writes one appointment straight into the database, with the one service row
+ * every appointment has (005, D-001), in a single statement.
+ *
+ * `appointment` maps the columns of `appointment` to their values. Tests that
+ * check a constraint bypass the application on purpose: a guarantee that only
+ * holds because the application is careful is not one.
+ */
+export async function insertAppointmentRow(
+  appointment: Readonly<Record<string, unknown>>,
+  service: ServiceRow,
+): Promise<void> {
+  const columns = Object.keys(appointment);
+  const next = columns.length;
+
+  await testPool().query(
+    `WITH inserted AS (
+       INSERT INTO appointment (${columns.join(', ')})
+       VALUES (${columns.map((_, index) => `$${index + 1}`).join(', ')})
+       RETURNING id
+     )
+     INSERT INTO appointment_service
+       (appointment_id, position, service_id, name, duration_minutes, price_cents)
+     SELECT id, 1, $${next + 1}::uuid, $${next + 2}::text, $${next + 3}::integer, $${next + 4}::integer
+       FROM inserted`,
+    [
+      ...Object.values(appointment),
+      service.serviceId,
+      service.name,
+      service.durationMinutes,
+      service.priceCents,
+    ],
+  );
 }

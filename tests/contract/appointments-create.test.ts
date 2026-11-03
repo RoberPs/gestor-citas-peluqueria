@@ -42,7 +42,7 @@ function bookingRequest(body: unknown): Request {
 
 function validBody(overrides: Record<string, unknown> = {}) {
   return {
-    serviceId: CORTE,
+    serviceIds: [CORTE],
     startsAt: FRIDAY_1130,
     customer: { name: 'Ana López', phone: '600 11 22 33', email: 'ana@example.com' },
     ...overrides,
@@ -134,7 +134,7 @@ describe('400 — contact data to correct (FR-009)', () => {
   });
 
   it('rejects a service that is not on offer', async () => {
-    const response = await POST(bookingRequest(validBody({ serviceId: randomUUID() })));
+    const response = await POST(bookingRequest(validBody({ serviceIds: [randomUUID()] })));
 
     expect(response.status).toBe(400);
     expectMatchesContract(validationSchema, await response.json());

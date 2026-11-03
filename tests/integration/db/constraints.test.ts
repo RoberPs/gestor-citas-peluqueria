@@ -1,6 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { closeTestDb, ensureSchema, testPool, truncateAll } from '../helpers/test-db';
+import {
+  closeTestDb,
+  ensureSchema,
+  insertAppointmentRow,
+  testPool,
+  truncateAll,
+} from '../helpers/test-db';
 
 /**
  * These constraints are the feature's guarantees, not decoration. They are
@@ -39,29 +45,22 @@ async function insertAppointment(overrides: AppointmentOverrides = {}): Promise<
     anonymizedAt = null,
   } = overrides;
 
-  await testPool().query(
-    `INSERT INTO appointment (
-       id, status, starts_at, ends_at,
-       service_id, service_name, service_duration_minutes, service_price_cents,
-       customer_name, customer_phone, customer_email,
-       customer_phone_normalized, customer_email_normalized,
-       token_hash, cancelled_at, anonymized_at
-     ) VALUES ($1,$2,$3,$4,$5,'Corte',90,1800,$6,$7,$8,$9,$10,$11,$12,$13)`,
-    [
-      randomUUID(),
+  await insertAppointmentRow(
+    {
+      id: randomUUID(),
       status,
-      startsAt,
-      endsAt,
-      SERVICE_ID,
-      customerName,
-      customerPhone,
-      customerEmail,
-      customerPhoneNormalized,
-      customerEmailNormalized,
-      tokenHash,
-      cancelledAt,
-      anonymizedAt,
-    ],
+      starts_at: startsAt,
+      ends_at: endsAt,
+      customer_name: customerName,
+      customer_phone: customerPhone,
+      customer_email: customerEmail,
+      customer_phone_normalized: customerPhoneNormalized,
+      customer_email_normalized: customerEmailNormalized,
+      token_hash: tokenHash,
+      cancelled_at: cancelledAt,
+      anonymized_at: anonymizedAt,
+    },
+    { serviceId: SERVICE_ID, name: 'Corte', durationMinutes: 90, priceCents: 1800 },
   );
 }
 
@@ -253,7 +252,8 @@ describe('appointment_anonymization_is_atomic (BR-018)', () => {
     expect(code).toBeUndefined();
 
     const { rows } = await testPool().query<{ service_name: string; status: string }>(
-      'SELECT service_name, status FROM appointment',
+      `SELECT s.name AS service_name, a.status
+         FROM appointment a JOIN appointment_service s ON s.appointment_id = a.id`,
     );
 
     expect(rows).toHaveLength(1);

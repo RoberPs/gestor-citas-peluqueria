@@ -35,7 +35,7 @@ let useCases: ReturnType<typeof build>;
 
 async function bookColor(): Promise<string> {
   const result = await useCases.confirmBooking({
-    serviceId: COLOR,
+    serviceIds: [COLOR],
     startsAt: FRIDAY_1130,
     contact: { name: 'Ana López', phone: '600112233', email: 'ana@example.com' },
   });
@@ -109,12 +109,14 @@ describe('what the link shows', () => {
     // A fresh use case, so nothing is being served from a warm cache.
     const detail = await build().viewAppointment(token);
 
-    expect(detail?.appointment.service).toEqual({
-      serviceId: COLOR,
-      name: 'Color',
-      durationMinutes: 90,
-      priceCents: 5500,
-    });
+    expect(detail?.appointment.services).toEqual([
+      {
+        serviceId: COLOR,
+        name: 'Color',
+        durationMinutes: 90,
+        priceCents: 5500,
+      },
+    ]);
   });
 
   it('carries the salon details every screen shows (FR-014)', async () => {
@@ -140,7 +142,7 @@ describe('the link gives access to that appointment and no other (BR-009)', () =
   it('never returns another client appointment', async () => {
     const mine = await bookColor();
     const theirs = await useCases.confirmBooking({
-      serviceId: COLOR,
+      serviceIds: [COLOR],
       startsAt: '2026-09-18T12:00:00Z',
       contact: { name: 'Otro', phone: '700112233', email: 'otro@example.com' },
     });

@@ -41,7 +41,7 @@ async function book(
     new Request('http://localhost/api/appointments', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ serviceId, startsAt, customer }),
+      body: JSON.stringify({ serviceIds: [serviceId], startsAt, customer }),
     }),
   );
 
@@ -90,16 +90,16 @@ describe('GET /api/appointments/{token}/availability', () => {
     expectMatchesContract(availabilitySchema, await response.json());
   });
 
-  it('forces the service of the appointment: it takes no serviceId (FR-024)', async () => {
+  it('forces the services of the appointment: it takes no serviceIds (FR-024)', async () => {
     const token = await book(FRIDAY_1130, COLOR);
 
-    const body = (await (await availabilityFor(token, { serviceId: CORTE })).json()) as {
-      serviceId: string;
+    const body = (await (await availabilityFor(token, { serviceIds: CORTE })).json()) as {
+      serviceIds: string[];
       slots: { localTime: string; endsLocalTime: string }[];
     };
 
     // The query parameter is ignored: Color it was and Color it stays.
-    expect(body.serviceId).toBe(COLOR);
+    expect(body.serviceIds).toEqual([COLOR]);
     // 90 minutes, the frozen duration, not the 30 of Corte.
     expect(body.slots[0]?.endsLocalTime).not.toBe(body.slots[0]?.localTime);
   });

@@ -1,6 +1,6 @@
 import type { Temporal } from '@js-temporal/polyfill';
 import type { Weekday } from '../catalog/salon';
-import type { ServiceSnapshot } from '../catalog/service';
+import { durationOfServices, type NonEmptyServiceList } from '../catalog/selection';
 
 export type AppointmentId = string;
 
@@ -25,15 +25,24 @@ export type Appointment = {
   readonly id: AppointmentId;
   readonly status: AppointmentStatus;
   readonly startsAt: Temporal.Instant;
-  /** Derived from the snapshot duration when the appointment was confirmed. */
+  /** The start plus the total duration of its services, fixed when confirmed. */
   readonly endsAt: Temporal.Instant;
-  readonly service: ServiceSnapshot;
+  /** One or more, in catalogue order, each frozen as it was when booked (FR-014). */
+  readonly services: NonEmptyServiceList;
   /** `null` once anonymised (BR-018): the type forces every reader to cope. */
   readonly customer: CustomerContact | null;
   readonly createdAt: Temporal.Instant;
   readonly cancelledAt: Temporal.Instant | null;
   readonly anonymizedAt: Temporal.Instant | null;
 };
+
+/**
+ * How long the appointment holds the chair: the sum of its services (FR-007),
+ * from their snapshots and not from today's catalogue (D-008).
+ */
+export function durationOf(appointment: Appointment): number {
+  return durationOfServices(appointment.services);
+}
 
 /** A stretch of the single chair already taken by a confirmed appointment. */
 export type BusyInterval = {

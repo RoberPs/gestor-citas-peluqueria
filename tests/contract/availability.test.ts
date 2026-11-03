@@ -20,7 +20,7 @@ function request(query: Record<string, string>): Request {
 }
 
 type AvailabilityBody = {
-  serviceId: string;
+  serviceIds: string[];
   range: { start: string; end: string; canGoBack: boolean; canGoForward: boolean };
   days: { date: string; status: string; slotCount: number; weekdayLabel: string; dayLabel: string }[];
   selectedDate: string;
@@ -51,14 +51,14 @@ beforeEach(async () => {
 
 describe('GET /api/availability — the shape of AvailabilityResponse', () => {
   it('answers 200 with a body shaped like the contract', async () => {
-    const response = await GET(request({ serviceId: CORTE }));
+    const response = await GET(request({ serviceIds: CORTE }));
 
     expect(response.status).toBe(200);
     expectMatchesContract(okSchema, await response.json());
   });
 
   it('answers range, days and slots in one response (FR-005, FR-005a, FR-006)', async () => {
-    const { body } = await availability({ serviceId: CORTE });
+    const { body } = await availability({ serviceIds: CORTE });
 
     expect(body.days).toHaveLength(14);
     expect(body.range.start).toBe('2026-09-15');
@@ -69,7 +69,7 @@ describe('GET /api/availability — the shape of AvailabilityResponse', () => {
   });
 
   it('labels each day so the client does no date arithmetic (FR-033)', async () => {
-    const { body } = await availability({ serviceId: CORTE });
+    const { body } = await availability({ serviceIds: CORTE });
     const friday = body.days.find((day) => day.date === '2026-09-18');
 
     expect(friday?.dayLabel).toBe('18');
@@ -77,13 +77,13 @@ describe('GET /api/availability — the shape of AvailabilityResponse', () => {
   });
 
   it('marks Sunday CLOSED and never FULL', async () => {
-    const { body } = await availability({ serviceId: CORTE });
+    const { body } = await availability({ serviceIds: CORTE });
 
     expect(body.days.find((day) => day.date === '2026-09-20')?.status).toBe('CLOSED');
   });
 
   it('formats slot times as HH:mm in the salon clock', async () => {
-    const { body } = await availability({ serviceId: CORTE, selectedDate: '2026-09-18' });
+    const { body } = await availability({ serviceIds: CORTE, selectedDate: '2026-09-18' });
 
     expect(body.slots[0]?.localTime).toBe('10:00');
     expect(body.slots[0]?.endsLocalTime).toBe('10:30');
@@ -93,14 +93,14 @@ describe('GET /api/availability — the shape of AvailabilityResponse', () => {
 
 describe('canGoBack and canGoForward at the ends (escenarios 9 y 10)', () => {
   it('cannot go back from the first range, which starts today', async () => {
-    const { body } = await availability({ serviceId: CORTE });
+    const { body } = await availability({ serviceIds: CORTE });
 
     expect(body.range.canGoBack).toBe(false);
     expect(body.range.canGoForward).toBe(true);
   });
 
   it('cannot go forward from the range that reaches the horizon', async () => {
-    const { body } = await availability({ serviceId: CORTE, rangeStart: '2026-11-10' });
+    const { body } = await availability({ serviceIds: CORTE, rangeStart: '2026-11-10' });
 
     expect(body.range.end).toBe('2026-11-14');
     expect(body.range.canGoForward).toBe(false);
@@ -108,7 +108,7 @@ describe('canGoBack and canGoForward at the ends (escenarios 9 y 10)', () => {
   });
 
   it('trims the last range to day 60 instead of overrunning it', async () => {
-    const { body } = await availability({ serviceId: CORTE, rangeStart: '2026-11-10' });
+    const { body } = await availability({ serviceIds: CORTE, rangeStart: '2026-11-10' });
 
     expect(body.days).toHaveLength(5);
   });
@@ -116,13 +116,13 @@ describe('canGoBack and canGoForward at the ends (escenarios 9 y 10)', () => {
 
 describe('400 responses', () => {
   it('rejects a service that does not exist, with an Error shaped like the contract', async () => {
-    const response = await GET(request({ serviceId: randomUUID() }));
+    const response = await GET(request({ serviceIds: randomUUID() }));
 
     expect(response.status).toBe(400);
     expectMatchesContract(errorSchema, await response.json());
   });
 
-  it('rejects a missing serviceId', async () => {
+  it('rejects a missing serviceIds', async () => {
     const response = await GET(request({}));
 
     expect(response.status).toBe(400);
@@ -130,19 +130,19 @@ describe('400 responses', () => {
   });
 
   it('rejects a range that starts before today', async () => {
-    const response = await GET(request({ serviceId: CORTE, rangeStart: '2026-09-14' }));
+    const response = await GET(request({ serviceIds: CORTE, rangeStart: '2026-09-14' }));
 
     expect(response.status).toBe(400);
   });
 
   it('rejects a range beyond the 60 day horizon', async () => {
-    const response = await GET(request({ serviceId: CORTE, rangeStart: '2026-11-15' }));
+    const response = await GET(request({ serviceIds: CORTE, rangeStart: '2026-11-15' }));
 
     expect(response.status).toBe(400);
   });
 
   it('rejects a malformed date rather than guessing at it', async () => {
-    const response = await GET(request({ serviceId: CORTE, rangeStart: 'mañana' }));
+    const response = await GET(request({ serviceIds: CORTE, rangeStart: 'mañana' }));
 
     expect(response.status).toBe(400);
   });

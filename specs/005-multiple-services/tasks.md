@@ -44,7 +44,7 @@ Proyecto único: `src/`, `tests/`, `db/` y `scripts/` en la raíz. Rutas según
 
 **Purpose**: fijar la referencia antes de tocar nada.
 
-- [ ] T001 Ejecutar `npm run test:all`, `npm run lint` y `npm run check:layers` en la rama
+- [X] T001 Ejecutar `npm run test:all`, `npm run lint` y `npm run check:layers` en la rama
   recién creada y apuntar los totales por suite en la descripción del futuro PR. Medir
   `tests/e2e/performance.spec.ts` tres veces y anotar los tiempos: es la referencia de
   SC-004. No se sigue con nada en rojo.
@@ -62,10 +62,10 @@ nada**: el selector sigue eligiendo un solo servicio. Al terminar, toda la suite
 
 ### Migración
 
-- [ ] T002 Añadir a `migrate()` de `scripts/migrate.ts` una opción
+- [X] T002 Añadir a `migrate()` de `scripts/migrate.ts` una opción
   `{ until?: string }`: aplica las migraciones hasta esa, incluida, y para. Sin la
   opción, el comportamiento es el de siempre. Lo necesita el test de T003.
-- [ ] T003 Escribir el test (rojo) `tests/integration/db/migration-0003.test.ts`:
+- [X] T003 Escribir el test (rojo) `tests/integration/db/migration-0003.test.ts`:
   - Crear una base temporal en el servidor de `db-test` (`CREATE DATABASE` con un nombre
     aleatorio) y migrarla con `until: '0002_constraints_and_indexes.sql'`.
   - Insertar con SQL directo dos servicios (uno de 1800 céntimos y otro de 0) y tres
@@ -80,15 +80,15 @@ nada**: el selector sigue eligiendo un solo servicio. Al terminar, toda la suite
     - Insertar `price_cents = 0` en `service` falla por el `CHECK`.
     - Repetir un `service_id` en la misma cita falla por el índice único (FR-003).
   - Borrar la base temporal en `afterAll`.
-- [ ] T004 Escribir `src/infrastructure/db/migrations/0003_multiple_services.sql` según
+- [X] T004 Escribir `src/infrastructure/db/migrations/0003_multiple_services.sql` según
   [data-model.md](./data-model.md), en el orden que allí se describe, comentado como
   0001 y 0002. T003 pasa a verde.
-- [ ] T005 Actualizar `src/infrastructure/db/schema.ts`:
+- [X] T005 Actualizar `src/infrastructure/db/schema.ts`:
   - añadir la tabla `appointmentService`;
   - quitar las columnas `service*` de `appointment`;
   - dejar `service.priceCents` sin `.notNull()`;
   - añadir `appointmentService` al objeto `schema`.
-- [ ] T006 Adaptar los sitios que escriben citas con SQL directo para que inserten también
+- [X] T006 Adaptar los sitios que escriben citas con SQL directo para que inserten también
   su fila en `appointment_service`, y dejar `TRUNCATE` en cascada:
   - `tests/integration/helpers/test-db.ts`: `truncateAppointments` pasa a
     `TRUNCATE appointment, appointment_service`.
@@ -105,7 +105,7 @@ nada**: el selector sigue eligiendo un solo servicio. Al terminar, toda la suite
 
 ### Dominio
 
-- [ ] T007 [P] Escribir los tests (rojo) `tests/unit/domain/catalog/selection.test.ts`
+- [X] T007 [P] Escribir los tests (rojo) `tests/unit/domain/catalog/selection.test.ts`
   para `selectServices`:
   - Un id devuelve una selección de uno.
   - Dos ids en orden inverso salen en el orden del catálogo (FR-006).
@@ -114,16 +114,16 @@ nada**: el selector sigue eligiendo un solo servicio. Al terminar, toda la suite
   - Un id repetido da `DUPLICATE`.
   - Un id inexistente o inactivo da `UNKNOWN_SERVICE` con ese id.
   - El snapshot copia nombre, duración y precio, también cuando el precio es `null`.
-- [ ] T008 [P] Cambiar `priceCents` a `number | null` en `Service` y en
+- [X] T008 [P] Cambiar `priceCents` a `number | null` en `Service` y en
   `ServiceSnapshot` (`src/domain/catalog/service.ts`). En `src/app/_lib/format.ts`,
   `priceLabel(null)` devuelve `messages.common.priceOnRequest` («Precio a consultar en
   el salón»). Añadir el texto a `src/messages/es-ES.ts`. Test en
   `tests/unit/ui/format.test.ts` (nuevo): `priceLabel(1800)` da «18,00 €» y
   `priceLabel(null)` da el texto.
-- [ ] T009 Crear `src/domain/catalog/selection.ts` con `NonEmptyServiceList`,
+- [X] T009 Crear `src/domain/catalog/selection.ts` con `NonEmptyServiceList`,
   `ServiceSelection`, `SelectionError` y `selectServices`, tal como están en
   [data-model.md](./data-model.md). T007 pasa a verde.
-- [ ] T010 Refactorizar el dominio de reserva:
+- [X] T010 Refactorizar el dominio de reserva:
   - `src/domain/booking/appointment.ts`: `Appointment.services: NonEmptyServiceList` y
     `durationOf(appointment)`.
   - `src/domain/booking/confirm.ts`: `BookingRequest` y `validateSlot` reciben
@@ -136,7 +136,7 @@ nada**: el selector sigue eligiendo un solo servicio. Al terminar, toda la suite
 
 ### Persistencia y casos de uso
 
-- [ ] T011 Escribir los tests (rojo) en
+- [X] T011 Escribir los tests (rojo) en
   `tests/integration/repositories/appointment-repository.test.ts`:
   - `insert` con dos servicios guarda dos filas con `position` 1 y 2.
   - Si `insert` choca con la restricción `EXCLUDE`, no queda **ninguna** fila en
@@ -145,7 +145,7 @@ nada**: el selector sigue eligiendo un solo servicio. Al terminar, toda la suite
     las consultas con un `Pool` envuelto o con `pg_stat_statements`, igual que hace hoy
     el test de rendimiento.
   - `findConfirmedInWindow` no cambia.
-- [ ] T012 Implementar en `src/application/ports/index.ts` y
+- [X] T012 Implementar en `src/application/ports/index.ts` y
   `src/infrastructure/db/appointment-repository.ts`:
   - `NewAppointment.services`;
   - `insert` en una transacción (cita y filas de servicio);
@@ -153,7 +153,7 @@ nada**: el selector sigue eligiendo un solo servicio. Al terminar, toda la suite
     los servicios ordenados por `position`, con `toDomain` montando la lista no vacía.
 
   T011 pasa a verde.
-- [ ] T013 [P] Cambiar a `priceCents: number | null` en
+- [X] T013 [P] Cambiar a `priceCents: number | null` en
   `src/infrastructure/db/salon-config-repository.ts` y en `writeConfiguration` de
   `db/seed/configuration.ts` (`cents: number | null`). Añadir a `db/seed/seed.ts` el
   servicio `Lavado` (30 min, `cents: null`, orden 4, id `…000000000014`) y
@@ -162,7 +162,7 @@ nada**: el selector sigue eligiendo un solo servicio. Al terminar, toda la suite
   tests que cuentan servicios o recorren el catálogo (`tests/contract/services.test.ts`,
   `tests/e2e/us1-availability.spec.ts` y los que aparezcan) sin cambiar lo que
   comprueban de los tres primeros.
-- [ ] T014 Cambiar los casos de uso a `serviceIds`:
+- [X] T014 Cambiar los casos de uso a `serviceIds`:
   - `src/application/use-cases/get-availability.ts`: `serviceIds: readonly string[]`,
     selección con `selectServices` y `currentAppointment: { durationMinutes, startsAt }`
     (D-008). `AvailabilityView` pasa a `selection: ServiceSelection` en lugar de
@@ -179,7 +179,7 @@ nada**: el selector sigue eligiendo un solo servicio. Al terminar, toda la suite
 
 ### Frontera HTTP
 
-- [ ] T015 Actualizar el contrato vivo
+- [X] T015 Actualizar el contrato vivo
   `specs/001-client-appointment-booking/contracts/http-api.yaml` a la versión 2.0.0 según
   [contracts/http-api-changes.md](./contracts/http-api-changes.md): `Service`,
   `PriceTotal`, `AvailabilityResponse`, `BookingRequest`, `AppointmentDetail`, el
@@ -189,7 +189,7 @@ nada**: el selector sigue eligiendo un solo servicio. Al terminar, toda la suite
   verdad: en la disponibilidad con T029 y en el detalle de la cita con T045. Adaptar `tests/contract/*.test.ts` y
   `tests/contract/helpers/seed-contract-db.ts` al nuevo nombre del parámetro y a los
   campos nuevos, con un solo servicio. Quedan en rojo.
-- [ ] T016 Implementar la frontera hasta que T015 pase a verde:
+- [X] T016 Implementar la frontera hasta que T015 pase a verde:
   - `src/app/api/_lib/serializers.ts`: `serviceDto` con `priceLabel`; respuesta de
     disponibilidad con `serviceIds`, `services` y `durationMinutes`; detalle con
     `services[]` y `durationMinutes` como suma.
@@ -202,7 +202,7 @@ nada**: el selector sigue eligiendo un solo servicio. Al terminar, toda la suite
   - `src/app/api/appointments/[token]/availability/route.ts`.
 
   `price` y `fitsOpeningHours` todavía no se envían (nota de T015).
-- [ ] T017 Renombrar `serviceId` → `serviceIds` en la interfaz, con un solo servicio:
+- [X] T017 Renombrar `serviceId` → `serviceIds` en la interfaz, con un solo servicio:
   - campos ocultos de `src/components/day-range-picker.tsx`, `slot-list.tsx` y
     `booking-form.tsx`;
   - `name`/`value` de los botones de `src/components/service-picker.tsx`;
@@ -212,7 +212,7 @@ nada**: el selector sigue eligiendo un solo servicio. Al terminar, toda la suite
   - `src/app/cita/[token]/page.tsx` y `src/app/cita/[token]/reprogramar/page.tsx`, que
     pasan a leer `appointment.services[0]`;
   - las URL que construyen `tests/e2e/*.spec.ts` y `tests/e2e/helpers/*.ts`.
-- [ ] T018 Ejecutar `npm run test:all`, `npm run lint` y `npm run check:layers`. Todo en
+- [X] T018 Ejecutar `npm run test:all`, `npm run lint` y `npm run check:layers`. Todo en
   verde y con los mismos totales que T001, más los tests nuevos. Commit
   `refactor: carry a list of services through the appointment`.
 

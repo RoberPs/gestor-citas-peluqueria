@@ -52,7 +52,8 @@ export const service = pgTable('service', {
   id: uuid('id').primaryKey(),
   name: text('name').notNull(),
   durationMinutes: integer('duration_minutes').notNull(),
-  priceCents: integer('price_cents').notNull(),
+  /** `NULL` is "no price" (FR-018), never 0. */
+  priceCents: integer('price_cents'),
   isActive: boolean('is_active').notNull().default(true),
   displayOrder: integer('display_order').notNull(),
 });
@@ -62,13 +63,6 @@ export const appointment = pgTable('appointment', {
   status: appointmentStatus('status').notNull(),
   startsAt: timestamp('starts_at', { withTimezone: true, mode: 'date' }).notNull(),
   endsAt: timestamp('ends_at', { withTimezone: true, mode: 'date' }).notNull(),
-
-  serviceId: uuid('service_id')
-    .notNull()
-    .references(() => service.id),
-  serviceName: text('service_name').notNull(),
-  serviceDurationMinutes: integer('service_duration_minutes').notNull(),
-  servicePriceCents: integer('service_price_cents').notNull(),
 
   customerName: text('customer_name'),
   customerPhone: text('customer_phone'),
@@ -85,4 +79,18 @@ export const appointment = pgTable('appointment', {
   anonymizedAt: timestamp('anonymized_at', { withTimezone: true, mode: 'date' }),
 });
 
-export const schema = { salon, openingInterval, closure, service, appointment };
+/** One row per service of an appointment, with its snapshot (005, D-001). */
+export const appointmentService = pgTable('appointment_service', {
+  appointmentId: uuid('appointment_id')
+    .notNull()
+    .references(() => appointment.id, { onDelete: 'cascade' }),
+  position: smallint('position').notNull(),
+  serviceId: uuid('service_id')
+    .notNull()
+    .references(() => service.id),
+  name: text('name').notNull(),
+  durationMinutes: integer('duration_minutes').notNull(),
+  priceCents: integer('price_cents'),
+});
+
+export const schema = { salon, openingInterval, closure, service, appointment, appointmentService };

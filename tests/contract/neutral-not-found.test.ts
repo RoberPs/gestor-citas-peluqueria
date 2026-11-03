@@ -50,7 +50,7 @@ async function book(startsAt: string): Promise<string> {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        serviceId: CORTE,
+        serviceIds: [CORTE],
         startsAt,
         customer: { name: 'Ana', phone: '600112233', email: 'ana@example.com' },
       }),

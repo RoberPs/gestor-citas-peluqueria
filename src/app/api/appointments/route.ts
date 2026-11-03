@@ -31,7 +31,12 @@ const customerSchema = z
 
 const bodySchema = z
   .object({
-    serviceId: z.string().uuid(),
+    // FR-003: a service at most once. A repeated one is a malformed request,
+    // not something to quietly fix on the client's behalf.
+    serviceIds: z
+      .array(z.string().uuid())
+      .min(1)
+      .refine((ids) => new Set(ids).size === ids.length),
     startsAt: z.string().min(1),
     customer: customerSchema,
   })
@@ -70,7 +75,11 @@ function conflictFor(rejection: BookingRejection): { code: string; error: ApiErr
 }
 
 /** The availability of the day that was asked for, so the client picks again in place. */
-async function availabilityFor(serviceId: string, startsAt: string, timezone: string) {
+async function availabilityFor(
+  serviceIds: readonly string[],
+  startsAt: string,
+  timezone: string,
+) {
   const { getAvailability } = container();
 
   let selectedDate: string | undefined;
@@ -83,11 +92,11 @@ async function availabilityFor(serviceId: string, startsAt: string, timezone: st
   const onThatDay =
     selectedDate === undefined
       ? null
-      : await getAvailability({ serviceId, rangeStart: selectedDate, selectedDate });
+      : await getAvailability({ serviceIds, rangeStart: selectedDate, selectedDate });
 
   if (onThatDay !== null && onThatDay.ok) return availabilityResponse(onThatDay.value);
 
-  const fallback = await getAvailability({ serviceId });
+  const fallback = await getAvailability({ serviceIds });
   return fallback.ok ? availabilityResponse(fallback.value) : null;
 }
 
@@ -132,7 +141,7 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const result = await container().confirmBooking({
-    serviceId: parsed.data.serviceId,
+    serviceIds: parsed.data.serviceIds,
     startsAt: parsed.data.startsAt,
     contact: parsed.data.customer,
   });
@@ -164,7 +173,7 @@ export async function POST(request: Request): Promise<Response> {
     'booking rejected',
   );
 
-  if (failure.kind === 'UNKNOWN_SERVICE' || failure.kind === 'INVALID_START') {
+  if (failure.kind !== 'REJECTED' && failure.kind !== 'CONTACT_LIMIT_REACHED') {
     return validationError([], { code: 'INVALID_REQUEST', ...messages.errors.unknownService });
   }
 
@@ -187,7 +196,7 @@ export async function POST(request: Request): Promise<Response> {
 
   const conflict = conflictFor(failure.rejection);
   const availability = await availabilityFor(
-    parsed.data.serviceId,
+    parsed.data.serviceIds,
     parsed.data.startsAt,
     salon.timezone,
   );

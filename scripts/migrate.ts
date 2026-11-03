@@ -33,8 +33,16 @@ export async function listMigrations(): Promise<readonly string[]> {
   return entries.filter((name) => name.endsWith('.sql')).sort();
 }
 
-/** Returns the migrations this run applied. Already applied ones are skipped. */
-export async function migrate(connectionString: string): Promise<readonly string[]> {
+/**
+ * Returns the migrations this run applied. Already applied ones are skipped.
+ *
+ * `until` stops after that migration, included. It lets a test load data in
+ * the shape an older schema had and then watch the next migration carry it over.
+ */
+export async function migrate(
+  connectionString: string,
+  options: { readonly until?: string } = {},
+): Promise<readonly string[]> {
   const client = new Client({ connectionString });
   await client.connect();
 
@@ -45,30 +53,40 @@ export async function migrate(connectionString: string): Promise<readonly string
     const done = await client.query<{ name: string }>('SELECT name FROM schema_migration');
     const already = new Set(done.rows.map((row) => row.name));
 
-    for (const name of await listMigrations()) {
-      if (already.has(name)) continue;
+    const all = await listMigrations();
+    if (options.until !== undefined && !all.includes(options.until)) {
+      throw new Error(`Migration ${options.until} does not exist`);
+    }
 
-      const sql = await readFile(path.join(MIGRATIONS_DIR, name), 'utf8');
-
-      // One transaction per migration: a half-applied constraint is worse than
-      // a failed deploy, because the next run would not notice.
-      await client.query('BEGIN');
-      try {
-        await client.query(sql);
-        await client.query('INSERT INTO schema_migration (name) VALUES ($1)', [name]);
-        await client.query('COMMIT');
-      } catch (cause) {
-        await client.query('ROLLBACK');
-        throw new Error(`Migration ${name} failed`, { cause });
+    for (const name of all) {
+      if (!already.has(name)) {
+        await applyOne(client, name);
+        applied.push(name);
       }
 
-      applied.push(name);
+      if (name === options.until) break;
     }
   } finally {
     await client.end();
   }
 
   return applied;
+}
+
+async function applyOne(client: Client, name: string): Promise<void> {
+  const sql = await readFile(path.join(MIGRATIONS_DIR, name), 'utf8');
+
+  // One transaction per migration: a half-applied constraint is worse than
+  // a failed deploy, because the next run would not notice.
+  await client.query('BEGIN');
+  try {
+    await client.query(sql);
+    await client.query('INSERT INTO schema_migration (name) VALUES ($1)', [name]);
+    await client.query('COMMIT');
+  } catch (cause) {
+    await client.query('ROLLBACK');
+    throw new Error(`Migration ${name} failed`, { cause });
+  }
 }
 
 const isCli = process.argv[1] !== undefined && import.meta.url.endsWith(path.basename(process.argv[1]));

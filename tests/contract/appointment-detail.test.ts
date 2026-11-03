@@ -31,7 +31,7 @@ async function book(serviceId = CORTE, startsAt = FRIDAY_1130): Promise<string> 
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        serviceId,
+        serviceIds: [serviceId],
         startsAt,
         customer: { name: 'Ana López', phone: '600112233', email: 'ana@example.com' },
       }),
@@ -77,7 +77,7 @@ describe('GET /api/appointments/{token} — AppointmentDetail', () => {
       startsLocalTime: string;
       endsLocalTime: string;
       durationMinutes: number;
-      service: { name: string; priceCents: number };
+      services: { name: string; priceCents: number }[];
     };
 
     expect(body.view).toBe('CONFIRMED');
@@ -85,7 +85,7 @@ describe('GET /api/appointments/{token} — AppointmentDetail', () => {
     expect(body.startsLocalTime).toBe('11:30');
     expect(body.endsLocalTime).toBe('13:00');
     expect(body.durationMinutes).toBe(90);
-    expect(body.service).toMatchObject({ name: 'Color', priceCents: 5500 });
+    expect(body.services).toMatchObject([{ name: 'Color', priceCents: 5500 }]);
   });
 
   it('offers both actions while there is more than 24 hours to go', async () => {

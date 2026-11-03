@@ -77,9 +77,8 @@ export async function POST(
     detail === null
       ? null
       : await container().getAvailability({
-          serviceId: detail.appointment.service.serviceId,
           currentAppointment: {
-            service: detail.appointment.service,
+            services: detail.appointment.services,
             startsAt: detail.appointment.startsAt,
           },
         });
