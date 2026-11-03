@@ -61,11 +61,11 @@ salón la ve sin consultarla a mano.
 | [002 · Gestión del salón](specs/002-salon-management/spec.md) | Spec, plan y tareas; sin código | 0 / 164 | `002-salon-management` | Sólo la documentación (PR #4) |
 | [003 · Versión responsive para tablet y ordenador](specs/003-responsive-desktop/spec.md) | Implementada | 35 / 35 | `003-responsive-desktop` | Sí (PR #3) |
 | 004 · Avisos por email y SMS | Planificada, sin spec | — | — | — |
-| [005 · Varios servicios por cita y precio opcional](specs/005-multiple-services/spec.md) | Implementada | 55 / 55 | `005-multiple-services` | Pendiente de fusionar (PR) |
+| [005 · Varios servicios por cita y precio opcional](specs/005-multiple-services/spec.md) | Implementada | 55 / 55 | `005-multiple-services` | Sí (PR #6) |
 
-`main` contiene la 001 y la 003 completas, la enmienda 1.1.0 de la constitución y la
-documentación de la 002 (spec, plan y tareas), con la 003 ya incorporada a su rama para
-que sus pantallas nazcan responsive. El código de cada feature se fusiona a `main` al cerrarla,
+`main` contiene la 001, la 003 y la 005 completas, la enmienda 1.1.0 de la constitución
+y la documentación de la 002 (spec, plan y tareas), con la 003 ya incorporada a su rama
+para que sus pantallas nazcan responsive; la 005 se incorpora en el paso 2. El código de cada feature se fusiona a `main` al cerrarla,
 con la CI en verde. La 002 se implementa en su rama `002-salon-management` a partir del
 paso 2 del [roadmap](docs/roadmap.md).
 
