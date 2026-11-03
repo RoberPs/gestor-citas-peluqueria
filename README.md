@@ -17,11 +17,27 @@ npm install
 cp .env.example .env
 docker compose up -d db db-test
 npm run db:migrate
-npm run db:seed
+npm run db:seed         # datos de prueba: los que usan los tests
 npm run dev             # http://localhost:3000
 ```
 
 Tests: `npm run test:all`. Checks: `npm run lint` y `npm run check:layers`.
+
+### Demo para el cliente
+
+`npm run db:seed:demo` carga en la base de desarrollo los datos reales de la
+**Peluquería de Caballeros Niza**: dirección, teléfono, horario (L–V 10:00–14:00 y
+17:00–20:00; sábados 10:00–14:00) y sus cuatro servicios. Datos provisionales hasta
+acordarlos con el cliente:
+
+- Todos los servicios duran 30 minutos; la reserva sigue siendo cada media hora.
+- Los precios están a 0 y la pantalla muestra «0,00 €». La feature 005 los hará
+  opcionales.
+- No hay cierres por festivo.
+
+Los servicios de prueba quedan desactivados, no borrados, porque puede haber citas que
+los referencian. Para volver a los datos de prueba, `npm run db:seed`. Los tests usan
+siempre `db-test` con su propio seed, así que cambiar la demo nunca los rompe.
 
 ## Estado del producto
 

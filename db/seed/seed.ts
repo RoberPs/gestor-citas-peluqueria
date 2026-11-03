@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { Temporal } from '@js-temporal/polyfill';
-import { Client } from 'pg';
+import { writeConfiguration } from './configuration';
 
 /**
  * Preloaded configuration (FR-007): the salon, its weekly opening stretches,
@@ -10,8 +10,8 @@ import { Client } from 'pg';
  * The values are chosen so the acceptance scenarios of the spec can be walked
  * through by hand, exactly as quickstart.md describes them.
  *
- * Re-running is safe: every row has a fixed id and is upserted, so appointments
- * that already reference a service keep referencing it.
+ * This is the fixture the tests rely on: names, ids and durations are what the
+ * suites check against. Data to show a client lives in `demo.ts`.
  */
 
 const SALON_ID = '00000000-0000-4000-8000-000000000001';
@@ -58,65 +58,17 @@ export function closureDate(timezone: string): string {
 }
 
 export async function seed(connectionString: string, timezone: string): Promise<void> {
-  const client = new Client({ connectionString });
-  await client.connect();
-
-  try {
-    await client.query('BEGIN');
-
-    await client.query(
-      `INSERT INTO salon (id, name, address, phone, timezone)
-       VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT ((true)) DO UPDATE
-         SET id = EXCLUDED.id, name = EXCLUDED.name, address = EXCLUDED.address,
-             phone = EXCLUDED.phone, timezone = EXCLUDED.timezone`,
-      [SALON_ID, 'Peluquería Aurora', 'Calle Mayor 14, Madrid', '911 23 45 67', timezone],
-    );
-
-    // Opening stretches have no natural key, so they are replaced wholesale.
-    // Nothing references them, unlike services.
-    await client.query('DELETE FROM opening_interval');
-    for (const [index, interval] of OPENING.entries()) {
-      await client.query(
-        `INSERT INTO opening_interval (id, weekday, starts_at, ends_at)
-         VALUES ($1, $2, $3, $4)`,
-        [
-          `00000000-0000-4000-8000-0000000001${String(index).padStart(2, '0')}`,
-          interval.weekday,
-          interval.from,
-          interval.to,
-        ],
-      );
-    }
-
-    for (const service of SERVICES) {
-      await client.query(
-        `INSERT INTO service (id, name, duration_minutes, price_cents, is_active, display_order)
-         VALUES ($1, $2, $3, $4, true, $5)
-         ON CONFLICT (id) DO UPDATE
-           SET name = EXCLUDED.name,
-               duration_minutes = EXCLUDED.duration_minutes,
-               price_cents = EXCLUDED.price_cents,
-               is_active = EXCLUDED.is_active,
-               display_order = EXCLUDED.display_order`,
-        [service.id, service.name, service.minutes, service.cents, service.order],
-      );
-    }
-
-    await client.query(
-      `INSERT INTO closure (id, date, reason)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (id) DO UPDATE SET date = EXCLUDED.date, reason = EXCLUDED.reason`,
-      [CLOSURE_ID, closureDate(timezone), 'Festivo local'],
-    );
-
-    await client.query('COMMIT');
-  } catch (error) {
-    await client.query('ROLLBACK');
-    throw error;
-  } finally {
-    await client.end();
-  }
+  await writeConfiguration(connectionString, timezone, {
+    salon: {
+      id: SALON_ID,
+      name: 'Peluquería Aurora',
+      address: 'Calle Mayor 14, Madrid',
+      phone: '911 23 45 67',
+    },
+    opening: OPENING,
+    services: SERVICES,
+    closures: [{ id: CLOSURE_ID, date: closureDate(timezone), reason: 'Festivo local' }],
+  });
 }
 
 export const SEED_IDS = {

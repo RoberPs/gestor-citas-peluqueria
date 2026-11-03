@@ -35,6 +35,7 @@ cp .env.example .env
 docker compose up -d db db-test
 npm run db:migrate      # crea btree_gist, tablas y la restricción EXCLUDE
 npm run db:seed         # obligatorio: horario, servicios y cierres precargados
+npm run db:seed:demo    # opcional: los datos reales de la demo (db/seed/demo.ts)
 npm run dev             # http://localhost:3000
 ```
 
@@ -73,6 +74,8 @@ npm run check:layers     # frontera del dominio — bloquea el merge si se cruza
   `next/form`, que pierde el `name`/`value` del botón pulsado. En e2e, un clic que
   navega se espera con `clickAndNavigate` (`tests/e2e/helpers/booking.ts`).
 - Nada de código muerto, comentado ni TODOs en `main`.
+- `db/seed/seed.ts` es el fixture de los tests: no se cambian sus datos para una demo.
+  Los datos que se enseñan al cliente van en `db/seed/demo.ts`.
 
 Las reglas de producto viven en `.specify/memory/constitution.md`, el estado del
 producto en `README.md` y el plan de trabajo, con sus decisiones pendientes, en
