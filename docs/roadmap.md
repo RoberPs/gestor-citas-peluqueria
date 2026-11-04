@@ -127,6 +127,8 @@ verde, y es un punto donde se puede parar.
     crear, mover, editar y cancelar, no liberar); crearlo o acortarlo, no.
   - `password.test.ts` lleva un timeout propio de 30 s: con la suite entera en paralelo,
     sus cuatro derivaciones de scrypt pasaban de los 5 s por defecto.
+  - Probado a mano en el navegador con la dueña del producto el 2026-11-04: bloquear la
+    comida, liberarla, bloquear sobre una cita y bloquear días enteros, sin cambios.
 - [ ] **6 · 002, US4 + US5 + US6 + US11** → 🎯 **MVP completo**
   - Citas a mano, mover, editar y cancelar desde la agenda, aviso de conflicto atómico.
   - El cliente ve en su enlace quién canceló su cita (contrato de cliente 2.1.0).

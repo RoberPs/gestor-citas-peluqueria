@@ -130,7 +130,7 @@ Probado a mano con la dueña del producto el 2026-11-04.
   número completo en vez de dar un listado vacío. 20 citas por página y quién canceló
   cada cancelada.
 
-Con la US3 (paso 5), cubierta por los tests el 2026-11-04 y pendiente de probar a mano:
+Con la US3 (paso 5), probada a mano con la dueña del producto el 2026-11-04:
 
 - **Bloquear un rato** desde la agenda de un día que no ha pasado: unas horas de un día
   o varios días enteros, de 15 en 15 minutos, con un motivo opcional que sólo ve la
