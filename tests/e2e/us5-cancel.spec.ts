@@ -105,6 +105,18 @@ test('escenario 4 — cancelling twice is refused and the current state is shown
   await expect(page.getByText(/Esta cita ya está cancelada/)).toBeVisible();
 });
 
+test('002, FR-040b — the client reads that they cancelled it themselves', async ({ page }) => {
+  const { token } = await bookAppointment(page);
+
+  await page.goto(`/cita/${token}?cancelar=1`);
+  await page.getByRole('button', { name: 'Sí, cancelar la cita' }).click();
+  await page.waitForURL(`**/cita/${token}`);
+
+  await expect(page.getByText(/^Has cancelado esta cita/)).toBeVisible();
+  await expect(page.getByText(/^Esta cita está cancelada/)).toHaveCount(0);
+  await expect(page.getByText(/El salón ha cancelado/)).toHaveCount(0);
+});
+
 test('escenario 5 — another client can book the freed hour with no fuss', async ({
   page,
   browser,

@@ -32,6 +32,24 @@ function assertClean(output: string): void {
 }
 
 describe('logger redaction', () => {
+  it("redacts the bodies of the owner's appointments and of a conflict (002, FR-057, T070)", () => {
+    const sink = capture();
+    const log = createLogger(sink);
+
+    log.warn(
+      {
+        body: { serviceIds: ['s1'], customer: { name: NAME, phone: PHONE, email: EMAIL } },
+        conflict: { code: 'CONFLICT', conflicts: [{ kind: 'APPOINTMENT', customerName: NAME, serviceNames: ['Corte'] }] },
+      },
+      'owner change',
+    );
+    log.warn({ code: 'CONFLICT', conflicts: [{ id: 'a1', customerName: NAME }] }, 'conflict answered');
+
+    const output = sink.lines.join('');
+    expect(output).toContain('Corte');
+    assertClean(output);
+  });
+
   it('emits none of the four sensitive values from a top level error trace', () => {
     const sink = capture();
     const log = createLogger(sink);

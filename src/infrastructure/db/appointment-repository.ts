@@ -48,7 +48,7 @@ function instantOf(value: Date): Temporal.Instant {
   return Temporal.Instant.fromEpochMilliseconds(value.getTime());
 }
 
-function dateOf(instant: Temporal.Instant): Date {
+export function dateOf(instant: Temporal.Instant): Date {
   return new Date(instant.epochMilliseconds);
 }
 
@@ -82,7 +82,7 @@ export function toDomain(row: AppointmentWithServices): Appointment {
   };
 }
 
-function isExclusionViolation(error: unknown): boolean {
+export function isExclusionViolation(error: unknown): boolean {
   return (error as { code?: string } | null)?.code === EXCLUSION_VIOLATION;
 }
 
@@ -97,6 +97,12 @@ export function createAppointmentRepository(getPool: () => Pool): AppointmentRep
         .where(and(eq(appointment.tokenHash, Buffer.from(hash)), isNotNull(appointment.tokenHash)))
         .limit(1);
 
+      const row = rows[0];
+      return row === undefined ? null : toDomain(row);
+    },
+
+    async findById(id) {
+      const rows = await database().select(withServices).from(appointment).where(eq(appointment.id, id)).limit(1);
       const row = rows[0];
       return row === undefined ? null : toDomain(row);
     },

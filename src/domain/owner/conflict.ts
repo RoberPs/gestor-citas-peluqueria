@@ -2,7 +2,10 @@ import { Temporal } from '@js-temporal/polyfill';
 import { overlaps } from '../availability/interval-math';
 import type { Appointment, AppointmentId } from '../booking/appointment';
 import type { UnavailablePeriod, UnavailablePeriodId } from '../catalog/salon';
+import type { NonEmptyServiceList } from '../catalog/selection';
+import type { ValidatedContact } from '../contact/contact';
 import { err, ok, type Result } from '../shared/result';
+import { validateShortening } from './unavailable-period';
 
 /**
  * What gets in the way of an operation of the owner's, named (002, FR-033).
@@ -116,4 +119,131 @@ export function checkAcknowledgement(
   if ([...given].some((id) => !inTheWay.includes(id))) return err('UNKNOWN_TARGET');
   if (inTheWay.some((id) => !given.has(id))) return err('UNRESOLVED_CONFLICT');
   return ok(inTheWay);
+}
+
+/**
+ * What the owner asked for, already planned and checked (D-023): the
+ * operation the resolution goes with. A value; nothing here writes it.
+ */
+export type ResolutionIntent =
+  | {
+      readonly kind: 'CREATE_APPOINTMENT';
+      readonly id: AppointmentId;
+      readonly startsAt: Temporal.Instant;
+      readonly endsAt: Temporal.Instant;
+      readonly services: NonEmptyServiceList;
+      readonly contact: ValidatedContact;
+      readonly createdAt: Temporal.Instant;
+    }
+  | {
+      readonly kind: 'RESCHEDULE_APPOINTMENT';
+      readonly appointmentId: AppointmentId;
+      readonly startsAt: Temporal.Instant;
+      readonly endsAt: Temporal.Instant;
+    }
+  | {
+      readonly kind: 'CREATE_PERIOD';
+      readonly id: UnavailablePeriodId;
+      readonly startsAt: Temporal.Instant;
+      readonly endsAt: Temporal.Instant;
+      readonly reason: string | null;
+    };
+
+export type PeriodShortening = {
+  readonly id: UnavailablePeriodId;
+  readonly startsAt: Temporal.Instant;
+  readonly endsAt: Temporal.Instant;
+};
+
+/** What the owner chose. There is no field that means "keep both" (FR-035). */
+export type Resolution = {
+  readonly cancelAppointments?: readonly AppointmentId[];
+  readonly deletePeriods?: readonly UnavailablePeriodId[];
+  readonly shortenPeriods?: readonly PeriodShortening[];
+  /** Only a new period may leave an appointment inside it, cancelling nobody (FR-022). */
+  readonly acknowledgeAppointments?: readonly AppointmentId[];
+};
+
+/** The operation and everything applied with it, all or nothing (FR-037). */
+export type ResolutionPlan = {
+  readonly intent: ResolutionIntent;
+  readonly cancelAppointments: readonly AppointmentId[];
+  readonly deletePeriods: readonly UnavailablePeriodId[];
+  readonly shortenPeriods: readonly PeriodShortening[];
+  /** The owner's clock when she confirmed: the moment of its cancellations. */
+  readonly at: Temporal.Instant;
+};
+
+export type ResolutionError = AcknowledgementError | 'SHORTENING_DOES_NOT_FIT';
+
+/**
+ * The heart of BR-001 and FR-035: a plan is valid only once everything in the
+ * way is resolved. An appointment is cancelled — or, under a new period,
+ * acknowledged —; a period is deleted or shortened until it leaves room.
+ * Whether a shortening fits is decided here, not on the screen.
+ */
+export function buildResolutionPlan(input: {
+  readonly intent: ResolutionIntent;
+  readonly conflicts: readonly Conflict[];
+  readonly resolution: Resolution;
+  readonly now: Temporal.Instant;
+  readonly timezone: string;
+}): Result<ResolutionPlan, ResolutionError> {
+  const { intent, conflicts, resolution } = input;
+  const cancel = resolution.cancelAppointments ?? [];
+  const remove = resolution.deletePeriods ?? [];
+  const shorten = resolution.shortenPeriods ?? [];
+  const acknowledged = intent.kind === 'CREATE_PERIOD' ? (resolution.acknowledgeAppointments ?? []) : [];
+
+  const appointmentsInTheWay = conflicts.filter((conflict) => conflict.kind === 'APPOINTMENT');
+  const periodsInTheWay = conflicts.filter((conflict) => conflict.kind === 'UNAVAILABLE_PERIOD');
+  const shortenedIds = shorten.map((shortening) => shortening.id);
+  const periodIds = [...remove, ...shortenedIds];
+
+  const known = (ids: readonly string[], among: readonly Conflict[]) =>
+    ids.every((id) => among.some((conflict) => conflict.id === id));
+  if (
+    !known([...cancel, ...acknowledged], appointmentsInTheWay) ||
+    !known(periodIds, periodsInTheWay) ||
+    new Set(periodIds).size !== periodIds.length
+  ) {
+    return err('UNKNOWN_TARGET');
+  }
+
+  const handled = new Set([...cancel, ...acknowledged, ...periodIds]);
+  if (conflicts.some((conflict) => !handled.has(conflict.id))) return err('UNRESOLVED_CONFLICT');
+
+  for (const shortening of shorten) {
+    const current = periodsInTheWay.find((conflict) => conflict.id === shortening.id);
+    if (current?.kind !== 'UNAVAILABLE_PERIOD') return err('UNKNOWN_TARGET');
+    const valid = validateShortening({
+      startsAt: shortening.startsAt,
+      endsAt: shortening.endsAt,
+      current: { id: current.id, startsAt: current.startsAt, endsAt: current.endsAt, reason: current.reason },
+      now: input.now,
+      timezone: input.timezone,
+    });
+    if (!valid.ok || overlaps(shortening, intent)) return err('SHORTENING_DOES_NOT_FIT');
+  }
+
+  return ok({ intent, cancelAppointments: cancel, deletePeriods: remove, shortenPeriods: shorten, at: input.now });
+}
+
+/**
+ * The shortenings of a period in the way that leave room for `span`: what is
+ * left of it before, and what is left after. None when `span` swallows it,
+ * which can only be deleted. `buildResolutionPlan` still has the last word.
+ */
+export function shorteningsThatFit(
+  period: UnavailablePeriod,
+  span: { readonly startsAt: Temporal.Instant; readonly endsAt: Temporal.Instant },
+): readonly PeriodShortening[] {
+  const options: PeriodShortening[] = [];
+  if (Temporal.Instant.compare(period.startsAt, span.startsAt) < 0) {
+    options.push({ id: period.id, startsAt: period.startsAt, endsAt: span.startsAt });
+  }
+  if (Temporal.Instant.compare(span.endsAt, period.endsAt) < 0) {
+    options.push({ id: period.id, startsAt: span.endsAt, endsAt: period.endsAt });
+  }
+  return options;
 }

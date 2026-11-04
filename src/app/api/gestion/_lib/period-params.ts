@@ -22,17 +22,20 @@ export const instantSchema = z.string().transform((value, context) => {
 
 export const periodSpanSchema = z.object({ startsAt: instantSchema, endsAt: instantSchema }).strict();
 
-/**
- * Only `acknowledgeAppointments` is accepted as a resolution for now: cancelling
- * from this warning comes with the conflict resolution of Historia 6 (T116).
- */
+/** Each appointment under the block is acknowledged or cancelled, in the same operation (FR-022, T116). */
 export const createPeriodSchema = z
   .object({
     startsAt: instantSchema,
     endsAt: instantSchema,
     reason: z.string().max(200).nullable().optional(),
     stateToken: z.string().optional(),
-    resolution: z.object({ acknowledgeAppointments: z.array(z.string().uuid()) }).strict().optional(),
+    resolution: z
+      .object({
+        acknowledgeAppointments: z.array(z.string().uuid()).optional(),
+        cancelAppointments: z.array(z.string().uuid()).optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 

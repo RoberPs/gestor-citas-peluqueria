@@ -2,9 +2,13 @@ openapi: 3.1.0
 
 info:
   title: API de reserva de citas — cara al cliente
-  version: 2.0.0
+  version: 2.1.0
   description: |
     Interfaz HTTP de la feature `001-client-appointment-booking`.
+
+    **Versión 2.1.0** (feature `002-salon-management`): `AppointmentDetail` dice quién
+    canceló la cita (`cancelledBy`). Los cambios respecto a la 2.0.0 están en
+    `specs/002-salon-management/contracts/http-api-changes.md`.
 
     **Versión 2.0.0** (feature `005-multiple-services`): una cita lleva uno o varios
     servicios y un servicio puede no tener precio. Los cambios respecto a la 1.0.0
@@ -653,7 +657,7 @@ components:
       type: object
       required:
         [view, services, price, date, startsLocalTime, endsLocalTime, durationMinutes,
-         startsAt, canCancel, canReschedule, salon]
+         startsAt, canCancel, canReschedule, cancelledBy, salon]
       properties:
         view:
           type: string
@@ -688,6 +692,14 @@ components:
         canReschedule:
           type: boolean
           description: Mismas condiciones que `canCancel` (FR-024).
+        cancelledBy:
+          type: [string, 'null']
+          enum: [CUSTOMER, OWNER, null]
+          description: |
+            Quién canceló la cita (002, FR-040a, FR-040b, D-037). `null` si y sólo si
+            `view` no es `CANCELLED`. La pantalla dice «Has cancelado esta cita» con
+            `CUSTOMER` y «El salón ha cancelado esta cita», con el teléfono del salón,
+            con `OWNER`.
         unavailableReason:
           type: [string, 'null']
           description: |

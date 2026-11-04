@@ -164,7 +164,7 @@ La `0003_multiple_services.sql` es de la 005 y ya está en `main`: las de esta f
 - [x] T067 [P] [US2] Implementar `src/components/owner/timeline.tsx` como **lista** semántica, no rejilla absoluta: recorrible con teclado y legible con lector de pantalla (Principio VII). Cada cita muestra todos sus servicios y su precio total reutilizando `src/components/service-summary.tsx` de la 005 (FR-014)
 - [x] T068 [US2] Implementar la pantalla `src/app/gestion/agenda/page.tsx` con la navegación a cualquier fecha y el atajo de hoy (FR-012), con `NavForm` para cambiar de día y la base responsive de la 003: línea temporal en `.col-main`, navegación en `.col-side` dentro de `.page--split` (D-034)
 - [x] T069 [P] [US2] Añadir a `src/messages/es-ES.ts` los textos de origen de la cita, estado, estado vacío "sin citas" y "cerrado" (FR-013, FR-017)
-- [ ] T070 [P] [US2] Extender la redacción de Pino en `src/infrastructure/logging/logger.ts` a los cuerpos de agenda y conflicto y a los de crear y editar una cita (`POST /gestion/citas` y `PATCH /gestion/citas/{id}`), que llevan nombre, teléfono y email (FR-057). *Pendiente para la US6: en el paso 4 ningún código registra esos cuerpos; las contraseñas ya se redactan (T039)*
+- [x] T070 [P] [US2] Extender la redacción de Pino en `src/infrastructure/logging/logger.ts` a los cuerpos de agenda y conflicto y a los de crear y editar una cita (`POST /gestion/citas` y `PATCH /gestion/citas/{id}`), que llevan nombre, teléfono y email (FR-057). *Pendiente para la US6: en el paso 4 ningún código registra esos cuerpos; las contraseñas ya se redactan (T039)*
 
 **Checkpoint**: la agenda sustituye al papel. Historias 1 y 2 funcionan por separado.
 
@@ -239,22 +239,22 @@ La `0003_multiple_services.sql` es de la 005 y ya está en `main`: las de esta f
 
 ### Tests de la Historia 4 ⚠️
 
-- [ ] T083 [P] [US4] Test unitario en `tests/unit/domain/owner/manual-booking.test.ts`, caso por caso de la tabla de D-025: bloquea el pasado, bloquea el cuarto contacto, bloquea la granularidad; **no** objeta antelación, horizonte ni plazo; **avisa** fuera de horario; con dos servicios, `endsAt` es el inicio más la suma (FR-027, D-030)
-- [ ] T084 [P] [US4] Test unitario en `tests/unit/domain/owner/conflict.test.ts`: `detectConflicts` con la media abierta `[)`, un minuto de intersección es conflicto, y cada `Conflict` lleva lo necesario para nombrarlo, con **todos** los servicios de la cita en `serviceNames` (FR-033, SC-005)
-- [ ] T085 [P] [US4] Test de contrato en `tests/contract/owner/citas.test.ts` para `POST /gestion/citas`, incluida la respuesta de conflicto
-- [ ] T086 [P] [US4] Test de integración en `tests/integration/use-cases/create-manual-appointment.test.ts`: cita sin email válida, sin nombre o sin teléfono rechazada, cuarta cita del contacto rechazada, sin `token_hash` y con `origin = 'OWNER'`, varios servicios guardados en `appointment_service` en el orden del catálogo con su snapshot, duración igual a su suma en el instante de guardar, y rechazo de una selección vacía, repetida o con un servicio retirado (FR-024, FR-026, FR-027, FR-029)
-- [ ] T087 [P] [US4] Test de regresión del origen permanente en `tests/integration/use-cases/create-manual-appointment.test.ts`: reprogramar una cita manual la deja manual (FR-025)
-- [ ] T088 [P] [US4] E2E en `tests/e2e/us4-manual-booking.spec.ts`: los ocho escenarios de la historia, incluido el aviso de fuera de horario y la duración total con dos servicios, más axe y la medición de SC-002; a 360 px y a 1280 px
+- [x] T083 [P] [US4] Test unitario en `tests/unit/domain/owner/manual-booking.test.ts`, caso por caso de la tabla de D-025: bloquea el pasado, bloquea el cuarto contacto, bloquea la granularidad; **no** objeta antelación, horizonte ni plazo; **avisa** fuera de horario; con dos servicios, `endsAt` es el inicio más la suma (FR-027, D-030)
+- [x] T084 [P] [US4] Test unitario en `tests/unit/domain/owner/conflict.test.ts`: `detectConflicts` con la media abierta `[)`, un minuto de intersección es conflicto, y cada `Conflict` lleva lo necesario para nombrarlo, con **todos** los servicios de la cita en `serviceNames` (FR-033, SC-005) *Los casos de `detectConflicts` ya estaban desde la US3; aquí se añadió `shorteningsThatFit`*
+- [x] T085 [P] [US4] Test de contrato en `tests/contract/owner/citas.test.ts` para `POST /gestion/citas`, incluida la respuesta de conflicto
+- [x] T086 [P] [US4] Test de integración en `tests/integration/use-cases/create-manual-appointment.test.ts`: cita sin email válida, sin nombre o sin teléfono rechazada, cuarta cita del contacto rechazada, sin `token_hash` y con `origin = 'OWNER'`, varios servicios guardados en `appointment_service` en el orden del catálogo con su snapshot, duración igual a su suma en el instante de guardar, y rechazo de una selección vacía, repetida o con un servicio retirado (FR-024, FR-026, FR-027, FR-029)
+- [x] T087 [P] [US4] Test de regresión del origen permanente en `tests/integration/use-cases/create-manual-appointment.test.ts`: reprogramar una cita manual la deja manual (FR-025)
+- [x] T088 [P] [US4] E2E en `tests/e2e/us4-manual-booking.spec.ts`: los ocho escenarios de la historia, incluido el aviso de fuera de horario y la duración total con dos servicios, más axe y la medición de SC-002; a 360 px y a 1280 px
 
 ### Implementación de la Historia 4
 
-- [ ] T089 [US4] Implementar `src/domain/owner/manual-booking.ts`: `planManualBooking` sobre una `NonEmptyServiceList`, con la duración de `durationOfServices`, devolviendo `Result<ManualBookingPlan, ManualBookingBlocker>` con los avisos **dentro** del éxito (D-025, D-030)
-- [ ] T090 [US4] Implementar `detectConflicts` en `src/domain/owner/conflict.ts`, reutilizando la función `overlaps` existente (contracts/domain-api.md)
-- [ ] T091 [US4] Implementar `src/application/use-cases/create-manual-appointment.ts`: la selección con `selectServices` contra el catálogo activo, apoyándose en el recuento por contacto ya existente y sin tocarlo (D-026, D-030)
-- [ ] T092 [US4] Implementar `src/app/api/gestion/citas/route.ts` (`POST`) con validación Zod y el guardián
-- [ ] T093 [P] [US4] Implementar `src/components/owner/manual-booking-form.tsx`: uno o varios servicios con la duración total a la vista, reutilizando `src/components/service-picker.tsx` de la 005; hora en rejilla de 15 min; nombre y teléfono obligatorios, email opcional; en cuatro toques desde la agenda (SC-002, FR-027)
-- [ ] T094 [US4] Enganchar el formulario a los huecos de `src/app/gestion/agenda/page.tsx`
-- [ ] T095 [P] [US4] Añadir los textos de cita manual, avisos y bloqueos a `src/messages/es-ES.ts`
+- [x] T089 [US4] Implementar `src/domain/owner/manual-booking.ts`: `planManualBooking` sobre una `NonEmptyServiceList`, con la duración de `durationOfServices`, devolviendo `Result<ManualBookingPlan, ManualBookingBlocker>` con los avisos **dentro** del éxito (D-025, D-030)
+- [x] T090 [US4] Implementar `detectConflicts` en `src/domain/owner/conflict.ts`, reutilizando la función `overlaps` existente (contracts/domain-api.md) *Ya hecho en la US3*
+- [x] T091 [US4] Implementar `src/application/use-cases/create-manual-appointment.ts`: la selección con `selectServices` contra el catálogo activo, apoyándose en el recuento por contacto ya existente y sin tocarlo (D-026, D-030) *Hecho en `manage-owner-appointments.ts`, junto con T101 y T102: los tres casos de uso comparten el protocolo de `owner-change-protocol.ts`*
+- [x] T092 [US4] Implementar `src/app/api/gestion/citas/route.ts` (`POST`) con validación Zod y el guardián
+- [x] T093 [P] [US4] Implementar `src/components/owner/manual-booking-form.tsx`: uno o varios servicios con la duración total a la vista, reutilizando `src/components/service-picker.tsx` de la 005; hora en rejilla de 15 min; nombre y teléfono obligatorios, email opcional; en cuatro toques desde la agenda (SC-002, FR-027) *`service-picker.tsx` va en el mismo panel, encima del formulario, porque es un formulario GET y no se puede anidar; la duración total la calcula el servidor con `selectServices`*
+- [x] T094 [US4] Enganchar el formulario a los huecos de `src/app/gestion/agenda/page.tsx`
+- [x] T095 [P] [US4] Añadir los textos de cita manual, avisos y bloqueos a `src/messages/es-ES.ts`
 
 **Checkpoint**: la agenda pasa a ser fiable y los huecos que se ofrecen online son reales.
 
@@ -268,25 +268,25 @@ La `0003_multiple_services.sql` es de la 005 y ya está en `main`: las de esta f
 
 ### Tests de la Historia 5 ⚠️
 
-- [ ] T096 [P] [US5] Test de contrato en `tests/contract/owner/citas-cambios.test.ts` para `POST /gestion/citas/{id}/reprogramacion` y `POST /gestion/citas/{id}/cancelacion`
-- [ ] T097 [P] [US5] Test de integración en `tests/integration/use-cases/reschedule-appointment-as-owner.test.ts`: una cita de dos servicios conserva los dos, su duración total —aunque uno haya cambiado de duración o se haya retirado del catálogo—, sus datos y su **enlace de gestión vivo** (FR-039, FR-041, BR-020)
-- [ ] T098 [P] [US5] Test de integración en `tests/integration/use-cases/cancel-appointment-as-owner.test.ts`: la dueña cancela dentro del plazo vedado al cliente, la cita queda con `cancelled_by = 'OWNER'`, y una cita cancelada no se reactiva ni se mueve (FR-040a, FR-042, BR-007, BR-008)
-- [ ] T185 [P] [US5] Test unitario en `tests/unit/domain/owner/cancellation.test.ts`: `applyOwnerCancellation` fija `cancelledBy: 'OWNER'`, no consulta el plazo, rechaza `ALREADY_CANCELLED` e `IN_THE_PAST` y deja cancelar una cita en curso (FR-016, FR-040a, BR-007)
-- [ ] T099 [P] [US5] Test de integración de que ni crear ni mover al pasado es posible, con una cita **en curso** que sí se mueve, en `tests/integration/use-cases/reschedule-appointment-as-owner.test.ts` (FR-030, BR-009)
-- [ ] T100 [P] [US5] E2E en `tests/e2e/us5-manage.spec.ts`: mover, cancelar con confirmación explícita que nombra la cita, el recordatorio de FR-043 con el teléfono a la vista y, en el escenario 7, abrir después el enlace de esa cita y leer «El salón ha cancelado esta cita» con el teléfono del salón, más axe. El escenario 6 —la cancelada aparece en el listado como «Cancelada por ti»— lo comprueba T176, porque necesita la pantalla de la US10
-- [ ] T194 [P] [US5] Ampliar el test de contrato de la vista de la cita en `tests/contract/` y pasar `specs/001-client-appointment-booking/contracts/http-api.yaml` a la **2.1.0** según `contracts/http-api-changes.md`: `AppointmentDetail` exige `cancelledBy`. Queda en rojo hasta T195 (D-037)
-- [ ] T196 [P] [US5] Ampliar `tests/e2e/us5-cancel.spec.ts` de la 001: tras cancelar desde el enlace, la pantalla dice «Has cancelado esta cita» y ya no «Esta cita está cancelada…» (FR-040b, D-037)
+- [x] T096 [P] [US5] Test de contrato en `tests/contract/owner/citas-cambios.test.ts` para `POST /gestion/citas/{id}/reprogramacion` y `POST /gestion/citas/{id}/cancelacion`
+- [x] T097 [P] [US5] Test de integración en `tests/integration/use-cases/reschedule-appointment-as-owner.test.ts`: una cita de dos servicios conserva los dos, su duración total —aunque uno haya cambiado de duración o se haya retirado del catálogo—, sus datos y su **enlace de gestión vivo** (FR-039, FR-041, BR-020)
+- [x] T098 [P] [US5] Test de integración en `tests/integration/use-cases/cancel-appointment-as-owner.test.ts`: la dueña cancela dentro del plazo vedado al cliente, la cita queda con `cancelled_by = 'OWNER'`, y una cita cancelada no se reactiva ni se mueve (FR-040a, FR-042, BR-007, BR-008)
+- [x] T185 [P] [US5] Test unitario en `tests/unit/domain/owner/cancellation.test.ts`: `applyOwnerCancellation` fija `cancelledBy: 'OWNER'`, no consulta el plazo, rechaza `ALREADY_CANCELLED` e `IN_THE_PAST` y deja cancelar una cita en curso (FR-016, FR-040a, BR-007)
+- [x] T099 [P] [US5] Test de integración de que ni crear ni mover al pasado es posible, con una cita **en curso** que sí se mueve, en `tests/integration/use-cases/reschedule-appointment-as-owner.test.ts` (FR-030, BR-009)
+- [x] T100 [P] [US5] E2E en `tests/e2e/us5-manage.spec.ts`: mover, cancelar con confirmación explícita que nombra la cita, el recordatorio de FR-043 con el teléfono a la vista y, en el escenario 7, abrir después el enlace de esa cita y leer «El salón ha cancelado esta cita» con el teléfono del salón, más axe. El escenario 6 —la cancelada aparece en el listado como «Cancelada por ti»— lo comprueba T176, porque necesita la pantalla de la US10
+- [x] T194 [P] [US5] Ampliar el test de contrato de la vista de la cita en `tests/contract/` y pasar `specs/001-client-appointment-booking/contracts/http-api.yaml` a la **2.1.0** según `contracts/http-api-changes.md`: `AppointmentDetail` exige `cancelledBy`. Queda en rojo hasta T195 (D-037)
+- [x] T196 [P] [US5] Ampliar `tests/e2e/us5-cancel.spec.ts` de la 001: tras cancelar desde el enlace, la pantalla dice «Has cancelado esta cita» y ya no «Esta cita está cancelada…» (FR-040b, D-037)
 
 ### Implementación de la Historia 5
 
-- [ ] T186 [US5] Implementar `src/domain/owner/cancellation.ts`: `applyOwnerCancellation` apoyada en `isPastSlot` (contracts/domain-api.md)
-- [ ] T101 [P] [US5] Implementar `src/application/use-cases/reschedule-appointment-as-owner.ts`, con la duración de `durationOf(appointment)` y nunca la del catálogo (D-030)
-- [ ] T102 [P] [US5] Implementar `src/application/use-cases/cancel-appointment-as-owner.ts` sobre `applyOwnerCancellation`, pasando `OWNER` al repositorio
-- [ ] T103 [P] [US5] Implementar `src/app/api/gestion/citas/[id]/reprogramacion/route.ts` (`POST`)
-- [ ] T104 [P] [US5] Implementar `src/app/api/gestion/citas/[id]/cancelacion/route.ts` (`POST`)
-- [ ] T105 [US5] Añadir a `src/app/gestion/agenda/page.tsx` las acciones de mover y cancelar, con confirmación explícita que nombra la cita concreta (FR-040)
-- [ ] T106 [P] [US5] Añadir el aviso de "el cliente no recibe ningún aviso" con su teléfono a `src/messages/es-ES.ts` y a la pantalla (FR-043)
-- [ ] T195 [US5] Devolver `cancelledBy` desde `src/application/use-cases/view-appointment.ts` y su Route Handler, y en `src/app/cita/[token]/page.tsx` elegir el texto según su valor: «Has cancelado esta cita» o «El salón ha cancelado esta cita» con el teléfono del salón, sustituyendo `cancelledNote` en `src/messages/es-ES.ts` (FR-040b, D-037)
+- [x] T186 [US5] Implementar `src/domain/owner/cancellation.ts`: `applyOwnerCancellation` apoyada en `isPastSlot` (contracts/domain-api.md)
+- [x] T101 [P] [US5] Implementar `src/application/use-cases/reschedule-appointment-as-owner.ts`, con la duración de `durationOf(appointment)` y nunca la del catálogo (D-030) *En `manage-owner-appointments.ts` (ver T091)*
+- [x] T102 [P] [US5] Implementar `src/application/use-cases/cancel-appointment-as-owner.ts` sobre `applyOwnerCancellation`, pasando `OWNER` al repositorio *En `manage-owner-appointments.ts` (ver T091)*
+- [x] T103 [P] [US5] Implementar `src/app/api/gestion/citas/[id]/reprogramacion/route.ts` (`POST`)
+- [x] T104 [P] [US5] Implementar `src/app/api/gestion/citas/[id]/cancelacion/route.ts` (`POST`)
+- [x] T105 [US5] Añadir a `src/app/gestion/agenda/page.tsx` las acciones de mover y cancelar, con confirmación explícita que nombra la cita concreta (FR-040)
+- [x] T106 [P] [US5] Añadir el aviso de "el cliente no recibe ningún aviso" con su teléfono a `src/messages/es-ES.ts` y a la pantalla (FR-043)
+- [x] T195 [US5] Devolver `cancelledBy` desde `src/application/use-cases/view-appointment.ts` y su Route Handler, y en `src/app/cita/[token]/page.tsx` elegir el texto según su valor: «Has cancelado esta cita» o «El salón ha cancelado esta cita» con el teléfono del salón, sustituyendo `cancelledNote` en `src/messages/es-ES.ts` (FR-040b, D-037)
 
 **Checkpoint**: todo cambio de última hora se resuelve dentro de la app.
 
@@ -302,21 +302,21 @@ La `0003_multiple_services.sql` es de la 005 y ya está en `main`: las de esta f
 
 ### Tests de la Historia 6 ⚠️
 
-- [ ] T107 [P] [US6] Test unitario en `tests/unit/domain/owner/conflict.test.ts`: `buildResolutionPlan` devuelve `UNRESOLVED_CONFLICT` si queda una cita sin resolver, `UNKNOWN_TARGET` y `SHORTENING_DOES_NOT_FIT`; **no existe entrada que signifique "mantener ambas"** (FR-034, FR-035)
+- [x] T107 [P] [US6] Test unitario en `tests/unit/domain/owner/conflict.test.ts`: `buildResolutionPlan` devuelve `UNRESOLVED_CONFLICT` si queda una cita sin resolver, `UNKNOWN_TARGET` y `SHORTENING_DOES_NOT_FIT`; **no existe entrada que signifique "mantener ambas"** (FR-034, FR-035)
 - [x] T108 [P] [US6] Test unitario de `computeStateToken` en `tests/unit/domain/owner/conflict.test.ts`: determinista, estable frente al orden y sensible a cualquier cambio (D-024) *Hecho en la US3, junto con los tests de `detectConflicts` y `checkAcknowledgement`*
-- [ ] T109 [P] [US6] Test de integración de atomicidad en `tests/integration/use-cases/resolution-atomicity.test.ts`: provoca un fallo a mitad del plan y comprueba que **ni la cita en conflicto queda cancelada ni la nueva creada** (FR-037, SC-006)
-- [ ] T110 [P] [US6] Test de concurrencia real en `tests/integration/concurrency/concurrent-conflict.test.ts`: dos confirmaciones solapadas en dos conexiones; exactamente una prospera y la otra recibe el conflicto **recalculado**, nunca un solape guardado (FR-038, SC-004, D-029)
-- [ ] T111 [P] [US6] Test de integración de que una violación `23P01` se traduce a `STATE_CHANGED` en `tests/integration/db/constraints.test.ts` (D-024)
-- [ ] T112 [P] [US6] Test de contrato del protocolo de dos pasos en `tests/contract/owner/conflicto.test.ts`: el primer paso es de sólo lectura y el segundo exige `stateToken` y `Resolution`
-- [ ] T113 [P] [US6] E2E en `tests/e2e/us6-conflict.spec.ts`: los seis escenarios, más axe sobre el `dialog` modal con foco atrapado, devuelto al abridor y conflicto anunciado en `aria-live` (Principio VII)
+- [x] T109 [P] [US6] Test de integración de atomicidad en `tests/integration/use-cases/resolution-atomicity.test.ts`: provoca un fallo a mitad del plan y comprueba que **ni la cita en conflicto queda cancelada ni la nueva creada** (FR-037, SC-006)
+- [x] T110 [P] [US6] Test de concurrencia real en `tests/integration/concurrency/concurrent-conflict.test.ts`: dos confirmaciones solapadas en dos conexiones; exactamente una prospera y la otra recibe el conflicto **recalculado**, nunca un solape guardado (FR-038, SC-004, D-029)
+- [x] T111 [P] [US6] Test de integración de que una violación `23P01` se traduce a `STATE_CHANGED` en `tests/integration/db/constraints.test.ts` (D-024) *En `tests/integration/use-cases/resolution-atomicity.test.ts`, con una reserva online sin confirmar que se cuela tras la re-detección*
+- [x] T112 [P] [US6] Test de contrato del protocolo de dos pasos en `tests/contract/owner/conflicto.test.ts`: el primer paso es de sólo lectura y el segundo exige `stateToken` y `Resolution` *Cubierto en `tests/contract/owner/citas.test.ts`: 409 sin tocar nada y 201 al devolver `stateToken` y `resolution`*
+- [x] T113 [P] [US6] E2E en `tests/e2e/us6-conflict.spec.ts`: los seis escenarios, más axe sobre el `dialog` modal con foco atrapado, devuelto al abridor y conflicto anunciado en `aria-live` (Principio VII)
 
 ### Implementación de la Historia 6
 
-- [ ] T114 [US6] Completar `src/domain/owner/conflict.ts` con `computeStateToken` —con el `hash` inyectado como puerto— y `buildResolutionPlan` con sus tres modos de fallo tipados *`computeStateToken` y `detectConflicts` ya existen desde la US3; queda `buildResolutionPlan`*
-- [ ] T115 [US6] Implementar `src/infrastructure/db/owner-appointment-writer.ts`: `applyPlan` que re-detecta el conflicto **dentro** de la transacción, compara el `stateToken` y aplica el plan entero o nada, con las filas de `appointment_service` de la cita nueva y `cancelled_by = 'OWNER'` en las cancelaciones de la resolución (D-023, D-024, FR-040a)
-- [ ] T116 [US6] Integrar el protocolo de dos pasos en los handlers de `src/app/api/gestion/citas/`, `citas/[id]/reprogramacion/` y `periodos/`
-- [ ] T117 [US6] Implementar `src/components/owner/conflict-dialog.tsx`: `dialog` modal accesible que nombra cada elemento en conflicto —con todos los servicios de una cita— y ofrece **sólo** salidas explícitas (FR-033, FR-034)
-- [ ] T118 [P] [US6] Añadir los textos del diálogo de conflicto a `src/messages/es-ES.ts`, con el nombre del cliente en pantalla y **nunca** en el log (FR-057)
+- [x] T114 [US6] Completar `src/domain/owner/conflict.ts` con `computeStateToken` —con el `hash` inyectado como puerto— y `buildResolutionPlan` con sus tres modos de fallo tipados *`computeStateToken` y `detectConflicts` ya existen desde la US3; queda `buildResolutionPlan`*
+- [x] T115 [US6] Implementar `src/infrastructure/db/owner-appointment-writer.ts`: `applyPlan` que re-detecta el conflicto **dentro** de la transacción, compara el `stateToken` y aplica el plan entero o nada, con las filas de `appointment_service` de la cita nueva y `cancelled_by = 'OWNER'` en las cancelaciones de la resolución (D-023, D-024, FR-040a)
+- [x] T116 [US6] Integrar el protocolo de dos pasos en los handlers de `src/app/api/gestion/citas/`, `citas/[id]/reprogramacion/` y `periodos/`
+- [x] T117 [US6] Implementar `src/components/owner/conflict-dialog.tsx`: `dialog` modal accesible que nombra cada elemento en conflicto —con todos los servicios de una cita— y ofrece **sólo** salidas explícitas (FR-033, FR-034)
+- [x] T118 [P] [US6] Añadir los textos del diálogo de conflicto a `src/messages/es-ES.ts`, con el nombre del cliente en pantalla y **nunca** en el log (FR-057)
 
 **Checkpoint**: crear, mover y cancelar con resolución de conflictos están completos; SC-004, SC-005 y SC-006 se cumplen. Falta la Historia 11 para cerrar la gestión manual.
 

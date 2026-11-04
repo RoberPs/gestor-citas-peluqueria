@@ -9,6 +9,7 @@ import type { OpeningInterval, Weekday } from '@/domain/catalog/salon';
 import type { Clock } from '@/domain/shared/clock';
 import { createAppointmentRepository } from '@/infrastructure/db/appointment-repository';
 import { createSalonConfigRepository } from '@/infrastructure/db/salon-config-repository';
+import { createOwnerAppointmentWriter } from '@/infrastructure/db/owner-appointment-writer';
 import { createUnavailablePeriodRepository } from '@/infrastructure/db/unavailable-period-repository';
 import { stateHash } from '@/infrastructure/security/state-hash';
 import {
@@ -425,6 +426,7 @@ describe('blocked time reaches the client at once (002, Historia 3, T073)', () =
       config: createSalonConfigRepository(testPool),
       appointments: createAppointmentRepository(testPool),
       periods: createUnavailablePeriodRepository(testPool),
+      writer: createOwnerAppointmentWriter(testPool),
       stateHash,
       clock,
     });

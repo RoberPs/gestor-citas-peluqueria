@@ -166,22 +166,26 @@ export function isPastSlot(
 
 ```typescript
 export function planManualBooking(input: {
-  readonly intent: { readonly startsAt: Temporal.Instant;
-                     /** De `selectServices` contra el catálogo activo (FR-024, D-030). */
-                     readonly services: NonEmptyServiceList;
-                     readonly contact: ValidatedContact };
+  readonly startsAt: Temporal.Instant;
+  /** De `selectServices` contra el catálogo activo (FR-024, D-030). */
+  readonly services: NonEmptyServiceList;
+  /** Los del día del inicio, en el salón. */
   readonly openingIntervals: readonly OpeningInterval[];
-  readonly confirmedAppointments: readonly BusyInterval[];
+  /** Las que tocan la franja nueva, para nombrarlas si estorban. */
+  readonly appointments: readonly Appointment[];
   readonly unavailablePeriods: readonly UnavailablePeriod[];
+  /** `null` al mover: la cita ya contaba y sigue contando lo mismo. */
   readonly futureCountsForContact: { readonly byPhone: number;
-                                     readonly byEmail: number };
+                                     readonly byEmail: number } | null;
+  /** Al mover: la propia cita no estorba. */
+  readonly excludeAppointmentId?: AppointmentId;
   readonly now: Temporal.Instant;
   readonly policy: BookingPolicy;
   readonly timezone: string;
 }): Result<ManualBookingPlan, ManualBookingBlocker>;
 
 export type ManualBookingBlocker =
-  | 'IN_THE_PAST'              // FR-030, BR-009
+  | 'IN_THE_PAST'              // FR-030, BR-009: el FIN de la franja ya pasó
   | 'CONTACT_LIMIT_REACHED'    // FR-029, BR-007
   | 'INVALID_START_GRANULARITY';  // no es múltiplo de 15 min (D-025)
 
@@ -194,6 +198,9 @@ export type ManualBookingPlan = {
 
 export type ManualBookingWarning = 'OUTSIDE_OPENING_HOURS';  // FR-028, avisa, no bloquea
 ```
+
+*Revisado al implementar (paso 6)*: el contacto no entra en la función, porque no decide nada con él; el caso de uso lo lleva a la intención. Recibe citas enteras, no `BusyInterval`, porque un conflicto tiene que poder nombrarlas (FR-033). Cuándo una cita **ya existente** se puede tocar —ni cancelada ni terminada— lo dice `checkOwnerCanChange` de `owner/cancellation`, la misma regla para mover, editar y cancelar.
+
 
 **Contrato**: la tabla de D-025, y nada más. Lo que bloquea va en el canal de error; lo que avisa viaja **dentro del éxito**, porque un aviso no impide nada: exige acuse.
 
@@ -356,6 +363,7 @@ export type ResolutionError =
 - Un conflicto con un **periodo** admite tres salidas: eliminarlo, recortarlo hasta que deje sitio, o —sólo al crear un periodo sobre citas existentes— acusarlo sin tocar nada (FR-022).
 - `SHORTENING_DOES_NOT_FIT` se comprueba aquí y no en la pantalla: la UI puede anticipar el resultado, nunca decidirlo.
 - El plan **no se aplica**: es un valor. Aplicarlo es cosa de `OwnerAppointmentWriter.applyPlan`, en una sola transacción (D-023).
+- *Revisado al implementar (paso 6)*: recibe también `now` y `timezone`, porque un recorte se valida con `validateShortening` (rejilla de 15 minutos, dentro del periodo, no pasado); el plan lleva `at`, el instante de sus cancelaciones. `shorteningsThatFit(period, span)` devuelve los recortes que dejarían sitio —lo que queda antes y lo que queda después— para que la pantalla los ofrezca sin calcularlos. `applyPlan` sólo responde `STATE_CHANGED`: la violación `23P01` significa lo mismo (D-024). Las escrituras de la dueña toman un *advisory lock* de transacción, así que dos de ellas nunca re-detectan a la vez; una reserva online no lo toma y para ella está la restricción `EXCLUDE`.
 
 ---
 

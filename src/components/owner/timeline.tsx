@@ -23,7 +23,26 @@ function span(date: string, startsAt: Moment, endsAt: Moment): string {
   return `${from}–${to}`;
 }
 
-function AppointmentCard({ appointment, date }: { readonly appointment: AppointmentEntry; readonly date: string }) {
+/**
+ * Where each change of an appointment, or a new one, is opened (Historias 4,
+ * 5 y 11). Absent on a day that is over. The links are plain addresses, so
+ * the agenda works with no JavaScript.
+ */
+export type AppointmentLinks = {
+  readonly newAt: (localTime: string) => string;
+  readonly move: (id: string) => string;
+  readonly cancel: (id: string) => string;
+};
+
+function AppointmentCard({
+  appointment,
+  date,
+  links,
+}: {
+  readonly appointment: AppointmentEntry;
+  readonly date: string;
+  readonly links: AppointmentLinks | undefined;
+}) {
   const origin = messages.owner.origin[appointment.origin];
   const cancelled = appointment.status === 'CANCELLED';
 
@@ -65,6 +84,27 @@ function AppointmentCard({ appointment, date }: { readonly appointment: Appointm
           price={appointment.price}
         />
       </dl>
+
+      {links !== undefined && !cancelled && !appointment.isPast && (
+        <ul className="timeline-actions">
+          {(
+            [
+              [links.move(appointment.id), messages.owner.appointments.move],
+              [links.cancel(appointment.id), messages.owner.appointments.cancel],
+            ] as const
+          ).map(([href, label]) => (
+            <li key={label}>
+              <a className="button-secondary" href={href}>
+                {label}
+                <span className="visually-hidden">
+                  {' '}
+                  {messages.owner.appointments.of} {appointment.startsAt.localTime}
+                </span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
     </article>
   );
 }
@@ -75,7 +115,15 @@ export type ReleasePeriod = {
   readonly withCancelled: boolean;
 };
 
-export function Timeline({ day, release }: { readonly day: AgendaDayDto; readonly release?: ReleasePeriod }) {
+export function Timeline({
+  day,
+  release,
+  links,
+}: {
+  readonly day: AgendaDayDto;
+  readonly release?: ReleasePeriod;
+  readonly links?: AppointmentLinks;
+}) {
   const hasAppointments = day.entries.some((entry) => entry.kind === 'APPOINTMENT');
 
   return (
@@ -96,7 +144,7 @@ export function Timeline({ day, release }: { readonly day: AgendaDayDto; readonl
               case 'APPOINTMENT':
                 return (
                   <li key={`a-${entry.appointment.id}`}>
-                    <AppointmentCard appointment={entry.appointment} date={day.date} />
+                    <AppointmentCard appointment={entry.appointment} date={day.date} links={links} />
                   </li>
                 );
               case 'UNAVAILABLE':
@@ -126,6 +174,15 @@ export function Timeline({ day, release }: { readonly day: AgendaDayDto; readonl
                   <li key={`f-${entry.startsAt.instant}`} className="timeline-free">
                     <span className="timeline-time">{span(day.date, entry.startsAt, entry.endsAt)}</span>{' '}
                     {messages.owner.agenda.free}
+                    {links !== undefined && (
+                      <>
+                        {' '}
+                        <a className="touch-link" href={links.newAt(entry.startsAt.localTime)}>
+                          {messages.owner.appointments.newHere}
+                          <span className="visually-hidden"> {entry.startsAt.localTime}</span>
+                        </a>
+                      </>
+                    )}
                   </li>
                 );
             }

@@ -31,7 +31,8 @@ type SpanInput = {
   readonly timezone: string;
 };
 
-function onGrid(instant: Temporal.Instant, timezone: string): boolean {
+/** The owner's grid, for periods and for the starts she writes by hand (D-025). */
+export function onGrid(instant: Temporal.Instant, timezone: string): boolean {
   const wall = zonedFrom(instant, timezone);
   return (
     wall.minute % PERIOD_GRANULARITY_MINUTES === 0 &&

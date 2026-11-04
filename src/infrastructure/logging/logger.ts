@@ -28,7 +28,12 @@ const SENSITIVE = [
  * listed. Three levels covers a field at the top, under `customer` or `err`,
  * and inside a request payload.
  */
-const REDACT_PATHS = SENSITIVE.flatMap((key) => [key, `*.${key}`, `*.*.${key}`]);
+const REDACT_PATHS = [
+  ...SENSITIVE.flatMap((key) => [key, `*.${key}`, `*.*.${key}`]),
+  // 002, FR-057: a conflict names each appointment in the way by its customer,
+  // inside a list, at the top of a body or under one key.
+  ...['customerName', '*.customerName', 'conflicts[*].customerName', '*.conflicts[*].customerName'],
+];
 
 /**
  * Errors are re-serialised rather than dumped.

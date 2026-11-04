@@ -1,14 +1,23 @@
 import type { Metadata } from 'next';
+import type { ReactNode } from 'react';
 import { container } from '@/app/_lib/container';
 import { longDateLabel } from '@/app/_lib/format';
-import { agendaDayDto } from '@/app/api/gestion/_lib/serializers';
+import { serviceIdsFrom } from '@/app/_lib/service-ids';
+import { serviceDto } from '@/app/api/_lib/serializers';
+import { agendaDayDto, ownerAppointmentDto, type AgendaDayDto } from '@/app/api/gestion/_lib/serializers';
+import { appointmentIdSchema } from '@/app/api/gestion/_lib/appointment-params';
 import { NavForm } from '@/components/nav-form';
+import { ManualBookingForm } from '@/components/owner/manual-booking-form';
+import { CancelForm, MoveForm } from '@/components/owner/move-form';
 import { OwnerHeader } from '@/components/owner/owner-header';
 import { PeriodForm } from '@/components/owner/period-form';
-import { Timeline } from '@/components/owner/timeline';
+import { Timeline, type AppointmentLinks } from '@/components/owner/timeline';
+import { ServicePicker } from '@/components/service-picker';
+import { selectServices } from '@/domain/catalog/selection';
 import { messages } from '@/messages/es-ES';
 import { requireOwnerPage } from '../_lib/require-owner-page';
 import { blockPeriod, releasePeriod } from './actions';
+import { cancelAppointment, createAppointment, moveAppointment } from './appointment-actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,6 +31,26 @@ function single(value: string | string[] | undefined): string | undefined {
 
 function agendaHref(date: string, withCancelled: boolean): string {
   return `/gestion/agenda?fecha=${date}${withCancelled ? '&canceladas=1' : ''}`;
+}
+
+type AppointmentDto = Extract<AgendaDayDto['entries'][number], { kind: 'APPOINTMENT' }>['appointment'];
+
+function appointmentOf(day: AgendaDayDto, id: string | undefined): AppointmentDto | undefined {
+  for (const entry of day.entries) {
+    if (entry.kind === 'APPOINTMENT' && entry.appointment.id === id) return entry.appointment;
+  }
+  return undefined;
+}
+
+/** A panel of the side column, reached by its anchor from the timeline. */
+function ActionPanel({ title, hint, children }: { readonly title: string; readonly hint?: string; readonly children: ReactNode }) {
+  return (
+    <section id="accion" aria-labelledby="action-heading" className="card">
+      <h2 id="action-heading">{title}</h2>
+      {hint !== undefined && <p className="muted">{hint}</p>}
+      {children}
+    </section>
+  );
 }
 
 /**
@@ -50,6 +79,99 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
   const date = dto.date;
   const previous = day.date.subtract({ days: 1 }).toString();
   const next = day.date.add({ days: 1 }).toString();
+  const here = agendaHref(date, withCancelled);
+
+  // Historias 4 y 5: one change at a time, opened from the timeline by address.
+  const links: AppointmentLinks | undefined = dto.isReadOnly
+    ? undefined
+    : {
+        newAt: (time) => `${here}&nueva=${encodeURIComponent(time)}#accion`,
+        move: (id) => `${here}&mover=${id}#accion`,
+        cancel: (id) => `${here}&cancelar=${id}#accion`,
+      };
+  const newAt = links === undefined ? undefined : single(query['nueva']);
+  const toMove = links === undefined ? undefined : appointmentOf(dto, single(query['mover']));
+  // Looked up by id, not on the timeline: once cancelled it leaves the timeline, and
+  // the panel still has to say so, with whom to call (FR-043).
+  const cancelId = appointmentIdSchema.safeParse(single(query['cancelar']));
+  const found = links === undefined || !cancelId.success ? null : await container().appointments.findById(cancelId.data);
+  const toCancel = found === null ? undefined : ownerAppointmentDto(found, clock.now(), salon.timezone);
+
+  let panel: ReactNode = null;
+  if (newAt !== undefined) {
+    const catalogue = (await container().listServices()).services;
+    const serviceIds = serviceIdsFrom(typeof query['serviceIds'] === 'string' ? query['serviceIds'] : undefined, catalogue);
+    const selection = selectServices(catalogue, serviceIds);
+    panel = (
+      <ActionPanel title={messages.owner.appointments.newTitle} hint={messages.owner.appointments.newHint}>
+        <ServicePicker
+          services={catalogue.map(serviceDto)}
+          selectedIds={serviceIds}
+          totalDurationMinutes={selection.ok ? selection.value.durationMinutes : null}
+          action="/gestion/agenda"
+          keep={{ fecha: date, nueva: newAt, canceladas: withCancelled ? '1' : undefined }}
+        />
+        <ManualBookingForm
+          action={createAppointment}
+          date={date}
+          time={newAt}
+          serviceIds={serviceIds}
+          closeHref={here}
+        />
+      </ActionPanel>
+    );
+  } else if (toMove !== undefined) {
+    panel = (
+      <ActionPanel title={messages.owner.appointments.moveTitle} hint={messages.owner.appointments.moveHint}>
+        <MoveForm
+          key={toMove.id}
+          action={moveAppointment}
+          appointmentId={toMove.id}
+          date={toMove.startsAt.localDate}
+          time={toMove.startsAt.localTime}
+          closeHref={here}
+        />
+      </ActionPanel>
+    );
+  } else if (toCancel !== undefined && toCancel.status === 'CANCELLED') {
+    const phone = toCancel.hasManagementLink && toCancel.customer !== null ? toCancel.customer.phone : null;
+    panel = (
+      <ActionPanel title={messages.owner.appointments.cancelTitle}>
+        <div role="status" className="notice">
+          <p>{messages.owner.appointments.cancelled}</p>
+          {phone !== null && (
+            <p>
+              {messages.owner.appointments.callCustomer}{' '}
+              <a className="touch-link" href={`tel:${phone.replace(/[\s.-]/g, '')}`}>
+                {phone}
+              </a>
+            </p>
+          )}
+          <p>
+            <a className="touch-link" href={here}>
+              {messages.owner.appointments.close}
+            </a>
+          </p>
+        </div>
+      </ActionPanel>
+    );
+  } else if (toCancel !== undefined) {
+    const question = messages.owner.appointments.cancelQuestion
+      .replace('{name}', toCancel.customer?.name ?? messages.owner.agenda.anonymized)
+      .replace('{date}', longDateLabel(toCancel.startsAt.localDate))
+      .replace('{time}', toCancel.startsAt.localTime);
+    panel = (
+      <ActionPanel title={messages.owner.appointments.cancelTitle}>
+        <CancelForm
+          key={toCancel.id}
+          action={cancelAppointment}
+          appointmentId={toCancel.id}
+          question={question}
+          closeHref={here}
+        />
+      </ActionPanel>
+    );
+  }
 
   return (
     <>
@@ -74,10 +196,15 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
               )}
             </div>
           )}
-          <Timeline day={dto} release={dto.isReadOnly ? undefined : { action: releasePeriod, withCancelled }} />
+          <Timeline
+            day={dto}
+            release={dto.isReadOnly ? undefined : { action: releasePeriod, withCancelled }}
+            {...(links === undefined ? {} : { links })}
+          />
         </div>
 
         <div className="col-side">
+          {panel}
           <section aria-labelledby="day-picker-heading" className="card">
             <h2 id="day-picker-heading">{messages.owner.agenda.dayPicker}</h2>
             <ul className="agenda-steps">

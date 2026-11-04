@@ -194,6 +194,51 @@ select {
   background: var(--surface-sunken);
 }
 
+.timeline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 002, Historia 6: the conflict dialog. A native modal: the browser traps the focus. */
+.conflict-dialog {
+  width: min(560px, calc(100% - 32px));
+  max-height: calc(100% - 32px);
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.conflict-dialog::backdrop {
+  background: rgb(0 0 0 / 0.5);
+}
+
+.conflict-dialog fieldset {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  margin: 0 0 12px;
+  padding: 8px 12px;
+}
+
+.conflict-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.choice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--tap);
+}
+
 .timeline-tags {
   display: flex;
   flex-wrap: wrap;

@@ -171,7 +171,11 @@ export const messages = {
     rescheduleAction: 'Cambiar de hora',
     bookAnother: 'Reservar una cita nueva',
     completedNote: 'Esta cita ya ha pasado. Puedes consultarla, pero no cambiarla.',
-    cancelledNote: 'Esta cita está cancelada. Si quieres venir, reserva una nueva.',
+    /** 002, FR-040b, D-037: who cancelled it, and from the salon, whom to call. */
+    cancelledBy: {
+      CUSTOMER: 'Has cancelado esta cita. Si quieres venir, reserva una nueva.',
+      OWNER: `El salón ha cancelado esta cita. Si quieres saber por qué o buscar otra hora, llama al ${SALON_PHONE_PLACEHOLDER}.`,
+    },
 
     /**
      * FR-028: the reason comes from the domain block; only the wording is here.
@@ -385,6 +389,60 @@ export const messages = {
       abandon: 'No bloquear',
     },
 
+    /** Historias 4, 5, 6 y 11: the owner's appointments, from the agenda. */
+    appointments: {
+      newHere: 'Apuntar una cita aquí',
+      newTitle: 'Apuntar una cita',
+      newHint: 'Para quien entra sin cita o llama por teléfono. El email es opcional.',
+      day: 'Día',
+      time: 'Hora',
+      timeHint: 'De 15 en 15 minutos. Puedes apuntarla aunque falten menos de 2 horas.',
+      name: 'Nombre',
+      phone: 'Teléfono',
+      email: 'Email (opcional)',
+      create: 'Guardar la cita',
+      created: 'Cita apuntada.',
+      close: 'Cerrar',
+      move: 'Mover',
+      moveTitle: 'Mover la cita',
+      moveHint: 'Conserva sus servicios, su duración y sus datos. Si se reservó online, su enlace sigue funcionando.',
+      moveSubmit: 'Mover a esta hora',
+      moved: 'Cita movida.',
+      cancel: 'Cancelar',
+      cancelTitle: 'Cancelar esta cita',
+      /** FR-040: the confirmation names the appointment. */
+      cancelQuestion: '¿Cancelas la cita de {name} del {date} a las {time}?',
+      cancelWarning: 'Una cancelación no se deshace. La hora vuelve a ofrecerse a los clientes en cuanto la confirmas.',
+      cancelYes: 'Sí, cancelar la cita',
+      cancelNo: 'No, dejarla como está',
+      cancelled: 'Cita cancelada.',
+      /** FR-043: v1 sends nothing, so the owner has to call. */
+      callCustomer: 'El cliente no recibe ningún aviso: llámale para decírselo.',
+      edit: 'Editar',
+      editTitle: 'Editar la cita',
+      editHint: 'Cambia sus servicios o los datos del cliente. La hora no cambia: para eso está «Mover».',
+      editSubmit: 'Guardar los cambios',
+      edited: 'Cita editada.',
+      endsAt: 'Terminaría a las',
+      /** For the screen reader, after each action button: which appointment it acts on. */
+      of: 'la cita de las',
+    },
+
+    /** FR-033, FR-034: the conflict dialog. Names on screen, never in the log (FR-057). */
+    conflict: {
+      title: 'Antes de guardar',
+      appointmentsTitle: 'Citas en esa hora',
+      periodsTitle: 'Ratos bloqueados en esa hora',
+      warningsTitle: 'Avisos',
+      cancelAppointment: 'Cancelar esta cita para dejar sitio',
+      noKeepBoth: 'Dos citas no pueden coincidir: para guardar la nueva hay que cancelar la que estorba.',
+      deletePeriod: 'Eliminar el rato bloqueado',
+      shortenTo: 'Dejarlo de {from} a {to}',
+      confirm: 'Aplicar y guardar',
+      abandon: 'Volver sin cambiar nada',
+      atomic: 'Se hace todo a la vez o no se hace nada.',
+    },
+
     /** FR-013: the origin with text and an icon, never colour alone. */
     origin: {
       ONLINE: { label: 'Reservada online', icon: '@' },
@@ -466,6 +524,76 @@ export const messages = {
         nextAction:
           'Si lo bloqueas igualmente, las citas siguen en pie: no se cancela ninguna. Si no, elige otro rato.',
       },
+      /** Historias 4, 5 y 11: why an appointment is not saved, keyed by the domain's reason. */
+      appointment: {
+        IN_THE_PAST: {
+          message: 'Esa hora ya ha pasado.',
+          nextAction: 'Elige una hora que no haya terminado todavía.',
+        },
+        CONTACT_LIMIT_REACHED: {
+          message: 'Este cliente ya tiene 3 citas por delante, que es el máximo.',
+          nextAction: 'Cancela o mueve una de sus citas antes de apuntarle otra.',
+        },
+        INVALID_START_GRANULARITY: {
+          message: 'Las citas empiezan de 15 en 15 minutos.',
+          nextAction: 'Elige, por ejemplo, 16:00, 16:15, 16:30 o 16:45.',
+        },
+        ALREADY_CANCELLED: {
+          message: 'Esta cita está cancelada, y una cancelación no se deshace.',
+          nextAction: 'Si el cliente quiere venir, elige una hora libre y apúntale una cita nueva.',
+        },
+        EMPTY: {
+          message: 'Una cita tiene al menos un servicio.',
+          nextAction: 'Elige uno o varios servicios.',
+        },
+        DUPLICATE: {
+          message: 'Has elegido el mismo servicio dos veces.',
+          nextAction: 'Revisa los servicios y deja cada uno una sola vez.',
+        },
+        UNKNOWN_SERVICE: {
+          message: 'Uno de los servicios elegidos ya no se ofrece.',
+          nextAction: 'Elige servicios del catálogo actual.',
+        },
+        UNKNOWN_TARGET: {
+          message: 'Lo que has elegido resolver ya no está en conflicto con esta cita.',
+          nextAction: 'Vuelve a la agenda y repite la operación.',
+        },
+        SHORTENING_DOES_NOT_FIT: {
+          message: 'Recortado así, el rato bloqueado sigue pisando la cita.',
+          nextAction: 'Elige un recorte que deje sitio, o elimina el rato.',
+        },
+        STATE_CHANGED: {
+          message: 'La agenda ha cambiado mientras decidías.',
+          nextAction: 'Vuelve a la agenda y repite la operación sobre lo que hay ahora.',
+        },
+      },
+      /** FR-031: which fields, said in words, since the owner's errors carry no field list. */
+      invalidContact: {
+        message: 'Revisa {fields}.',
+        nextAction: 'Corrígelo y vuelve a guardar.',
+      },
+      contactFieldNames: {
+        'customer.name': 'el nombre',
+        'customer.phone': 'el teléfono',
+        'customer.email': 'el email',
+      },
+      appointmentNotFound: {
+        message: 'Esa cita no existe.',
+        nextAction: 'Vuelve a la agenda y elige la cita de nuevo.',
+      },
+      /** FR-032, FR-033: named, and nothing has been touched yet. */
+      appointmentConflict: {
+        message: 'Hay algo en esa hora.',
+        nextAction: 'Elige qué hacer con lo que estorba, o vuelve sin cambiar nada.',
+      },
+      /** FR-028: a warning prevents nothing; it asks to be confirmed. */
+      appointmentWarning: {
+        message: 'Esa hora queda fuera del horario del salón.',
+        nextAction: 'Confírmalo si quieres guardarla igualmente, o elige otra hora.',
+      },
+      warnings: {
+        OUTSIDE_OPENING_HOURS: 'Queda fuera del horario del salón.',
+      },
       wrongCurrentPassword: {
         message: 'La contraseña actual no es correcta.',
         nextAction: 'Escribe la contraseña con la que has entrado hoy.',
@@ -483,7 +611,7 @@ export const messages = {
 } as const;
 
 /** `Corte`, `Corte y Lavado`, `Corte, Color y Lavado`: how a list is said in Spanish. */
-function listOf(items: readonly string[]): string {
+export function listOf(items: readonly string[]): string {
   const last = items.at(-1) ?? '';
   return items.length < 2 ? last : `${items.slice(0, -1).join(', ')} y ${last}`;
 }

@@ -45,10 +45,14 @@ export async function POST(request: Request): Promise<Response> {
     reason: body.data.reason,
     stateToken: body.data.stateToken,
     acknowledgeAppointments: body.data.resolution?.acknowledgeAppointments,
+    cancelAppointments: body.data.resolution?.cancelAppointments,
   });
 
   if (result.ok) return jsonOk(periodDto(result.value.period, result.value.timezone), 201);
   if (result.error.kind === 'INVALID') return jsonError(422, invalidPeriod(result.error));
+  if (result.error.kind === 'STATE_CHANGED') {
+    return jsonError(409, { code: 'STATE_CHANGED', ...messages.owner.errors.appointment.STATE_CHANGED });
+  }
 
   const { conflicts, stateToken, timezone } = result.error;
   return jsonOk(

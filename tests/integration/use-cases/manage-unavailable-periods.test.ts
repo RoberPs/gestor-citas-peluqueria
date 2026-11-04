@@ -5,6 +5,7 @@ import { createManageUnavailablePeriods } from '@/application/use-cases/manage-u
 import type { Clock } from '@/domain/shared/clock';
 import { createAppointmentRepository } from '@/infrastructure/db/appointment-repository';
 import { createSalonConfigRepository } from '@/infrastructure/db/salon-config-repository';
+import { createOwnerAppointmentWriter } from '@/infrastructure/db/owner-appointment-writer';
 import { createUnavailablePeriodRepository } from '@/infrastructure/db/unavailable-period-repository';
 import { stateHash } from '@/infrastructure/security/state-hash';
 import { closeTestDb, ensureSchema, insertAppointmentRow, testPool, truncateAll } from '../helpers/test-db';
@@ -30,6 +31,7 @@ const useCase = createManageUnavailablePeriods({
   config: createSalonConfigRepository(testPool),
   appointments: createAppointmentRepository(testPool),
   periods: createUnavailablePeriodRepository(testPool),
+  writer: createOwnerAppointmentWriter(testPool),
   stateHash,
   clock,
 });
@@ -238,5 +240,32 @@ describe('blocking time over confirmed appointments (FR-022, T075)', () => {
     );
 
     expect((await useCase.create(LUNCH)).ok).toBe(true);
+  });
+});
+
+describe('blocking and cancelling in one operation (FR-022, FR-037, T116)', () => {
+  it('cancels the appointment under the block, as the owner, in the same transaction', async () => {
+    const id = await bookFriday('13:30', '14:00');
+    const warned = await useCase.create(LUNCH);
+    if (warned.ok || warned.error.kind !== 'CONFLICT') throw new Error('expected the warning');
+
+    const saved = await useCase.create({ ...LUNCH, stateToken: warned.error.stateToken, cancelAppointments: [id] });
+
+    expect(saved.ok).toBe(true);
+    const { rows } = await testPool().query('SELECT status, cancelled_by FROM appointment WHERE id = $1', [id]);
+    expect(rows[0]).toEqual({ status: 'CANCELLED', cancelled_by: 'OWNER' });
+    expect(await storedPeriods()).toBe(1);
+  });
+
+  it('asks again while an appointment is neither acknowledged nor cancelled', async () => {
+    await bookFriday('13:00', '13:30');
+    const second = await bookFriday('13:30', '14:00', 'Marta Ruiz');
+    const warned = await useCase.create(LUNCH);
+    if (warned.ok || warned.error.kind !== 'CONFLICT') throw new Error('expected the warning');
+
+    const again = await useCase.create({ ...LUNCH, stateToken: warned.error.stateToken, cancelAppointments: [second] });
+
+    expect(again).toMatchObject({ ok: false, error: { kind: 'CONFLICT' } });
+    expect(await storedPeriods()).toBe(0);
   });
 });

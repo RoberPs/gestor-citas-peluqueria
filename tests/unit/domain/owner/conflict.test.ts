@@ -2,13 +2,18 @@ import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import type { Appointment } from '@/domain/booking/appointment';
 import type { UnavailablePeriod } from '@/domain/catalog/salon';
+import { validateContact, type ValidatedContact } from '@/domain/contact/contact';
 import {
+  buildResolutionPlan,
+  shorteningsThatFit,
   checkAcknowledgement,
   computeStateToken,
   detectConflicts,
   type Conflict,
+  type Resolution,
+  type ResolutionIntent,
 } from '@/domain/owner/conflict';
-import { at } from '../availability/_fixtures';
+import { at, MADRID } from '../availability/_fixtures';
 
 /**
  * 002: what gets in the way of an operation, named so the owner can decide
@@ -40,6 +45,14 @@ function appointment(id: string, from: string, to: string, overrides: Partial<Ap
 
 function period(id: string, from: string, to: string): UnavailablePeriod {
   return { id, startsAt: at('2026-09-18', from), endsAt: at('2026-09-18', to), reason: 'Comida' };
+}
+
+const NOW = at('2026-09-15', '10:00');
+
+function validContact(): ValidatedContact {
+  const contact = validateContact({ name: 'Luis', phone: '600998877', email: null }, { email: 'OPTIONAL' });
+  if (!contact.ok) throw new Error('unreachable');
+  return contact.value;
 }
 
 const LUNCH = { startsAt: at('2026-09-18', '13:00'), endsAt: at('2026-09-18', '14:00') };
@@ -170,5 +183,121 @@ describe('checkAcknowledgement (FR-022)', () => {
 
   it('has nothing to acknowledge when nothing is in the way', () => {
     expect(checkAcknowledgement([], [])).toEqual({ ok: true, value: [] });
+  });
+});
+
+describe('buildResolutionPlan (FR-034, FR-035)', () => {
+  const SPAN = { startsAt: at('2026-09-18', '16:00'), endsAt: at('2026-09-18', '17:00') };
+  const create: ResolutionIntent = {
+    kind: 'CREATE_APPOINTMENT',
+    id: 'new',
+    ...SPAN,
+    services: [{ serviceId: 's1', name: 'Corte', durationMinutes: 60, priceCents: null }],
+    contact: validContact(),
+    createdAt: at('2026-09-15', '10:00'),
+  };
+  const conflicts = detectConflicts({
+    ...SPAN,
+    appointments: [appointment('a1', '15:45', '16:30')],
+    periods: [period('p1', '16:30', '18:00')],
+  });
+
+  function build(resolution: Resolution, intent: ResolutionIntent = create, inTheWay = conflicts) {
+    return buildResolutionPlan({ intent, conflicts: inTheWay, resolution, now: NOW, timezone: MADRID });
+  }
+
+  it('needs no resolution when nothing is in the way', () => {
+    expect(build({}, create, [])).toEqual({
+      ok: true,
+      value: { intent: create, cancelAppointments: [], deletePeriods: [], shortenPeriods: [], at: NOW },
+    });
+  });
+
+  it('cancels the appointment and deletes the period in the same plan', () => {
+    expect(build({ cancelAppointments: ['a1'], deletePeriods: ['p1'] })).toEqual({
+      ok: true,
+      value: { intent: create, cancelAppointments: ['a1'], deletePeriods: ['p1'], shortenPeriods: [], at: NOW },
+    });
+  });
+
+  it('shortens the period until it leaves room (escenario 4)', () => {
+    const shortened = { id: 'p1', startsAt: at('2026-09-18', '17:00'), endsAt: at('2026-09-18', '18:00') };
+
+    expect(build({ cancelAppointments: ['a1'], shortenPeriods: [shortened] })).toMatchObject({
+      ok: true,
+      value: { shortenPeriods: [shortened] },
+    });
+  });
+
+  it.each([
+    ['still overlapping', '16:45', '18:00'],
+    ['reaching outside the period', '17:00', '18:30'],
+    ['off the 15 minute grid', '17:05', '18:00'],
+  ])('refuses a shortening %s', (_name, from, to) => {
+    const shortened = { id: 'p1', startsAt: at('2026-09-18', from), endsAt: at('2026-09-18', to) };
+
+    expect(build({ cancelAppointments: ['a1'], shortenPeriods: [shortened] })).toEqual({
+      ok: false,
+      error: 'SHORTENING_DOES_NOT_FIT',
+    });
+  });
+
+  it('refuses while an appointment is left in the way: "keep both" cannot be said (FR-035)', () => {
+    expect(build({ deletePeriods: ['p1'] })).toEqual({ ok: false, error: 'UNRESOLVED_CONFLICT' });
+    expect(build({ deletePeriods: ['p1'], acknowledgeAppointments: ['a1'] })).toEqual({
+      ok: false,
+      error: 'UNRESOLVED_CONFLICT',
+    });
+  });
+
+  it('refuses while a period is left in the way', () => {
+    expect(build({ cancelAppointments: ['a1'] })).toEqual({ ok: false, error: 'UNRESOLVED_CONFLICT' });
+  });
+
+  it.each<[string, Resolution]>([
+    ['an appointment that is not in the way', { cancelAppointments: ['a1', 'a9'], deletePeriods: ['p1'] }],
+    ['a period that is not in the way', { cancelAppointments: ['a1'], deletePeriods: ['p1', 'p9'] }],
+    ['a period deleted and shortened at once', {
+      cancelAppointments: ['a1'],
+      deletePeriods: ['p1'],
+      shortenPeriods: [{ id: 'p1', startsAt: at('2026-09-18', '17:00'), endsAt: at('2026-09-18', '18:00') }],
+    }],
+  ])('refuses to resolve %s', (_name, resolution) => {
+    expect(build(resolution)).toEqual({ ok: false, error: 'UNKNOWN_TARGET' });
+  });
+
+  it('lets a new period acknowledge the appointments it covers, cancelling none (FR-022)', () => {
+    const block: ResolutionIntent = { kind: 'CREATE_PERIOD', id: 'p2', ...SPAN, reason: null };
+    const covered = detectConflicts({ ...SPAN, appointments: [appointment('a1', '15:45', '16:30')], periods: [] });
+
+    expect(build({ acknowledgeAppointments: ['a1'] }, block, covered)).toEqual({
+      ok: true,
+      value: { intent: block, cancelAppointments: [], deletePeriods: [], shortenPeriods: [], at: NOW },
+    });
+    expect(build({ cancelAppointments: ['a1'] }, block, covered)).toMatchObject({
+      ok: true,
+      value: { cancelAppointments: ['a1'] },
+    });
+  });
+});
+
+describe('shorteningsThatFit (escenario 4 de la Historia 6)', () => {
+  const SPAN = { startsAt: at('2026-09-18', '16:00'), endsAt: at('2026-09-18', '17:00') };
+
+  it('offers keeping what is before and what is after the new span', () => {
+    expect(shorteningsThatFit(period('p1', '15:00', '18:00'), SPAN)).toEqual([
+      { id: 'p1', startsAt: at('2026-09-18', '15:00'), endsAt: at('2026-09-18', '16:00') },
+      { id: 'p1', startsAt: at('2026-09-18', '17:00'), endsAt: at('2026-09-18', '18:00') },
+    ]);
+  });
+
+  it('offers only the side that is left', () => {
+    expect(shorteningsThatFit(period('p1', '16:30', '18:00'), SPAN)).toEqual([
+      { id: 'p1', startsAt: at('2026-09-18', '17:00'), endsAt: at('2026-09-18', '18:00') },
+    ]);
+  });
+
+  it('offers nothing for a period the new span swallows: it can only be deleted', () => {
+    expect(shorteningsThatFit(period('p1', '16:00', '17:00'), SPAN)).toEqual([]);
   });
 });

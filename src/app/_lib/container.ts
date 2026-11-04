@@ -6,6 +6,7 @@ import { createGetAgendaDay } from '@/application/use-cases/get-agenda-day';
 import { createGetAvailability } from '@/application/use-cases/get-availability';
 import { createListBookings } from '@/application/use-cases/list-bookings';
 import { createListServices } from '@/application/use-cases/list-services';
+import { createManageOwnerAppointments } from '@/application/use-cases/manage-owner-appointments';
 import { createManageUnavailablePeriods } from '@/application/use-cases/manage-unavailable-periods';
 import { createRescheduleAppointment } from '@/application/use-cases/reschedule-appointment';
 import { createSignInOwner } from '@/application/use-cases/sign-in-owner';
@@ -14,6 +15,7 @@ import { createViewAppointment } from '@/application/use-cases/view-appointment'
 import { createAppointmentRepository } from '@/infrastructure/db/appointment-repository';
 import { createBookingListReader } from '@/infrastructure/db/booking-list-reader';
 import { pool } from '@/infrastructure/db/client';
+import { createOwnerAppointmentWriter } from '@/infrastructure/db/owner-appointment-writer';
 import { createOwnerAccountRepository } from '@/infrastructure/db/owner-account-repository';
 import { createOwnerSessionRepository } from '@/infrastructure/db/owner-session-repository';
 import { createSalonConfigRepository } from '@/infrastructure/db/salon-config-repository';
@@ -38,6 +40,7 @@ function build() {
   const config = createSalonConfigRepository(pool);
   const appointments = createAppointmentRepository(pool);
   const periods = createUnavailablePeriodRepository(pool);
+  const writer = createOwnerAppointmentWriter(pool);
   // 002: the owner's side. Sessions reuse the management link's generator —
   // 32 bytes of CSPRNG and their SHA-256 (D-005, D-015).
   const owner = {
@@ -87,6 +90,15 @@ function build() {
       config,
       appointments,
       periods,
+      writer,
+      stateHash,
+      clock: systemClock,
+    }),
+    ownerAppointments: createManageOwnerAppointments({
+      config,
+      appointments,
+      periods,
+      writer,
       stateHash,
       clock: systemClock,
     }),

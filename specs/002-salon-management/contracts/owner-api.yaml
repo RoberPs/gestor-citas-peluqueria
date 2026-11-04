@@ -399,6 +399,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '404': { $ref: '#/components/responses/NotFound' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
@@ -443,6 +444,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '404': { $ref: '#/components/responses/NotFound' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
@@ -890,9 +892,20 @@ components:
         Para continuar, se repite la petición con el `stateToken` de esta respuesta y
         una `resolution`. Si el estado cambió mientras tanto, la respuesta vuelve a
         ser `409` con el conflicto **recalculado** (FR-038).
+
+        Un aviso sin conflicto —una cita fuera del horario de apertura— llega con
+        la misma forma, `code: WARNING` y `conflicts` vacía: no impide nada, pero
+        hay que acusarlo con `acknowledgedWarnings` (D-025).
+
+        Si el estado vuelve a cambiar también al recalcular, la respuesta es un
+        `Error` con `code: STATE_CHANGED`: la dueña repite la operación sobre lo
+        que hay ahora.
       content:
         application/json:
-          schema: { $ref: '#/components/schemas/ConflictReport' }
+          schema:
+            oneOf:
+              - $ref: '#/components/schemas/ConflictReport'
+              - $ref: '#/components/schemas/Error'
 
   schemas:
 
@@ -1154,12 +1167,12 @@ components:
       required: [code, message, nextAction, conflicts, stateToken]
       additionalProperties: false
       properties:
-        code: { const: CONFLICT }
+        code: { type: string, enum: [CONFLICT, WARNING] }
         message: { type: string }
         nextAction: { type: string }
         conflicts:
           type: array
-          minItems: 1
+          description: Vacía sólo cuando `code` es `WARNING`.
           items: { $ref: '#/components/schemas/Conflict' }
         stateToken:
           type: string

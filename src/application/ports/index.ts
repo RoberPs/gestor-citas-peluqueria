@@ -13,6 +13,7 @@ import type {
 import type { NonEmptyServiceList } from '@/domain/catalog/selection';
 import type { NormalizedEmail, NormalizedPhone, ValidatedContact } from '@/domain/contact/contact';
 import type { LockoutState } from '@/domain/owner/account';
+import type { ResolutionPlan } from '@/domain/owner/conflict';
 import type { BookingListCursor, BookingListQuery } from '@/domain/owner/booking-list';
 import type { Result } from '@/domain/shared/result';
 
@@ -36,6 +37,9 @@ export type NewAppointment = {
 
 export interface AppointmentRepository {
   findByTokenHash(hash: Uint8Array): Promise<Appointment | null>;
+
+  /** The owner's way in (002): by id, with all its services. */
+  findById(id: AppointmentId): Promise<Appointment | null>;
 
   /** D-003: ONE query for the whole horizon. Sustains SC-005 and FR-005b. */
   findConfirmedInWindow(
@@ -124,6 +128,24 @@ export interface UnavailablePeriodRepository {
 
   /** Whether there was one to delete. */
   delete(id: UnavailablePeriodId): Promise<boolean>;
+}
+
+/** What `applyPlan` wrote: the appointment or the period the owner asked for. */
+export type AppliedPlan =
+  | { readonly kind: 'APPOINTMENT'; readonly appointment: Appointment }
+  | { readonly kind: 'PERIOD'; readonly period: UnavailablePeriod };
+
+/** The owner's changes, applied as plans (002, D-023). */
+export interface OwnerAppointmentWriter {
+  /**
+   * FR-037: the whole plan in ONE transaction, or nothing. It detects again,
+   * inside the transaction, what is in the way of the intent and compares its
+   * fingerprint with `expectedStateToken`; if what the owner saw is no longer
+   * what there is, nothing is applied (FR-038, D-024). A 23P01 of the EXCLUDE
+   * constraint means the same thing and is answered the same way. The plan's
+   * cancellations are written with `cancelled_by = OWNER` (FR-040a).
+   */
+  applyPlan(plan: ResolutionPlan, expectedStateToken: string): Promise<Result<AppliedPlan, 'STATE_CHANGED'>>;
 }
 
 /**

@@ -104,6 +104,9 @@ export async function blockPeriod(_previous: PeriodFormState, form: FormData): P
   if (rejection.kind === 'INVALID') {
     return { kind: 'error', ...messages.owner.errors.period[rejection.reason], values };
   }
+  if (rejection.kind === 'STATE_CHANGED') {
+    return { kind: 'error', ...messages.owner.errors.appointment.STATE_CHANGED, values };
+  }
   return {
     kind: 'conflict',
     conflicts: rejection.conflicts.map((conflict) => conflictDto(conflict, rejection.timezone)),
