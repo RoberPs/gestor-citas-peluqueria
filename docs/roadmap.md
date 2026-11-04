@@ -76,7 +76,7 @@ verde, y es un punto donde se puede parar.
     el contrato de cliente 2.1.0 (`specs/002-salon-management/contracts/http-api-changes.md`)
     y el de gestión 1.2.0. Decisiones D-035 a D-037; tareas T188–T212 (212 en total);
     `/speckit-analyze` sin problemas críticos.
-  - Concretado al bajarlo a la spec, a confirmar con la dueña del producto: un término
+  - Concretado al bajarlo a la spec, confirmado por la dueña del producto el 2026-11-04: un término
     de sólo cifras que no es un teléfono completo se explica en vez de dar un listado
     vacío; editar no cambia la hora (mover y editar son dos acciones); al editar, el
     email puede quitarse también en una cita online, y un teléfono nuevo cuenta para el
@@ -102,9 +102,15 @@ verde, y es un punto donde se puede parar.
     enlace de gestión opcionales; antelación y plazo leídos de la configuración.
   - Configuración leída en vivo (sustituye la caché de D-003).
   - **Control:** la 001 sigue en verde sin cambiar de comportamiento.
-- [ ] **4 · 002, US1 + US2 + US10** → 🎯 **MVP mínimo**
+- [x] **4 · 002, US1 + US2 + US10** → 🎯 **MVP mínimo** — rama `002-salon-management`,
+  2026-11-04
   - Acceso de la dueña, agenda del día y listado de reservas.
-  - Prueba manual en el navegador con la dueña del producto antes de seguir.
+  - Resultado: fases 3, 4 y 4b de la 002 (94 de 212 tareas). 411 unitarios, 236 de
+    integración, 123 de contrato y 272 e2e en verde; lint y `check:layers` también.
+  - Aplazado: T070 (redacción de Pino en los cuerpos de crear, editar y conflicto) pasa
+    a la US6, porque en este paso ningún código registra esos cuerpos.
+  - Probado a mano en el navegador con la dueña del producto el 2026-11-04, que
+    confirmó los tres detalles concretados en el paso 2b (ver "Decisiones tomadas").
 - [ ] **5 · 002, US3:** bloquear ratos (comida, vacaciones, festivos).
 - [ ] **6 · 002, US4 + US5 + US6 + US11** → 🎯 **MVP completo**
   - Citas a mano, mover, editar y cancelar desde la agenda, aviso de conflicto atómico.
@@ -162,6 +168,13 @@ un proveedor de pago cuando se decida el presupuesto.
 Ninguna por ahora.
 
 ## Decisiones tomadas
+
+- 2026-11-04 · **002 · Detalles del paso 2b, confirmados en la prueba del paso 4:** la
+  dueña los deja como están. Un teléfono a medias en la búsqueda pide el número entero
+  en lugar de dar un listado vacío (D-036). Editar no cambia la hora: mover y editar
+  son dos acciones (FR-073). Al editar, el email puede quitarse también en una cita
+  online, cuyo enlace no depende de él (FR-075). Que todavía no se pueda editar es lo
+  previsto: la edición (US11) llega en el paso 6.
 
 - 2026-11-03 · **002 · Editar una cita:** la dueña puede editar una cita confirmada y
   no pasada: sus **servicios** (añadir, quitar, cambiar) y los **datos del cliente**

@@ -44,21 +44,22 @@ siempre `db-test` con su propio seed, así que cambiar la demo nunca los rompe.
 
 ## Estado del producto
 
-Última revisión: **2026-11-03**.
+Última revisión: **2026-11-04**.
 
 ### Resumen
 
 La parte del **cliente** está construida y funciona: reserva, consulta, reprogramación y
-cancelación sin cuenta. La parte de la **dueña** no existe todavía: no hay acceso
-privado, agenda ni listado. Hoy una reserva entra en la base de datos y nadie en el
-salón la ve sin consultarla a mano.
+cancelación sin cuenta. De la parte de la **dueña** está el **MVP mínimo** (paso 4 del
+[roadmap](docs/roadmap.md)): entra con su contraseña y ve la agenda del día y el listado
+de reservas, y nadie más puede verlos. Todavía no puede bloquear ratos ni apuntar,
+mover, editar o cancelar citas; eso llega en los pasos 5 y 6.
 
 ### Features
 
 | Feature | Estado | Tareas | Rama | En `main` |
 |---|---|---|---|---|
 | [001 · Reserva del cliente](specs/001-client-appointment-booking/spec.md) | Implementada | 118 / 118 | `001-client-appointment-booking` | Sí (PR #1) |
-| [002 · Gestión del salón](specs/002-salon-management/spec.md) | En curso: fases 1 y 2 (base común) hechas el 2026-11-03; sin pantallas de la dueña todavía | 37 / 212 (T139 y T140 las cubrió la 005) | `002-salon-management` | Sólo la documentación de antes de la revisión (PR #4) |
+| [002 · Gestión del salón](specs/002-salon-management/spec.md) | En curso: base común y MVP mínimo (US1, US2 y US10) hechos el 2026-11-04 | 94 / 212 (T139 y T140 las cubrió la 005) | `002-salon-management` | Sólo la documentación de antes de la revisión (PR #4) |
 | [003 · Versión responsive para tablet y ordenador](specs/003-responsive-desktop/spec.md) | Implementada | 35 / 35 | `003-responsive-desktop` | Sí (PR #3) |
 | 004 · Avisos por email y SMS | Planificada, sin spec | — | — | — |
 | [005 · Varios servicios por cita y precio opcional](specs/005-multiple-services/spec.md) | Implementada | 55 / 55 | `005-multiple-services` | Sí (PR #6) |
@@ -107,19 +108,40 @@ Con la 003, todo lo anterior se adapta a tres tamaños:
   sigue cabiendo; si no, vuelve a las horas de ese día con un aviso, sin perder lo
   escrito.
 
+### Qué puede hacer hoy la dueña (002, MVP mínimo)
+
+Probado a mano con la dueña del producto el 2026-11-04.
+
+- **Acceso** en `/gestion/acceso` con usuario y contraseña. La cuenta se crea fuera de
+  la app con `npm run owner:provision`, que lee `OWNER_USERNAME` y
+  `OWNER_INITIAL_PASSWORD` (12 caracteres como mínimo) del `.env`; esa contraseña se
+  borra del `.env` después. Cinco fallos en quince minutos bloquean el acceso, y el
+  mensaje de error es el mismo sea cual sea el motivo. La sesión caduca tras 12 h sin
+  uso; se puede cambiar la contraseña y cerrar la sesión desde *Cuenta*.
+- Ninguna pantalla ni ruta de `/gestion` o `/api/gestion` devuelve nada sin sesión.
+- **Agenda** de cualquier día, con atajo a hoy: las citas en orden con todos sus
+  servicios, el origen (online o a mano) con texto e icono, los periodos no
+  disponibles con su motivo, y la diferencia entre «sin citas» y «cerrado». Un día
+  pasado es de sólo lectura y las canceladas se ocultan salvo que se pidan.
+- **Listado de reservas**: *Próximas citas* o *Últimas reservas recibidas*; filtros
+  por estado, origen y fechas del día de la cita; búsqueda por una parte del nombre
+  (sin mayúsculas ni acentos) o por el teléfono entero. Un teléfono a medias pide el
+  número completo en vez de dar un listado vacío. 20 citas por página y quién canceló
+  cada cancelada.
+
 ### Estado de los checks
 
-En la rama `002-salon-management`, el 2026-11-03, con las fases 1 y 2 de la 002. Playwright
+En la rama `002-salon-management`, el 2026-11-04, con el MVP mínimo de la 002. Playwright
 tiene tres proyectos, uno por tamaño (ver `playwright.config.ts`).
 
 | Check | Resultado |
 |---|---|
-| `npm test` (unitarios) | 336 / 336 ✅ |
-| `npm run test:integration` | 195 / 195 ✅ |
-| `npm run test:contract` | 94 / 94 ✅ |
-| `npm run test:e2e` | 210 / 210 ✅ |
-| · proyecto `mobile-360` (la suite de la 001 y la 005) | 85 / 85 ✅ |
-| · proyecto `desktop-1280` (lo mismo sin rendimiento, más `responsive.spec.ts`) | 115 / 115 ✅ |
+| `npm test` (unitarios) | 411 / 411 ✅ |
+| `npm run test:integration` | 236 / 236 ✅ |
+| `npm run test:contract` | 123 / 123 ✅ |
+| `npm run test:e2e` | 272 / 272 ✅ |
+| · proyecto `mobile-360` (la suite de la 001, la 005 y la 002) | 116 / 116 ✅ |
+| · proyecto `desktop-1280` (lo mismo sin rendimiento, más `responsive.spec.ts`) | 146 / 146 ✅ |
 | · proyecto `tablet-768` (accesibilidad) | 10 / 10 ✅ |
 | `npm run lint` | ✅ |
 | `npm run check:layers` | ✅ |
