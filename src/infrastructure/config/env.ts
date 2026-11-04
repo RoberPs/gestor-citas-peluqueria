@@ -20,6 +20,7 @@ const schema = z.object({
   NOTIFICATIONS_SMS: z
     .enum(['off'], { message: 'NOTIFICATIONS_SMS only accepts off: there is no SMS adapter yet' })
     .default('off'),
+  EMAIL_PROVIDER: z.string().optional(),
   EMAIL_API_KEY: z.string().optional(),
   EMAIL_API_BASE_URL: z.string().optional(),
   EMAIL_FROM: z.string().optional(),
@@ -27,10 +28,19 @@ const schema = z.object({
   NOTIFICATION_SEAL_KEY: z.string().optional(),
 });
 
-const RESEND_API_BASE_URL = 'https://api.resend.com';
+/** 004, D-004: Brevo first; Resend is the fallback, one variable away. */
+const PROVIDER_API_BASE_URLS = {
+  brevo: 'https://api.brevo.com/v3',
+  resend: 'https://api.resend.com',
+} as const;
+
+export type EmailProvider = keyof typeof PROVIDER_API_BASE_URLS;
 
 /** What the email channel needs, all of it or none (D-005). */
 const emailSchema = z.object({
+  EMAIL_PROVIDER: z
+    .enum(['brevo', 'resend'], { message: 'EMAIL_PROVIDER must be brevo or resend' })
+    .default('brevo'),
   EMAIL_API_KEY: z.string({ message: 'EMAIL_API_KEY is required with NOTIFICATIONS_EMAIL=on' }),
   EMAIL_FROM: z
     .string({ message: 'EMAIL_FROM is required with NOTIFICATIONS_EMAIL=on' })
@@ -47,6 +57,7 @@ const emailSchema = z.object({
 });
 
 export type EmailChannelConfig = {
+  readonly provider: EmailProvider;
   readonly apiKey: string;
   readonly apiBaseUrl: string;
   readonly from: string;
@@ -93,9 +104,11 @@ function emailChannelOf(source: Record<string, string | undefined>): EmailChanne
   const parsed = emailSchema.safeParse(source);
   if (!parsed.success) throw new Error(`Invalid environment: ${problemsOf(parsed.error)}`);
 
+  const provider = parsed.data.EMAIL_PROVIDER;
   return {
+    provider,
     apiKey: parsed.data.EMAIL_API_KEY,
-    apiBaseUrl: (parsed.data.EMAIL_API_BASE_URL ?? RESEND_API_BASE_URL).replace(/\/+$/, ''),
+    apiBaseUrl: (parsed.data.EMAIL_API_BASE_URL ?? PROVIDER_API_BASE_URLS[provider]).replace(/\/+$/, ''),
     from: parsed.data.EMAIL_FROM,
     replyTo: source['EMAIL_REPLY_TO'] ?? null,
     sealKey: parsed.data.NOTIFICATION_SEAL_KEY,

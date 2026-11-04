@@ -3,7 +3,9 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from 'node:net';
 
 /**
- * A stand-in for Resend's `POST /emails` (004, D-013).
+ * A stand-in for Brevo's `POST /smtp/email` and Resend's `POST /emails`
+ * (004, D-004, D-013). Both are stored in the same shape, Resend's, so a test
+ * reads what was sent the same way whichever adapter sent it.
  *
  * The real adapter is pointed at it with `EMAIL_API_BASE_URL`, so what the
  * integration, contract and e2e suites exercise is the adapter that runs in
@@ -14,12 +16,13 @@ import type { AddressInfo } from 'node:net';
  * see it, with its plain text part beside it, newest first.
  *
  * Modes, switched with `POST /__mode {"mode": …}`:
- * - `ok`: `200 {id}`; a repeated `Idempotency-Key` gets the same id and is
- *   stored once, as Resend does.
+ * - `ok`: accepted. A repeated idempotency key is stored once, as each
+ *   provider does: Resend answers `200` with the same id, Brevo refuses it
+ *   with `400 duplicate_parameter`.
  * - `fail`: `503`, a transient failure.
- * - `reject`: `422`, a permanent one.
+ * - `reject`: `422` (Resend) or `400 invalid_parameter` (Brevo), a permanent one.
  * - `hang`: never answers, so the caller's timeout is what ends the request.
- * - `echo`: `422` with a body that repeats the recipient, the way a real
+ * - `echo`: a refusal whose body repeats the recipient, the way a real
  *   provider's validation error can (D-006).
  */
 
@@ -30,6 +33,7 @@ export const FAKE_EMAIL_MODES: readonly FakeEmailMode[] = ['ok', 'fail', 'reject
 export type ReceivedEmail = {
   readonly id: string;
   readonly idempotencyKey: string | null;
+  /** The credential as received: Resend's `Authorization`, Brevo's `api-key`. */
   readonly authorization: string | null;
   /** Epoch milliseconds at which the request arrived. */
   readonly receivedAt: number;
@@ -147,6 +151,58 @@ function header(request: IncomingMessage, name: string): string | null {
   return typeof value === 'string' ? value : null;
 }
 
+type Provider = 'resend' | 'brevo';
+
+type BrevoBody = {
+  readonly sender?: { readonly name?: string; readonly email?: string };
+  readonly to?: ReadonlyArray<{ readonly email: string }>;
+  readonly replyTo?: { readonly email: string };
+  readonly subject?: string;
+  readonly htmlContent?: string;
+  readonly textContent?: string;
+  readonly headers?: Readonly<Record<string, string>>;
+};
+
+/** A Brevo request in Resend's shape, and its idempotency key apart. */
+function fromBrevo(body: BrevoBody): {
+  body: ReceivedEmail['body'];
+  idempotencyKey: string | null;
+} {
+  const { idempotencyKey, ...headers } = body.headers ?? {};
+  return {
+    idempotencyKey: idempotencyKey ?? null,
+    body: {
+      from: `${body.sender?.name ?? ''} <${body.sender?.email ?? ''}>`,
+      to: (body.to ?? []).map((recipient) => recipient.email),
+      ...(body.replyTo === undefined ? {} : { reply_to: body.replyTo.email }),
+      subject: body.subject,
+      html: body.htmlContent,
+      text: body.textContent,
+      headers,
+    },
+  };
+}
+
+const REFUSALS: Record<
+  Provider,
+  { readonly reject: [number, unknown]; readonly echo: (to: unknown) => [number, unknown] }
+> = {
+  resend: {
+    reject: [422, { name: 'validation_error', message: 'Invalid recipient' }],
+    echo: (to) => [
+      422,
+      { name: 'validation_error', message: `Invalid \`to\` field: ${JSON.stringify(to)}` },
+    ],
+  },
+  brevo: {
+    reject: [400, { code: 'invalid_parameter', message: 'Invalid recipient' }],
+    echo: (to) => [
+      400,
+      { code: 'invalid_parameter', message: `email is not valid in to: ${JSON.stringify(to)}` },
+    ],
+  },
+};
+
 export async function startFakeEmailProvider(
   options: { readonly port?: number; readonly mode?: FakeEmailMode; readonly apiKey?: string } = {},
 ): Promise<FakeEmailProvider> {
@@ -179,27 +235,47 @@ export async function startFakeEmailProvider(
       response.writeHead(204).end();
       return;
     }
-    if (path !== '/emails' || request.method !== 'POST') return json(response, 404, { name: 'not_found' });
+    const provider: Provider | null =
+      request.method !== 'POST'
+        ? null
+        : path === '/emails'
+          ? 'resend'
+          : path === '/smtp/email'
+            ? 'brevo'
+            : null;
+    if (provider === null) return json(response, 404, { name: 'not_found' });
 
     const receivedAt = Date.now();
     const text = await readBody(request);
-    const authorization = header(request, 'authorization');
-    if (authorization !== `Bearer ${apiKey}`) {
-      return json(response, 401, { name: 'missing_api_key', message: 'Missing API key' });
+    const authorization =
+      provider === 'resend' ? header(request, 'authorization') : header(request, 'api-key');
+    const expected = provider === 'resend' ? `Bearer ${apiKey}` : apiKey;
+    if (authorization !== expected) {
+      return json(
+        response,
+        401,
+        provider === 'resend'
+          ? { name: 'missing_api_key', message: 'Missing API key' }
+          : { code: 'unauthorized', message: 'Key not found' },
+      );
     }
 
-    const body = JSON.parse(text) as ReceivedEmail['body'];
+    const parsed: { body: ReceivedEmail['body']; idempotencyKey: string | null } =
+      provider === 'resend'
+        ? {
+            body: JSON.parse(text) as ReceivedEmail['body'],
+            idempotencyKey: header(request, 'idempotency-key'),
+          }
+        : fromBrevo(JSON.parse(text) as BrevoBody);
+    const { body, idempotencyKey } = parsed;
 
     switch (mode) {
       case 'fail':
         return json(response, 503, { name: 'internal_server_error', message: 'Unavailable' });
       case 'reject':
-        return json(response, 422, { name: 'validation_error', message: 'Invalid recipient' });
+        return json(response, ...REFUSALS[provider].reject);
       case 'echo':
-        return json(response, 422, {
-          name: 'validation_error',
-          message: `Invalid \`to\` field: ${JSON.stringify(body.to)}`,
-        });
+        return json(response, ...REFUSALS[provider].echo(body.to));
       case 'hang':
         hanging.add(response);
         response.on('close', () => hanging.delete(response));
@@ -208,9 +284,15 @@ export async function startFakeEmailProvider(
         break;
     }
 
-    const idempotencyKey = header(request, 'idempotency-key');
     const known = idempotencyKey === null ? undefined : byKey.get(idempotencyKey);
-    if (known !== undefined) return json(response, 200, { id: known });
+    if (known !== undefined) {
+      return provider === 'resend'
+        ? json(response, 200, { id: known })
+        : json(response, 400, {
+            code: 'duplicate_parameter',
+            message: 'The idempotency key was already used',
+          });
+    }
 
     const message: ReceivedEmail = {
       id: randomUUID(),
@@ -223,7 +305,8 @@ export async function startFakeEmailProvider(
     if (idempotencyKey !== null) byKey.set(idempotencyKey, message.id);
     for (const listener of listeners) listener(message);
 
-    json(response, 200, { id: message.id });
+    if (provider === 'resend') json(response, 200, { id: message.id });
+    else json(response, 201, { messageId: `<${message.id}@fake.brevo>` });
   }
 
   const server: Server = createServer((request, response) => {

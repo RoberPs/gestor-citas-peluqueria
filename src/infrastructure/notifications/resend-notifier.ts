@@ -1,8 +1,10 @@
 import type { Notifier } from '@/application/ports';
 import { err, ok } from '@/domain/shared/result';
+import { classifyStatus, PROVIDER_TIMEOUT_MS } from './provider-response';
 
 /**
- * Resend's `POST /emails`, with `fetch` and no SDK (004, D-004).
+ * Resend's `POST /emails`, with `fetch` and no SDK (004, D-004). The fallback
+ * to Brevo, chosen with `EMAIL_PROVIDER=resend`.
  *
  * Two promises it keeps:
  * - A repeated send is harmless: the notification id travels as the
@@ -11,15 +13,6 @@ import { err, ok } from '@/domain/shared/result';
  *   address (FR-022), so the result is only `TRANSIENT` or `PERMANENT` and the
  *   body is never read (D-006).
  */
-
-export const PROVIDER_TIMEOUT_MS = 10_000;
-
-/** D-006: `null` when accepted. */
-export function classifyStatus(status: number): 'TRANSIENT' | 'PERMANENT' | null {
-  if (status >= 200 && status < 300) return null;
-  if (status === 429 || status >= 500) return 'TRANSIENT';
-  return 'PERMANENT';
-}
 
 /** A display name the address syntax would misread goes in quotes (RFC 5322). */
 function mailbox(name: string, address: string): string {

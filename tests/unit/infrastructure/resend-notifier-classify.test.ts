@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { classifyStatus, createResendNotifier } from '@/infrastructure/notifications/resend-notifier';
+import { classifyStatus } from '@/infrastructure/notifications/provider-response';
+import { createResendNotifier } from '@/infrastructure/notifications/resend-notifier';
 import type { OutgoingEmail } from '@/application/ports';
 
 /**

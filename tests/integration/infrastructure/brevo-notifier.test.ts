@@ -75,8 +75,14 @@ describe('what the provider receives', () => {
   });
 
   it('is stored once, and accepted both times, when the same key is sent twice (FR-012)', async () => {
-    expect(await notifier().send(MESSAGE, 'notification-3')).toEqual({ ok: true, value: undefined });
-    expect(await notifier().send(MESSAGE, 'notification-3')).toEqual({ ok: true, value: undefined });
+    expect(await notifier().send(MESSAGE, 'notification-3')).toEqual({
+      ok: true,
+      value: undefined,
+    });
+    expect(await notifier().send(MESSAGE, 'notification-3')).toEqual({
+      ok: true,
+      value: undefined,
+    });
     expect(provider.messages()).toHaveLength(1);
   });
 });
@@ -105,7 +111,10 @@ describe('what a failure becomes (D-006)', () => {
   it('is transient when the provider never answers, after the timeout', async () => {
     provider.setMode('hang');
     const started = Date.now();
-    expect(await notifier({ timeoutMs: 300 }).send(MESSAGE, 'n')).toEqual({ ok: false, error: 'TRANSIENT' });
+    expect(await notifier({ timeoutMs: 300 }).send(MESSAGE, 'n')).toEqual({
+      ok: false,
+      error: 'TRANSIENT',
+    });
     expect(Date.now() - started).toBeLessThan(5_000);
   });
 

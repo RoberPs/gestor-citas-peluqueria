@@ -76,7 +76,10 @@ describe('the email channel', () => {
 
   it('sends through Resend, with its own API base, when it is asked for', () => {
     setEnv({ ...BASE, ...EMAIL_ON, EMAIL_PROVIDER: 'resend' });
-    expect(env().notifications.email).toMatchObject({ provider: 'resend', apiBaseUrl: 'https://api.resend.com' });
+    expect(env().notifications.email).toMatchObject({
+      provider: 'resend',
+      apiBaseUrl: 'https://api.resend.com',
+    });
   });
 
   it('refuses a provider it has no adapter for, naming the variable', () => {

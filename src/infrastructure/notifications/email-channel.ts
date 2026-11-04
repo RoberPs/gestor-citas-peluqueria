@@ -1,6 +1,7 @@
 import type { Notifier, TokenSealer } from '@/application/ports';
 import { env, type EmailChannelConfig } from '../config/env';
 import { createTokenSealer } from '../security/token-sealer';
+import { createBrevoNotifier } from './brevo-notifier';
 import { createResendNotifier } from './resend-notifier';
 
 /**
@@ -15,11 +16,16 @@ function emailChannel(): EmailChannelConfig {
   return email;
 }
 
+/** `EMAIL_PROVIDER` picks the adapter (D-004). */
+function notifierFor(config: EmailChannelConfig): Notifier {
+  return config.provider === 'brevo' ? createBrevoNotifier(config) : createResendNotifier(config);
+}
+
 export const emailTokenSealer: TokenSealer = {
   seal: (tokens) => createTokenSealer(emailChannel().sealKey).seal(tokens),
   open: (sealed) => createTokenSealer(emailChannel().sealKey).open(sealed),
 };
 
 export const emailNotifier: Notifier = {
-  send: (message, idempotencyKey) => createResendNotifier(emailChannel()).send(message, idempotencyKey),
+  send: (message, idempotencyKey) => notifierFor(emailChannel()).send(message, idempotencyKey),
 };
