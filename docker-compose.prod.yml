@@ -42,6 +42,15 @@ services:
       # trivially bypassed by setting the header (D-007).
       TRUSTED_PROXY_IPS: ${TRUSTED_PROXY_IPS:-proxy}
       PUBLIC_BASE_URL: https://${SALON_DOMAIN}
+      # 004: the confirmation email. Off unless set; with `on` the app refuses
+      # to start without the key, the sender and the seal key. The API base is
+      # Resend's own and is not set here.
+      NOTIFICATIONS_EMAIL: ${NOTIFICATIONS_EMAIL:-off}
+      NOTIFICATIONS_SMS: 'off'
+      EMAIL_API_KEY: ${EMAIL_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      EMAIL_REPLY_TO: ${EMAIL_REPLY_TO:-}
+      NOTIFICATION_SEAL_KEY: ${NOTIFICATION_SEAL_KEY:-}
     depends_on:
       db:
         condition: service_healthy

@@ -93,7 +93,12 @@ npm run dev
    El id del envío es el de la tabla `notification`, que es también la
    `Idempotency-Key` con la que se mandó: es el único dato que hace falta para
    localizarlo en el proveedor, sin dar el email ni el nombre del cliente.
-3. **Variables**: las de la tabla de arriba, con `NOTIFICATION_SEAL_KEY` nueva.
+3. **Variables**: las de la tabla de arriba, con `NOTIFICATION_SEAL_KEY` nueva, en el
+   entorno desde el que se lanza `docker compose -f docker-compose.prod.yml`, que se
+   las pasa a la app (`EMAIL_API_BASE_URL` no se pone: es la de Resend). Después,
+   `docker compose -f docker-compose.prod.yml up -d --build` y
+   `docker compose -f docker-compose.prod.yml exec app npm run db:migrate`, que aplica
+   la `0008`.
 4. **Cron**, junto al de la purga:
 
    ```cron
