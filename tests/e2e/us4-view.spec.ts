@@ -113,7 +113,8 @@ test('escenario 4 — a cancelled appointment is read only, and a new one is off
   await page.goto(`/cita/${token}`);
 
   await expect(page.locator(APPOINTMENT_CARD)).toContainText('Cancelada');
-  await expect(page.getByText('Esta cita está cancelada. Si quieres venir, reserva una nueva.')).toBeVisible();
+  // Seeded as cancelled by the client, who reads that they did it (002, FR-040b, D-037).
+  await expect(page.getByText('Has cancelado esta cita. Si quieres venir, reserva una nueva.')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Cancelar la cita' })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Cambiar de hora' })).toBeDisabled();
 });

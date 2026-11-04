@@ -129,9 +129,28 @@ verde, y es un punto donde se puede parar.
     sus cuatro derivaciones de scrypt pasaban de los 5 s por defecto.
   - Probado a mano en el navegador con la dueña del producto el 2026-11-04: bloquear la
     comida, liberarla, bloquear sobre una cita y bloquear días enteros, sin cambios.
-- [ ] **6 · 002, US4 + US5 + US6 + US11** → 🎯 **MVP completo**
+- [x] **6 · 002, US4 + US5 + US6 + US11** → 🎯 **MVP completo** — rama
+  `002-salon-management`, 2026-11-04
   - Citas a mano, mover, editar y cancelar desde la agenda, aviso de conflicto atómico.
   - El cliente ve en su enlace quién canceló su cita (contrato de cliente 2.1.0).
+  - Resultado: fases 6, 7, 8 y 8b de la 002, más T070 (164 de 212 tareas). 565
+    unitarios, 306 de integración, 173 de contrato y 326 e2e en verde; lint y
+    `check:layers` también.
+  - Decidido al implementar:
+    - Un aviso sin conflicto (cita fuera de horario) responde `409` con `code: WARNING`
+      y `conflicts` vacía, y se acusa con `acknowledgedWarnings`. Si el estado cambia
+      también al recalcular, `409` con `code: STATE_CHANGED`. Está en `owner-api.yaml`.
+    - Al editar, sólo se busca conflicto en lo que la cita crece: corregir un teléfono
+      de una cita con un rato bloqueado debajo no lo saca como conflicto.
+    - Las escrituras de la dueña toman un *advisory lock* de transacción, y la
+      restricción `EXCLUDE` sigue siendo la red frente a las reservas online.
+    - La pantalla es la agenda con un panel lateral por acción (`?nueva=`, `?mover=`,
+      `?editar=`, `?cancelar=`): funciona sin JavaScript y el teléfono del cliente
+      nunca va en la URL. El conflicto se resuelve en un `dialog` modal nativo.
+    - Bloquear un rato pasa por el mismo protocolo y la API permite cancelar las citas
+      que pisa (T116); la pantalla de la US3 sigue ofreciendo sólo acusarlas.
+  - Pendiente: probarlo a mano en el navegador con la dueña del producto, y la medición
+    de SC-015 en el e2e de editar (T204).
 - [ ] **7 · `004-notifications`:** avisos por email y, si se decide, SMS.
   Ver el apartado "Avisos" más abajo.
 - [ ] **8 · 002, US7 + US8 + US9:** editar horario, catálogo y parámetros desde la app.

@@ -52,15 +52,16 @@ La parte del **cliente** está construida y funciona: reserva, consulta, reprogr
 cancelación sin cuenta. De la parte de la **dueña** está el **MVP mínimo** (paso 4 del
 [roadmap](docs/roadmap.md)): entra con su contraseña y ve la agenda del día y el listado
 de reservas, y nadie más puede verlos. Desde el paso 5 también bloquea ratos (comida,
-vacaciones, festivos) desde la agenda. Todavía no puede apuntar, mover, editar o cancelar
-citas; eso llega en el paso 6.
+vacaciones, festivos) desde la agenda. Con el paso 6 está el **MVP completo**: apunta,
+mueve, edita y cancela citas desde la agenda, y lo que estorba se resuelve a la vista sin
+romper la garantía de no-superposición. Falta probarlo a mano con la dueña del producto.
 
 ### Features
 
 | Feature | Estado | Tareas | Rama | En `main` |
 |---|---|---|---|---|
 | [001 · Reserva del cliente](specs/001-client-appointment-booking/spec.md) | Implementada | 118 / 118 | `001-client-appointment-booking` | Sí (PR #1) |
-| [002 · Gestión del salón](specs/002-salon-management/spec.md) | En curso: base común, MVP mínimo (US1, US2 y US10) y bloquear ratos (US3), hechos el 2026-11-04 | 107 / 212 (T139 y T140 las cubrió la 005) | `002-salon-management` | Sólo la documentación de antes de la revisión (PR #4) |
+| [002 · Gestión del salón](specs/002-salon-management/spec.md) | En curso: MVP completo (US1 a US6, US10 y US11), hecho el 2026-11-04; faltan US7, US8, US9 y el pulido | 164 / 212 (T139 y T140 las cubrió la 005) | `002-salon-management` | Sólo la documentación de antes de la revisión (PR #4) |
 | [003 · Versión responsive para tablet y ordenador](specs/003-responsive-desktop/spec.md) | Implementada | 35 / 35 | `003-responsive-desktop` | Sí (PR #3) |
 | 004 · Avisos por email y SMS | Planificada, sin spec | — | — | — |
 | [005 · Varios servicios por cita y precio opcional](specs/005-multiple-services/spec.md) | Implementada | 55 / 55 | `005-multiple-services` | Sí (PR #6) |
@@ -144,19 +145,48 @@ Con la US3 (paso 5), probada a mano con la dueña del producto el 2026-11-04:
 - La API también permite acortar un rato (`PATCH /api/gestion/periodos/{id}`); la
   pantalla todavía no lo ofrece.
 
+Con las US4, US5, US6 y US11 (paso 6), todavía sin probar a mano con la dueña del producto:
+
+- **Apuntar una cita a mano** desde cualquier tramo libre de la agenda: uno o varios
+  servicios con la duración total a la vista, la hora de 15 en 15 minutos, nombre y
+  teléfono obligatorios y email opcional. Se crea aunque falten menos de 2 h o quede más
+  allá de los 60 días; fuera del horario avisa y pide confirmarlo. El límite de 3 citas
+  futuras por teléfono o email se aplica igual que online. La cita queda «Apuntada por
+  ti» y sin enlace de cliente.
+- **Mover** una cita, online o a mano, a otro día u hora: conserva servicios, duración,
+  datos y enlace.
+- **Editar** una cita: añadir, quitar o cambiar servicios, con la nueva hora de fin a la
+  vista, y corregir nombre, teléfono o email. La hora no cambia. Un servicio que ya
+  tenía conserva su precio y su duración aunque el catálogo haya cambiado o se haya
+  retirado; uno nuevo tiene que estar en el catálogo y entra con el precio de hoy.
+- **Cancelar** cualquier cita confirmada que no haya terminado, sin plazo, tras una
+  pregunta que la nombra. Es definitiva. El cliente lee en su enlace «El salón ha
+  cancelado esta cita» con el teléfono del salón; si la canceló él, «Has cancelado esta
+  cita».
+- Tras mover, editar o cancelar una cita online, la agenda recuerda que el cliente no
+  recibe ningún aviso y enseña su teléfono para llamarle.
+- **Conflictos**: si la cita pisa otra o un rato bloqueado, un diálogo los nombra
+  (cliente, servicios y hora; o el rato y su motivo) antes de tocar nada. Las salidas son
+  cancelar la cita que estorba, eliminar el rato o recortarlo para dejar sitio, o volver
+  sin cambiar nada. No existe «mantener las dos». Lo elegido y el cambio se aplican a la
+  vez o no se aplica nada, y si otra pantalla cambió algo mientras tanto se vuelve a
+  preguntar sobre lo que hay ahora.
+- Al bloquear un rato, la API también permite cancelar en la misma operación las citas
+  que pisa; la pantalla sigue ofreciendo sólo bloquear sin cancelar ninguna.
+
 ### Estado de los checks
 
-En la rama `002-salon-management`, el 2026-11-04, con el paso 5 (US3) de la 002. Playwright
+En la rama `002-salon-management`, el 2026-11-04, con el paso 6 (US4, US5, US6 y US11) de la 002. Playwright
 tiene tres proyectos, uno por tamaño (ver `playwright.config.ts`).
 
 | Check | Resultado |
 |---|---|
-| `npm test` (unitarios) | 468 / 468 ✅ |
-| `npm run test:integration` | 256 / 256 ✅ |
-| `npm run test:contract` | 144 / 144 ✅ |
-| `npm run test:e2e` | 284 / 284 ✅ |
-| · proyecto `mobile-360` (la suite de la 001, la 005 y la 002) | 122 / 122 ✅ |
-| · proyecto `desktop-1280` (lo mismo sin rendimiento, más `responsive.spec.ts`) | 152 / 152 ✅ |
+| `npm test` (unitarios) | 565 / 565 ✅ |
+| `npm run test:integration` | 306 / 306 ✅ |
+| `npm run test:contract` | 173 / 173 ✅ |
+| `npm run test:e2e` | 326 / 326 ✅ |
+| · proyecto `mobile-360` (la suite de la 001, la 005 y la 002) | 143 / 143 ✅ |
+| · proyecto `desktop-1280` (lo mismo sin rendimiento, más `responsive.spec.ts`) | 173 / 173 ✅ |
 | · proyecto `tablet-768` (accesibilidad) | 10 / 10 ✅ |
 | `npm run lint` | ✅ |
 | `npm run check:layers` | ✅ |
@@ -178,6 +208,12 @@ frente a 2000 ms y pasó al repetirlo. Si falla de forma intermitente en la CI, 
 Con cuatro servicios elegidos (005) ningún paso pasa de 1 s en local, igual que con uno.
 El 2026-11-04, en una ejecución completa con la máquina cargada, los dos tests SC-004
 del cliente midieron 2392 ms y 2311 ms; aislados, y en la repetición completa, pasaron.
+
+El 2026-11-04, en una ejecución completa de `npm run test:integration`, falló una vez
+«loses the race rather than double-booking when two moves target one slot»
+(`reschedule-appointment.test.ts`, de la 001): dos reprogramaciones del cliente a la vez
+hacia la misma hora. Pasó aislado y en las dos ejecuciones completas siguientes. Es una
+carrera del propio test, no un solape guardado; si se repite en la CI, es esto.
 
 El 2026-11-03 el helper de axe pasó a esperar al `<title>` antes de analizar: justo
 después de una server action que redirige, React cambia el `<head>` y por un instante
