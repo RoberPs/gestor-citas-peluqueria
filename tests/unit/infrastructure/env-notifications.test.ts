@@ -26,6 +26,7 @@ const NAMES = [
   ...Object.keys(BASE),
   'NOTIFICATIONS_EMAIL',
   'NOTIFICATIONS_SMS',
+  'EMAIL_PROVIDER',
   'EMAIL_API_KEY',
   'EMAIL_API_BASE_URL',
   'EMAIL_FROM',
@@ -63,13 +64,24 @@ describe('the email channel', () => {
   it('reads its configuration when it is on', () => {
     setEnv({ ...BASE, ...EMAIL_ON, EMAIL_REPLY_TO: 'salon@salon.example' });
     expect(env().notifications.email).toEqual({
+      provider: 'brevo',
       apiKey: 'key',
-      apiBaseUrl: 'https://api.resend.com',
+      apiBaseUrl: 'https://api.brevo.com/v3',
       from: 'citas@salon.example',
       replyTo: 'salon@salon.example',
       sealKey: EMAIL_ON.NOTIFICATION_SEAL_KEY,
     });
     expect([...createChannelSettings().enabledChannels()]).toEqual(['EMAIL']);
+  });
+
+  it('sends through Resend, with its own API base, when it is asked for', () => {
+    setEnv({ ...BASE, ...EMAIL_ON, EMAIL_PROVIDER: 'resend' });
+    expect(env().notifications.email).toMatchObject({ provider: 'resend', apiBaseUrl: 'https://api.resend.com' });
+  });
+
+  it('refuses a provider it has no adapter for, naming the variable', () => {
+    setEnv({ ...BASE, ...EMAIL_ON, EMAIL_PROVIDER: 'mailgun' });
+    expect(() => env()).toThrow(/EMAIL_PROVIDER/);
   });
 
   it('takes another API base, without its trailing slash', () => {
