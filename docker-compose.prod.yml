@@ -44,9 +44,10 @@ services:
       PUBLIC_BASE_URL: https://${SALON_DOMAIN}
       # 004: the confirmation email. Off unless set; with `on` the app refuses
       # to start without the key, the sender and the seal key. The API base is
-      # Resend's own and is not set here.
+      # the provider's own and is not set here.
       NOTIFICATIONS_EMAIL: ${NOTIFICATIONS_EMAIL:-off}
       NOTIFICATIONS_SMS: 'off'
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-brevo}
       EMAIL_API_KEY: ${EMAIL_API_KEY:-}
       EMAIL_FROM: ${EMAIL_FROM:-}
       EMAIL_REPLY_TO: ${EMAIL_REPLY_TO:-}

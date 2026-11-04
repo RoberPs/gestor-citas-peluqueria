@@ -172,9 +172,11 @@ verde, y es un punto donde se puede parar.
 - [ ] **7b · Producción de prueba** en `niza.automatizacionro.work`, en el VPS y el
   Cloudflare del chatbot multicliente. Va antes de los pasos 8 y 9. Ver las decisiones
   del 2026-11-04 sobre producción.
-  - [ ] Fusionar la 002 y la 004 en `main` con la CI en verde, una PR por feature.
-  - [ ] Adaptador de Brevo detrás del puerto `Notifier`, con TDD; actualizar D-004, la
-    spec, el quickstart y `.env.example` de la 004.
+  - [ ] Fusionar la 002 y la 004 en `main` con la CI en verde, una PR por feature. La
+    002 entró con la PR #8 el 2026-11-04.
+  - [x] Adaptador de Brevo detrás del puerto `Notifier`, con TDD, y `EMAIL_PROVIDER`
+    para volver a Resend; D-004 revisada, quickstart y `.env.example` de la 004
+    actualizados.
   - [ ] Imagen para el VPS compartido: HSTS y CSP en `next.config.ts`, `/health` y
     `HEALTHCHECK`, imagen base fijada por digest, versión en la etiqueta, contenedor
     endurecido y publicada en GHCR.
@@ -253,7 +255,11 @@ Ninguna por ahora.
   dominio verificado y el DPA del chatbot; 300 emails al día compartidos bastan. Se
   usa su API HTTP con una clave propia del proyecto. Se acepta que, sin clave de
   idempotencia, un corte entre el envío y su anotación pueda duplicar una confirmación.
-  Sustituye la decisión D-004 de la 004.
+  Sustituye la decisión D-004 de la 004. Si Brevo no funciona bien, se vuelve a Resend:
+  su adaptador se conserva y se elige con `EMAIL_PROVIDER=resend`. Al comprobar su API
+  salió que Brevo sí admite idempotencia (30 minutos) y que añade su propia baja de un
+  clic, que va a la lista de bloqueados de toda la cuenta; la dueña del producto lo
+  acepta. Detalle en «D-004 revisada» de `specs/004-notifications/research.md`.
 - 2026-11-04 · **Producción · Infraestructura compartida:** el Caddy del chatbot
   sigue siendo el único en los puertos 80 y 443, y este proyecto se le suma con un
   bloque propio y la red `chatbot_proxy`. PostgreSQL propio, porque `btree_gist` pide

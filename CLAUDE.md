@@ -36,8 +36,8 @@ y cancela su cita desde el móvil, sin cuenta de usuario.
   nunca el del dispositivo. El dominio recibe un puerto `Clock` inyectado.
 - **El único mensaje que envía la app es el email de confirmación de una reserva
   online**, si el cliente marca la casilla (004). Sin SMS. Sale por un puerto
-  `Notifier` (Resend por HTTP) desde una bandeja de salida en la BD (`notification`):
-  primer intento con `after()` y reintentos durante 1 hora con
+  `Notifier` (Brevo por HTTP; Resend de reserva con `EMAIL_PROVIDER=resend`) desde
+  una bandeja de salida en la BD (`notification`): primer intento con `after()` y reintentos durante 1 hora con
   `npm run notifications:dispatch` por cron. Con `NOTIFICATIONS_EMAIL=off` la app se
   comporta como antes de la 004.
 

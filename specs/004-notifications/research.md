@@ -138,6 +138,51 @@ envío se da de alta en la región de la UE. Cada petición lleva
 
 ---
 
+## D-004 revisada (2026-11-04) — Brevo primero, Resend de reserva
+
+**Decisión**: el email sale por **Brevo**, con su API HTTP (`POST /v3/smtp/email`,
+cabecera `api-key`) y `fetch`. El adaptador de **Resend se conserva** y se elige con
+`EMAIL_PROVIDER=resend`: si Brevo no funciona bien, volver es cambiar una variable y la
+clave. `EMAIL_PROVIDER` vale `brevo` por omisión.
+
+**Rationale**:
+
+- La cuenta de Brevo, el dominio `automatizacionro.work` verificado (SPF, DKIM y DMARC)
+  y su contrato de encargado ya existen por el chatbot multicliente: no entra ningún
+  subencargado nuevo. Los 300 emails al día de su plan gratuito se comparten entre los
+  dos proyectos y bastan de sobra.
+- **Idempotencia**: la descartaba la D-004 original, pero Brevo sí la ofrece. El id del
+  envío, un UUID, viaja como `idempotencyKey` dentro de `headers`, y una segunda
+  petición con la misma clave se rechaza con `400 duplicate_parameter` en vez de
+  enviarse. El adaptador lo cuenta como aceptado: ese email ya está en camino
+  (FR-012). Brevo recuerda la clave **30 minutos**, frente a la hora de reintentos
+  (D-003), así que un corte justo después de aceptar y un reintento pasada la media
+  hora podrían duplicar la confirmación. Se acepta.
+- **D-006 con Brevo**: de un `400` se lee sólo su `code`, un valor de la lista cerrada
+  de Brevo, para distinguir `duplicate_parameter`; su `message` puede repetir la
+  dirección y no se mira. Cualquier otro cuerpo se descarta sin leer.
+
+**Consecuencia sobre la baja (D-009)**, aceptada por la dueña del producto el
+2026-11-04:
+
+- La API de Brevo no admite cabeceras estándar en `headers`, y Brevo añade su propia
+  `List-Unsubscribe` a todos los emails, también a los transaccionales. Quitarla sólo
+  se puede en su plan Enterprise. Por eso el adaptador **no envía** las cabeceras de
+  baja del mensaje.
+- El botón «Cancelar suscripción» del gestor de correo da de baja **en Brevo**, en la
+  lista de bloqueados de toda la cuenta, compartida con el chatbot. La app no se entera:
+  si esa dirección vuelve a reservar, Brevo acepta el email y no lo entrega, y la marca
+  de la dueña no sale. Contradice en parte la aclaración del 2026-11-04 de la spec («no
+  se guarda ninguna lista de direcciones dadas de baja»): la app no la guarda, pero el
+  proveedor sí.
+- El enlace de baja del **cuerpo** del email sigue siendo el de la app (`/baja/{token}`),
+  y la baja desde la pantalla de la cita no cambia. `POST /api/unsubscribe/{token}`
+  queda para el adaptador de Resend, que sí envía las cabeceras.
+- Comprobar en la primera prueba real qué cabecera `List-Unsubscribe` llega. Si esto
+  molesta en la práctica, se vuelve a Resend.
+
+---
+
 ## D-005 — El puerto `Notifier` y los canales por configuración
 
 **Decisión**:

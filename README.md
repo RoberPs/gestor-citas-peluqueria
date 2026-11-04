@@ -188,9 +188,12 @@ Probado a mano el 2026-11-04 con el proveedor falso. Con `NOTIFICATIONS_EMAIL=on
   responder, y un fallo transitorio se reintenta durante 1 hora con
   `npm run notifications:dispatch` (cron cada minuto). Una cita cancelada, con el email
   cambiado por la dueña o dada de baja antes del envío no recibe nada.
-- **Baja** desde el email (`/baja/{token}`, que pide confirmar con un botón, y la baja
-  de un clic del gestor de correo) o desde la pantalla de la cita («Dejar de recibir
-  emails»). Afecta sólo a esa cita y no la cambia.
+- **Baja** desde el email (`/baja/{token}`, que pide confirmar con un botón) o desde la
+  pantalla de la cita («Dejar de recibir emails»). Afecta sólo a esa cita y no la
+  cambia. La baja de un clic del gestor de correo es la de Brevo, que da de baja la
+  dirección en toda la cuenta; con Resend es la de la app.
+- El email sale por **Brevo**; `EMAIL_PROVIDER=resend` vuelve a Resend, cuyo adaptador
+  se conserva.
 - La agenda y el listado de la dueña marcan «⚠ Confirmación por email no enviada», con
   el teléfono del cliente, cuando la confirmación falló definitivamente.
 - Las citas apuntadas a mano y los cambios de la dueña no envían nada. No hay SMS.
@@ -202,13 +205,14 @@ Probado a mano el 2026-11-04 con el proveedor falso. Con `NOTIFICATIONS_EMAIL=on
 ### Estado de los checks
 
 En la rama `004-notifications`, el 2026-11-04, con la 004 sobre el paso 6 de la 002. La
-suite e2e corre entera con el canal de email encendido contra un proveedor falso.
+suite e2e corre entera con el canal de email encendido contra un proveedor falso que
+imita a Brevo (el proveedor por omisión).
 Playwright tiene tres proyectos, uno por tamaño (ver `playwright.config.ts`).
 
 | Check | Resultado |
 |---|---|
-| `npm test` (unitarios) | 695 / 695 ✅ |
-| `npm run test:integration` | 395 / 395 ✅ |
+| `npm test` (unitarios) | 712 / 712 ✅ |
+| `npm run test:integration` | 403 / 403 ✅ |
 | `npm run test:contract` | 200 / 200 ✅ |
 | `npm run test:e2e` | 358 / 358 ✅ |
 | · proyecto `mobile-360` (la suite de la 001, la 005, la 002 y la 004) | 160 / 160 ✅ |

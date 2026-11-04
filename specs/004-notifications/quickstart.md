@@ -15,8 +15,9 @@ Variables nuevas en `.env` (ver `.env.example`):
 |---|---|---|
 | `NOTIFICATIONS_EMAIL` | `on` para probar, `off` para trabajar como en la 001 | `on` |
 | `NOTIFICATIONS_SMS` | `off` | `off` (sólo admite `off` en esta feature) |
-| `EMAIL_API_KEY` | cualquier valor con el proveedor falso | clave de Resend |
-| `EMAIL_API_BASE_URL` | `http://127.0.0.1:4010` (proveedor falso) | sin definir (la de Resend) |
+| `EMAIL_PROVIDER` | `brevo` (el proveedor falso imita a los dos) | `brevo`; `resend` si se vuelve a Resend (D-004 revisada) |
+| `EMAIL_API_KEY` | cualquier valor con el proveedor falso | clave de API de Brevo (`xkeysib-…`), propia de este proyecto |
+| `EMAIL_API_BASE_URL` | `http://127.0.0.1:4010` (proveedor falso) | sin definir (la del proveedor) |
 | `EMAIL_FROM` | `citas@example.test` | dirección del dominio verificado |
 | `EMAIL_REPLY_TO` | opcional | email del salón |
 | `NOTIFICATION_SEAL_KEY` | `openssl rand -base64 32` | ídem, distinta, fuera del repositorio |
@@ -74,9 +75,12 @@ npm run dev
 
 ## Puesta en producción
 
-1. **Dominio**: dar de alta en Resend, región de la UE, el dominio del salón si lo
-   tiene o, si no, el de la app. Publicar los registros DNS que pida (SPF, DKIM) y
-   esperar a que lo verifique. Sin esto no sale ningún email a clientes reales.
+1. **Dominio y clave**: en Brevo, el dominio de envío verificado (hoy
+   `automatizacionro.work`, ya verificado por el chatbot; el del salón si lo tiene,
+   con sus registros SPF y DKIM). Crear una **clave de API** sólo para este proyecto
+   (no una clave SMTP). Si se activa el bloqueo por IP de las claves de API, añadir
+   antes la IPv4 del VPS. Sin esto no sale ningún email a clientes reales. Con Resend,
+   lo mismo en su panel, en la región de la UE.
 2. **Contrato**: aceptar el acuerdo de encargado del tratamiento (DPA) del proveedor
    y fijar la conservación de sus registros en el mínimo que permita. Anotar aquí,
    **antes de enviar a clientes reales** (Principio III), lo que el proveedor ofrezca
@@ -95,7 +99,7 @@ npm run dev
    localizarlo en el proveedor, sin dar el email ni el nombre del cliente.
 3. **Variables**: las de la tabla de arriba, con `NOTIFICATION_SEAL_KEY` nueva, en el
    entorno desde el que se lanza `docker compose -f docker-compose.prod.yml`, que se
-   las pasa a la app (`EMAIL_API_BASE_URL` no se pone: es la de Resend). Después,
+   las pasa a la app (`EMAIL_API_BASE_URL` no se pone: es la del proveedor). Después,
    `docker compose -f docker-compose.prod.yml up -d --build` y
    `docker compose -f docker-compose.prod.yml exec app npm run db:migrate`, que aplica
    la `0008`.
@@ -107,7 +111,8 @@ npm run dev
    ```
 
    El log sólo lleva ids, estados y recuentos.
-5. **Prueba**: una reserva real con un email propio, y la baja.
+5. **Prueba**: una reserva real con un email propio, y la baja. Con Brevo, mirar en el
+   email recibido qué cabecera `List-Unsubscribe` lleva (D-004 revisada).
 6. **No se envía a clientes reales** hasta que la tabla del paso 2 esté completa.
 
 ## Borrado de datos a petición
