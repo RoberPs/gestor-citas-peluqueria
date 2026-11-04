@@ -111,7 +111,22 @@ verde, y es un punto donde se puede parar.
     a la US6, porque en este paso ningún código registra esos cuerpos.
   - Probado a mano en el navegador con la dueña del producto el 2026-11-04, que
     confirmó los tres detalles concretados en el paso 2b (ver "Decisiones tomadas").
-- [ ] **5 · 002, US3:** bloquear ratos (comida, vacaciones, festivos).
+- [x] **5 · 002, US3:** bloquear ratos (comida, vacaciones, festivos) — rama
+  `002-salon-management`, 2026-11-04
+  - Resultado: fase 5 de la 002 (T071–T082; 107 de 212 tareas). Desde la agenda se
+    bloquean unas horas de un día o varios días enteros, en múltiplos de 15 minutos y
+    con un motivo que el cliente nunca ve, y cada rato se libera desde la línea
+    temporal. Sobre citas confirmadas, el aviso las nombra y sólo guarda si la dueña
+    las acusa todas; no cancela ninguna. El cliente lo nota en la consulta siguiente.
+    468 unitarios, 256 de integración, 144 de contrato y 284 e2e en verde; lint y
+    `check:layers` también.
+  - Adelantado de la US6: `detectConflicts` y `computeStateToken` (T108 y parte de
+    T114), porque el `409` del contrato exige el `stateToken`. Cancelar citas desde este
+    aviso queda para T116.
+  - Decidido al implementar: liberar un rato ya terminado se permite (BR-009 prohíbe
+    crear, mover, editar y cancelar, no liberar); crearlo o acortarlo, no.
+  - `password.test.ts` lleva un timeout propio de 30 s: con la suite entera en paralelo,
+    sus cuatro derivaciones de scrypt pasaban de los 5 s por defecto.
 - [ ] **6 · 002, US4 + US5 + US6 + US11** → 🎯 **MVP completo**
   - Citas a mano, mover, editar y cancelar desde la agenda, aviso de conflicto atómico.
   - El cliente ve en su enlace quién canceló su cita (contrato de cliente 2.1.0).

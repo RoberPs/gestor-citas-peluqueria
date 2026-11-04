@@ -21,7 +21,7 @@ import {
  *
  * Appointments and the blocked hour are written straight into the database:
  * booking through the screens would spend the client rate limit on setup, and
- * the screen for blocking time is Historia 3.
+ * the form for blocking time has its own suite (`us3-periods.spec.ts`).
  */
 
 const TIMEZONE = 'Europe/Madrid';

@@ -4,9 +4,11 @@ import { longDateLabel } from '@/app/_lib/format';
 import { agendaDayDto } from '@/app/api/gestion/_lib/serializers';
 import { NavForm } from '@/components/nav-form';
 import { OwnerHeader } from '@/components/owner/owner-header';
+import { PeriodForm } from '@/components/owner/period-form';
 import { Timeline } from '@/components/owner/timeline';
 import { messages } from '@/messages/es-ES';
 import { requireOwnerPage } from '../_lib/require-owner-page';
+import { blockPeriod, releasePeriod } from './actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,13 +27,17 @@ function agendaHref(date: string, withCancelled: boolean): string {
 /**
  * The owner's agenda of one day (002, Historia 2): any date, past or future,
  * and back to today in one gesture (FR-012). The timeline goes in the main
- * column and the day navigation beside it on a desktop (D-034).
+ * column and the day navigation beside it on a desktop (D-034). On a day that
+ * is not over, time is blocked beside the timeline and released from it
+ * (Historia 3).
  */
 export default async function AgendaPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   await requireOwnerPage();
 
   const query = await searchParams;
   const withCancelled = single(query['canceladas']) === '1';
+  const releasedParam = single(query['liberado']);
+  const released = releasedParam === undefined ? undefined : releasedParam === 'si';
   const { getAgendaDay, clock } = container();
 
   let result = await getAgendaDay({ date: single(query['fecha']), includeCancelled: withCancelled });
@@ -56,7 +62,19 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
         <p className="muted">{messages.common.timezoneNotice}</p>
 
         <div className="col-main">
-          <Timeline day={dto} />
+          {released !== undefined && (
+            <div role="status" className={released ? 'notice' : 'notice-error'}>
+              {released ? (
+                <p>{messages.owner.periods.released}</p>
+              ) : (
+                <>
+                  <p>{messages.owner.errors.periodNotFound.message}</p>
+                  <p>{messages.owner.errors.periodNotFound.nextAction}</p>
+                </>
+              )}
+            </div>
+          )}
+          <Timeline day={dto} release={dto.isReadOnly ? undefined : { action: releasePeriod, withCancelled }} />
         </div>
 
         <div className="col-side">
@@ -96,6 +114,11 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
               </a>
             </p>
           </section>
+
+          {!dto.isReadOnly && (
+            // Keyed by day, so moving to another day starts the form afresh from it.
+            <PeriodForm key={date} action={blockPeriod} date={date} abandonHref={agendaHref(date, withCancelled)} />
+          )}
         </div>
       </main>
     </>

@@ -51,5 +51,42 @@ export function createUnavailablePeriodRepository(
 
       return rows.map(toDomain);
     },
+
+    async findById(id) {
+      const { rows } = await getPool().query<PeriodRow>(
+        'SELECT id, starts_at, ends_at, reason FROM unavailable_period WHERE id = $1',
+        [id],
+      );
+      const row = rows[0];
+      return row === undefined ? null : toDomain(row);
+    },
+
+    async insert(period) {
+      const { rows } = await getPool().query<PeriodRow>(
+        `INSERT INTO unavailable_period (id, starts_at, ends_at, reason)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id, starts_at, ends_at, reason`,
+        [period.id, dateOf(period.startsAt), dateOf(period.endsAt), period.reason],
+      );
+      const row = rows[0];
+      if (row === undefined) throw new Error('the INSERT returned no row');
+      return toDomain(row);
+    },
+
+    async shorten(id, startsAt, endsAt) {
+      const { rows } = await getPool().query<PeriodRow>(
+        `UPDATE unavailable_period SET starts_at = $2, ends_at = $3
+          WHERE id = $1
+          RETURNING id, starts_at, ends_at, reason`,
+        [id, dateOf(startsAt), dateOf(endsAt)],
+      );
+      const row = rows[0];
+      return row === undefined ? null : toDomain(row);
+    },
+
+    async delete(id) {
+      const { rowCount } = await getPool().query('DELETE FROM unavailable_period WHERE id = $1', [id]);
+      return (rowCount ?? 0) > 0;
+    },
   };
 }

@@ -8,7 +8,7 @@ import {
   seedContractDatabase,
 } from './helpers/seed-contract-db';
 import { expectMatchesContract, responseSchema } from './helpers/openapi';
-import { closeTestDb, truncateAppointments } from '../integration/helpers/test-db';
+import { closeTestDb, testPool, truncateAppointments } from '../integration/helpers/test-db';
 
 vi.mock('@/infrastructure/time/system-clock', () => ({
   systemClock: { now: () => CONTRACT_NOW },
@@ -228,5 +228,45 @@ describe('a selection that is only partly priced (005, FR-020)', () => {
       knownCents: null,
       label: 'Precio a consultar en el salón',
     });
+  });
+});
+
+describe('a period the owner blocked (002, FR-021, BR-002, T074)', () => {
+  const REASON = 'Cita con el médico, no contarlo';
+
+  async function block(from: string, to: string): Promise<string> {
+    const id = randomUUID();
+    await testPool().query(
+      'INSERT INTO unavailable_period (id, starts_at, ends_at, reason) VALUES ($1, $2, $3, $4)',
+      [id, from, to, REASON],
+    );
+    return id;
+  }
+
+  it('takes its starts away and never says why', async () => {
+    const id = await block('2026-09-18 13:00 Europe/Madrid', '2026-09-18 14:00 Europe/Madrid');
+    try {
+      const { status, body } = await availability({ serviceIds: CORTE, selectedDate: '2026-09-18' });
+
+      expect(status).toBe(200);
+      expectMatchesContract(okSchema, body);
+      expect(body.slots.map((slot) => slot.localTime)).not.toContain('13:00');
+      expect(JSON.stringify(body)).not.toContain(REASON);
+    } finally {
+      await testPool().query('DELETE FROM unavailable_period WHERE id = $1', [id]);
+    }
+  });
+
+  it('shows a whole day blocked as CLOSED, with nothing more to say', async () => {
+    const id = await block('2026-09-18 00:00 Europe/Madrid', '2026-09-19 00:00 Europe/Madrid');
+    try {
+      const { body } = await availability({ serviceIds: CORTE, selectedDate: '2026-09-18' });
+
+      expectMatchesContract(okSchema, body);
+      expect(body.days.find((day) => day.date === '2026-09-18')?.status).toBe('CLOSED');
+      expect(JSON.stringify(body)).not.toContain(REASON);
+    } finally {
+      await testPool().query('DELETE FROM unavailable_period WHERE id = $1', [id]);
+    }
   });
 });

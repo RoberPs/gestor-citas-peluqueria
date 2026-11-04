@@ -51,15 +51,16 @@ siempre `db-test` con su propio seed, así que cambiar la demo nunca los rompe.
 La parte del **cliente** está construida y funciona: reserva, consulta, reprogramación y
 cancelación sin cuenta. De la parte de la **dueña** está el **MVP mínimo** (paso 4 del
 [roadmap](docs/roadmap.md)): entra con su contraseña y ve la agenda del día y el listado
-de reservas, y nadie más puede verlos. Todavía no puede bloquear ratos ni apuntar,
-mover, editar o cancelar citas; eso llega en los pasos 5 y 6.
+de reservas, y nadie más puede verlos. Desde el paso 5 también bloquea ratos (comida,
+vacaciones, festivos) desde la agenda. Todavía no puede apuntar, mover, editar o cancelar
+citas; eso llega en el paso 6.
 
 ### Features
 
 | Feature | Estado | Tareas | Rama | En `main` |
 |---|---|---|---|---|
 | [001 · Reserva del cliente](specs/001-client-appointment-booking/spec.md) | Implementada | 118 / 118 | `001-client-appointment-booking` | Sí (PR #1) |
-| [002 · Gestión del salón](specs/002-salon-management/spec.md) | En curso: base común y MVP mínimo (US1, US2 y US10) hechos el 2026-11-04 | 94 / 212 (T139 y T140 las cubrió la 005) | `002-salon-management` | Sólo la documentación de antes de la revisión (PR #4) |
+| [002 · Gestión del salón](specs/002-salon-management/spec.md) | En curso: base común, MVP mínimo (US1, US2 y US10) y bloquear ratos (US3), hechos el 2026-11-04 | 107 / 212 (T139 y T140 las cubrió la 005) | `002-salon-management` | Sólo la documentación de antes de la revisión (PR #4) |
 | [003 · Versión responsive para tablet y ordenador](specs/003-responsive-desktop/spec.md) | Implementada | 35 / 35 | `003-responsive-desktop` | Sí (PR #3) |
 | 004 · Avisos por email y SMS | Planificada, sin spec | — | — | — |
 | [005 · Varios servicios por cita y precio opcional](specs/005-multiple-services/spec.md) | Implementada | 55 / 55 | `005-multiple-services` | Sí (PR #6) |
@@ -129,19 +130,33 @@ Probado a mano con la dueña del producto el 2026-11-04.
   número completo en vez de dar un listado vacío. 20 citas por página y quién canceló
   cada cancelada.
 
+Con la US3 (paso 5), cubierta por los tests el 2026-11-04 y pendiente de probar a mano:
+
+- **Bloquear un rato** desde la agenda de un día que no ha pasado: unas horas de un día
+  o varios días enteros, de 15 en 15 minutos, con un motivo opcional que sólo ve la
+  dueña. Los clientes dejan de ver esas horas en la consulta siguiente, y un día entero
+  bloqueado les sale *cerrado*, sin el motivo.
+- Si el rato pisa citas confirmadas, la agenda las nombra (cliente, servicios y hora) y
+  pregunta antes de guardar: «Bloquear igualmente, sin cancelar ninguna cita» o «No
+  bloquear». Ninguna cita se cancela sola.
+- **Liberar un rato** desde la propia línea temporal; las horas vuelven a ofrecerse al
+  momento.
+- La API también permite acortar un rato (`PATCH /api/gestion/periodos/{id}`); la
+  pantalla todavía no lo ofrece.
+
 ### Estado de los checks
 
-En la rama `002-salon-management`, el 2026-11-04, con el MVP mínimo de la 002. Playwright
+En la rama `002-salon-management`, el 2026-11-04, con el paso 5 (US3) de la 002. Playwright
 tiene tres proyectos, uno por tamaño (ver `playwright.config.ts`).
 
 | Check | Resultado |
 |---|---|
-| `npm test` (unitarios) | 411 / 411 ✅ |
-| `npm run test:integration` | 236 / 236 ✅ |
-| `npm run test:contract` | 123 / 123 ✅ |
-| `npm run test:e2e` | 272 / 272 ✅ |
-| · proyecto `mobile-360` (la suite de la 001, la 005 y la 002) | 116 / 116 ✅ |
-| · proyecto `desktop-1280` (lo mismo sin rendimiento, más `responsive.spec.ts`) | 146 / 146 ✅ |
+| `npm test` (unitarios) | 468 / 468 ✅ |
+| `npm run test:integration` | 256 / 256 ✅ |
+| `npm run test:contract` | 144 / 144 ✅ |
+| `npm run test:e2e` | 284 / 284 ✅ |
+| · proyecto `mobile-360` (la suite de la 001, la 005 y la 002) | 122 / 122 ✅ |
+| · proyecto `desktop-1280` (lo mismo sin rendimiento, más `responsive.spec.ts`) | 152 / 152 ✅ |
 | · proyecto `tablet-768` (accesibilidad) | 10 / 10 ✅ |
 | `npm run lint` | ✅ |
 | `npm run check:layers` | ✅ |
@@ -161,6 +176,8 @@ horaria de la máquina**, no defectos de la app:
 `performance.spec.ts` (SC-004) va justo en el límite: con `TZ=UTC` midió una vez 2017 ms
 frente a 2000 ms y pasó al repetirlo. Si falla de forma intermitente en la CI, es esto.
 Con cuatro servicios elegidos (005) ningún paso pasa de 1 s en local, igual que con uno.
+El 2026-11-04, en una ejecución completa con la máquina cargada, los dos tests SC-004
+del cliente midieron 2392 ms y 2311 ms; aislados, y en la repetición completa, pasaron.
 
 El 2026-11-03 el helper de axe pasó a esperar al `<title>` antes de analizar: justo
 después de una server action que redirige, React cambia el `<head>` y por un instante

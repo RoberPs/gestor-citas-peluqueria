@@ -4,7 +4,9 @@ import type { UnavailablePeriod } from '@/domain/catalog/salon';
 import { totalPriceOf } from '@/domain/catalog/selection';
 import type { AgendaDay, TimelineEntry } from '@/domain/owner/agenda';
 import { isPastSlot } from '@/domain/owner/agenda';
+import type { Conflict } from '@/domain/owner/conflict';
 import { formatLocalTime, localDateOf } from '@/domain/shared/time';
+import { messages } from '@/messages/es-ES';
 import { priceTotalDto, snapshotDto, type PriceTotalDto } from '../../_lib/serializers';
 
 /**
@@ -90,6 +92,25 @@ export function periodDto(period: UnavailablePeriod, timezone: string) {
     reason: period.reason,
   };
 }
+
+/** FR-033: named, so the owner can decide. An anonymised customer is said in words. */
+export function conflictDto(conflict: Conflict, timezone: string) {
+  const span = {
+    startsAt: localTimeDto(conflict.startsAt, timezone),
+    endsAt: localTimeDto(conflict.endsAt, timezone),
+  };
+  return conflict.kind === 'APPOINTMENT'
+    ? {
+        kind: conflict.kind,
+        id: conflict.id,
+        customerName: conflict.customerName ?? messages.owner.agenda.anonymized,
+        serviceNames: conflict.serviceNames,
+        ...span,
+      }
+    : { kind: conflict.kind, id: conflict.id, reason: conflict.reason, ...span };
+}
+
+export type ConflictDto = ReturnType<typeof conflictDto>;
 
 function entryDto(entry: TimelineEntry, now: Temporal.Instant, timezone: string) {
   switch (entry.kind) {

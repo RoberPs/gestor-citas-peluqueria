@@ -6,6 +6,7 @@ import { createGetAgendaDay } from '@/application/use-cases/get-agenda-day';
 import { createGetAvailability } from '@/application/use-cases/get-availability';
 import { createListBookings } from '@/application/use-cases/list-bookings';
 import { createListServices } from '@/application/use-cases/list-services';
+import { createManageUnavailablePeriods } from '@/application/use-cases/manage-unavailable-periods';
 import { createRescheduleAppointment } from '@/application/use-cases/reschedule-appointment';
 import { createSignInOwner } from '@/application/use-cases/sign-in-owner';
 import { createSignOutOwner } from '@/application/use-cases/sign-out-owner';
@@ -18,6 +19,7 @@ import { createOwnerSessionRepository } from '@/infrastructure/db/owner-session-
 import { createSalonConfigRepository } from '@/infrastructure/db/salon-config-repository';
 import { createUnavailablePeriodRepository } from '@/infrastructure/db/unavailable-period-repository';
 import { passwordHasher } from '@/infrastructure/security/password';
+import { stateHash } from '@/infrastructure/security/state-hash';
 import { tokenGenerator } from '@/infrastructure/security/token';
 import { systemClock } from '@/infrastructure/time/system-clock';
 
@@ -79,6 +81,13 @@ function build() {
     listBookings: createListBookings({
       config,
       bookings: createBookingListReader(pool),
+      clock: systemClock,
+    }),
+    unavailablePeriods: createManageUnavailablePeriods({
+      config,
+      appointments,
+      periods,
+      stateHash,
       clock: systemClock,
     }),
     rescheduleAppointment: createRescheduleAppointment({

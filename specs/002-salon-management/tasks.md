@@ -211,21 +211,21 @@ La `0003_multiple_services.sql` es de la 005 y ya está en `main`: las de esta f
 
 ### Tests de la Historia 3 ⚠️
 
-- [ ] T071 [P] [US3] Test de contrato en `tests/contract/owner/periodos.test.ts` para `GET`/`POST /gestion/periodos` y `PATCH`/`DELETE /gestion/periodos/{id}`
-- [ ] T072 [P] [US3] Test de integración en `tests/integration/use-cases/manage-unavailable-periods.test.ts`: crear, acortar, eliminar, rechazo de `fin <= inicio` y rechazo de granularidad distinta de 15 min (FR-018, FR-019, FR-023)
-- [ ] T073 [P] [US3] Test de integración en `tests/integration/use-cases/get-availability.test.ts` (ampliar): un periodo creado desaparece de la disponibilidad en la consulta siguiente y unas vacaciones se ven `CLOSED`, no `FULL` (SC-003, D-020)
-- [ ] T074 [P] [US3] Test de que el motivo **nunca** cruza hacia el cliente en `tests/contract/availability.test.ts` (ampliar) (FR-021, BR-002)
-- [ ] T075 [P] [US3] Test de integración del solape parcial en `tests/integration/use-cases/manage-unavailable-periods.test.ts`: un minuto de intersección con una cita confirmada lista la cita y exige confirmación, y **no cancela ninguna** (FR-022, clarificación 2026-09-16)
-- [ ] T076 [P] [US3] E2E en `tests/e2e/us3-periods.spec.ts`: bloquear la comida, comprobar en `/` que los inicios desaparecen, eliminarlo y verlos volver, más axe
+- [x] T071 [P] [US3] Test de contrato en `tests/contract/owner/periodos.test.ts` para `GET`/`POST /gestion/periodos` y `PATCH`/`DELETE /gestion/periodos/{id}`
+- [x] T072 [P] [US3] Test de integración en `tests/integration/use-cases/manage-unavailable-periods.test.ts`: crear, acortar, eliminar, rechazo de `fin <= inicio` y rechazo de granularidad distinta de 15 min (FR-018, FR-019, FR-023)
+- [x] T073 [P] [US3] Test de integración en `tests/integration/use-cases/get-availability.test.ts` (ampliar): un periodo creado desaparece de la disponibilidad en la consulta siguiente y unas vacaciones se ven `CLOSED`, no `FULL` (SC-003, D-020)
+- [x] T074 [P] [US3] Test de que el motivo **nunca** cruza hacia el cliente en `tests/contract/availability.test.ts` (ampliar) (FR-021, BR-002)
+- [x] T075 [P] [US3] Test de integración del solape parcial en `tests/integration/use-cases/manage-unavailable-periods.test.ts`: un minuto de intersección con una cita confirmada lista la cita y exige confirmación, y **no cancela ninguna** (FR-022, clarificación 2026-09-16)
+- [x] T076 [P] [US3] E2E en `tests/e2e/us3-periods.spec.ts`: bloquear la comida, comprobar en `/` que los inicios desaparecen, eliminarlo y verlos volver, más axe
 
 ### Implementación de la Historia 3
 
-- [ ] T077 [US3] Implementar `src/application/use-cases/manage-unavailable-periods.ts`: crear, acortar y eliminar, listando las citas solapadas y exigiendo acuse antes de guardar (FR-022)
-- [ ] T078 [P] [US3] Implementar `src/app/api/gestion/periodos/route.ts` (`GET`, `POST`) con validación Zod y el guardián
-- [ ] T079 [P] [US3] Implementar `src/app/api/gestion/periodos/[id]/route.ts` (`PATCH`, `DELETE`)
-- [ ] T080 [P] [US3] Implementar `src/components/owner/period-form.tsx` con la rejilla de 15 minutos y el motivo interno opcional
-- [ ] T081 [US3] Integrar la creación y el borrado de periodos en `src/app/gestion/agenda/page.tsx`, desde la propia línea temporal
-- [ ] T082 [P] [US3] Añadir los textos de periodos y de la lista de citas afectadas a `src/messages/es-ES.ts`
+- [x] T077 [US3] Implementar `src/application/use-cases/manage-unavailable-periods.ts`: crear, acortar y eliminar, listando las citas solapadas y exigiendo acuse antes de guardar (FR-022) *Hecho con `detectConflicts`, `computeStateToken` y `checkAcknowledgement` de `src/domain/owner/conflict.ts`, adelantados a la US3 porque el `409` del contrato exige `stateToken`. La resolución sólo admite `acknowledgeAppointments`; cancelar citas desde este aviso llega con T116*
+- [x] T078 [P] [US3] Implementar `src/app/api/gestion/periodos/route.ts` (`GET`, `POST`) con validación Zod y el guardián
+- [x] T079 [P] [US3] Implementar `src/app/api/gestion/periodos/[id]/route.ts` (`PATCH`, `DELETE`)
+- [x] T080 [P] [US3] Implementar `src/components/owner/period-form.tsx` con la rejilla de 15 minutos y el motivo interno opcional *Las horas se eligen en una lista de 15 en 15 minutos, y también se pueden bloquear días enteros. El formulario envía la hora del salón a una server action (`src/app/gestion/agenda/actions.ts`), que la convierte en la zona del salón y llama al mismo caso de uso que la API*
+- [x] T081 [US3] Integrar la creación y el borrado de periodos en `src/app/gestion/agenda/page.tsx`, desde la propia línea temporal *Liberar se hace desde cada rato de la línea temporal; un día pasado no ofrece ni el formulario ni el botón (BR-009). Borrar un periodo ya terminado sí se permite por la API: BR-009 prohíbe crear, mover, editar y cancelar, y liberar tiempo no quita nada a nadie*
+- [x] T082 [P] [US3] Añadir los textos de periodos y de la lista de citas afectadas a `src/messages/es-ES.ts`
 
 **Checkpoint**: el hueco fantasma más frecuente queda resuelto y se nota en la cara del cliente sin reiniciar nada.
 
@@ -303,7 +303,7 @@ La `0003_multiple_services.sql` es de la 005 y ya está en `main`: las de esta f
 ### Tests de la Historia 6 ⚠️
 
 - [ ] T107 [P] [US6] Test unitario en `tests/unit/domain/owner/conflict.test.ts`: `buildResolutionPlan` devuelve `UNRESOLVED_CONFLICT` si queda una cita sin resolver, `UNKNOWN_TARGET` y `SHORTENING_DOES_NOT_FIT`; **no existe entrada que signifique "mantener ambas"** (FR-034, FR-035)
-- [ ] T108 [P] [US6] Test unitario de `computeStateToken` en `tests/unit/domain/owner/conflict.test.ts`: determinista, estable frente al orden y sensible a cualquier cambio (D-024)
+- [x] T108 [P] [US6] Test unitario de `computeStateToken` en `tests/unit/domain/owner/conflict.test.ts`: determinista, estable frente al orden y sensible a cualquier cambio (D-024) *Hecho en la US3, junto con los tests de `detectConflicts` y `checkAcknowledgement`*
 - [ ] T109 [P] [US6] Test de integración de atomicidad en `tests/integration/use-cases/resolution-atomicity.test.ts`: provoca un fallo a mitad del plan y comprueba que **ni la cita en conflicto queda cancelada ni la nueva creada** (FR-037, SC-006)
 - [ ] T110 [P] [US6] Test de concurrencia real en `tests/integration/concurrency/concurrent-conflict.test.ts`: dos confirmaciones solapadas en dos conexiones; exactamente una prospera y la otra recibe el conflicto **recalculado**, nunca un solape guardado (FR-038, SC-004, D-029)
 - [ ] T111 [P] [US6] Test de integración de que una violación `23P01` se traduce a `STATE_CHANGED` en `tests/integration/db/constraints.test.ts` (D-024)
@@ -312,7 +312,7 @@ La `0003_multiple_services.sql` es de la 005 y ya está en `main`: las de esta f
 
 ### Implementación de la Historia 6
 
-- [ ] T114 [US6] Completar `src/domain/owner/conflict.ts` con `computeStateToken` —con el `hash` inyectado como puerto— y `buildResolutionPlan` con sus tres modos de fallo tipados
+- [ ] T114 [US6] Completar `src/domain/owner/conflict.ts` con `computeStateToken` —con el `hash` inyectado como puerto— y `buildResolutionPlan` con sus tres modos de fallo tipados *`computeStateToken` y `detectConflicts` ya existen desde la US3; queda `buildResolutionPlan`*
 - [ ] T115 [US6] Implementar `src/infrastructure/db/owner-appointment-writer.ts`: `applyPlan` que re-detecta el conflicto **dentro** de la transacción, compara el `stateToken` y aplica el plan entero o nada, con las filas de `appointment_service` de la cita nueva y `cancelled_by = 'OWNER'` en las cancelaciones de la resolución (D-023, D-024, FR-040a)
 - [ ] T116 [US6] Integrar el protocolo de dos pasos en los handlers de `src/app/api/gestion/citas/`, `citas/[id]/reprogramacion/` y `periodos/`
 - [ ] T117 [US6] Implementar `src/components/owner/conflict-dialog.tsx`: `dialog` modal accesible que nombra cada elemento en conflicto —con todos los servicios de una cita— y ofrece **sólo** salidas explícitas (FR-033, FR-034)

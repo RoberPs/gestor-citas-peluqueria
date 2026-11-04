@@ -4,11 +4,13 @@ import type { Pool } from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { SalonConfigRepository } from '@/application/ports';
 import { createGetAvailability } from '@/application/use-cases/get-availability';
+import { createManageUnavailablePeriods } from '@/application/use-cases/manage-unavailable-periods';
 import type { OpeningInterval, Weekday } from '@/domain/catalog/salon';
 import type { Clock } from '@/domain/shared/clock';
 import { createAppointmentRepository } from '@/infrastructure/db/appointment-repository';
 import { createSalonConfigRepository } from '@/infrastructure/db/salon-config-repository';
 import { createUnavailablePeriodRepository } from '@/infrastructure/db/unavailable-period-repository';
+import { stateHash } from '@/infrastructure/security/state-hash';
 import {
   closeTestDb,
   ensureSchema,
@@ -412,5 +414,62 @@ describe('several services in one appointment (005, Historia 1)', () => {
 
     if (!result.ok) throw new Error('unreachable');
     expect(result.value.fitsOpeningHours).toBe(true);
+  });
+});
+
+describe('blocked time reaches the client at once (002, Historia 3, T073)', () => {
+  const FRIDAY = '2026-09-18';
+
+  function managePeriods() {
+    return createManageUnavailablePeriods({
+      config: createSalonConfigRepository(testPool),
+      appointments: createAppointmentRepository(testPool),
+      periods: createUnavailablePeriodRepository(testPool),
+      stateHash,
+      clock,
+    });
+  }
+
+  async function startsOnFriday(): Promise<readonly string[]> {
+    const result = await buildUseCase(testPool())({ serviceIds: [PEINADO], selectedDate: FRIDAY });
+    if (!result.ok) throw new Error('unreachable');
+    return result.value.slots.map((slot) => slot.localTime);
+  }
+
+  it('takes the starts a lunch hour touches away in the next query, and gives them back (SC-003)', async () => {
+    const created = await managePeriods().create({
+      startsAt: Temporal.Instant.from(`${FRIDAY}T13:00:00+02:00`),
+      endsAt: Temporal.Instant.from(`${FRIDAY}T14:00:00+02:00`),
+      reason: 'Comida',
+    });
+    if (!created.ok) throw new Error('unreachable');
+
+    // A 45 minute Peinado: 12:30 would end at 13:15, inside the lunch hour.
+    const blocked = await startsOnFriday();
+    expect(blocked).toContain('12:00');
+    expect(blocked).not.toContain('12:30');
+    expect(blocked).not.toContain('13:00');
+    expect(blocked).not.toContain('13:30');
+    expect(blocked).toContain('14:00');
+
+    await managePeriods().remove(created.value.period.id);
+
+    expect(await startsOnFriday()).toEqual(expect.arrayContaining(['12:30', '13:00', '13:30']));
+  });
+
+  it('shows a week away as closed days, not full ones (escenario 3, D-020)', async () => {
+    const created = await managePeriods().create({
+      startsAt: Temporal.Instant.from('2026-09-21T00:00:00+02:00'),
+      endsAt: Temporal.Instant.from('2026-09-26T00:00:00+02:00'),
+      reason: 'Vacaciones',
+    });
+    if (!created.ok) throw new Error('unreachable');
+
+    const result = await buildUseCase(testPool())({ serviceIds: [CORTE] });
+
+    if (!result.ok) throw new Error('unreachable');
+    const away = result.value.days.filter((day) => day.date >= '2026-09-21' && day.date <= '2026-09-25');
+    expect(away.map((day) => day.status)).toEqual(['CLOSED', 'CLOSED', 'CLOSED', 'CLOSED', 'CLOSED']);
+    expect(result.value.days.find((day) => day.date === '2026-09-26')?.status).toBe('AVAILABLE');
   });
 });

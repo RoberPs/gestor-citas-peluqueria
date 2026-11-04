@@ -362,6 +362,29 @@ export const messages = {
       results: 'Reservas encontradas',
     },
 
+    /** Historia 3: blocking and releasing time from the agenda. */
+    periods: {
+      title: 'Bloquear un rato',
+      hint: 'Los clientes dejan de ver esas horas en cuanto lo guardas. El motivo sólo lo ves tú.',
+      kind: 'Qué quieres bloquear',
+      kinds: { horas: 'Unas horas de un día', dias: 'Uno o varios días enteros' },
+      day: 'Día',
+      from: 'Desde',
+      to: 'Hasta',
+      firstDay: 'Primer día',
+      lastDay: 'Último día',
+      reason: 'Motivo (opcional)',
+      reasonHint: 'Por ejemplo, «Comida» o «Vacaciones». Nunca se enseña a los clientes.',
+      submit: 'Bloquear este rato',
+      saved: 'Rato bloqueado. Los clientes ya no ven esas horas.',
+      release: 'Liberar este rato',
+      released: 'Rato liberado. Los clientes vuelven a ver esas horas.',
+      /** FR-022: the appointments under the block, named. */
+      conflictList: 'Citas confirmadas en ese rato',
+      acknowledge: 'Bloquear igualmente, sin cancelar ninguna cita',
+      abandon: 'No bloquear',
+    },
+
     /** FR-013: the origin with text and an icon, never colour alone. */
     origin: {
       ONLINE: { label: 'Reservada online', icon: '@' },
@@ -413,6 +436,35 @@ export const messages = {
       incompletePhone: {
         message: 'Ese teléfono está incompleto.',
         nextAction: 'Escribe el teléfono entero, con sus 9 cifras, o busca por el nombre.',
+      },
+      /** Historia 3: why a period is not saved, keyed by the domain's rejection. */
+      period: {
+        END_NOT_AFTER_START: {
+          message: 'El final del rato tiene que ser posterior a su inicio.',
+          nextAction: 'Elige un final más tarde que el inicio.',
+        },
+        INVALID_GRANULARITY: {
+          message: 'Las horas de un rato bloqueado van de 15 en 15 minutos.',
+          nextAction: 'Elige, por ejemplo, 13:00, 13:15, 13:30 o 13:45.',
+        },
+        ALREADY_OVER: {
+          message: 'Ese rato ya ha pasado.',
+          nextAction: 'Elige un rato que no haya terminado todavía.',
+        },
+        NOT_CONTAINED: {
+          message: 'Al acortar un rato, el nuevo tiene que quedar dentro del que había.',
+          nextAction: 'Elige un inicio y un final dentro del rato que había. Para bloquear más tiempo, añade otro rato.',
+        },
+      },
+      periodNotFound: {
+        message: 'Ese rato bloqueado ya no existe.',
+        nextAction: 'Vuelve a la agenda: puede que ya se haya liberado.',
+      },
+      /** FR-022: a block cancels nobody, and the warning says so. */
+      periodConflict: {
+        message: 'En ese rato hay citas confirmadas.',
+        nextAction:
+          'Si lo bloqueas igualmente, las citas siguen en pie: no se cancela ninguna. Si no, elige otro rato.',
       },
       wrongCurrentPassword: {
         message: 'La contraseña actual no es correcta.',

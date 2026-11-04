@@ -5,7 +5,11 @@ import type {
   BusyInterval,
   CancellationActor,
 } from '@/domain/booking/appointment';
-import type { SalonConfiguration, UnavailablePeriod } from '@/domain/catalog/salon';
+import type {
+  SalonConfiguration,
+  UnavailablePeriod,
+  UnavailablePeriodId,
+} from '@/domain/catalog/salon';
 import type { NonEmptyServiceList } from '@/domain/catalog/selection';
 import type { NormalizedEmail, NormalizedPhone, ValidatedContact } from '@/domain/contact/contact';
 import type { LockoutState } from '@/domain/owner/account';
@@ -106,7 +110,27 @@ export interface UnavailablePeriodRepository {
     from: Temporal.Instant,
     to: Temporal.Instant,
   ): Promise<readonly UnavailablePeriod[]>;
+
+  findById(id: UnavailablePeriodId): Promise<UnavailablePeriod | null>;
+
+  insert(period: UnavailablePeriod): Promise<UnavailablePeriod>;
+
+  /** `null` when there is no such period. The reason is kept (FR-019). */
+  shorten(
+    id: UnavailablePeriodId,
+    startsAt: Temporal.Instant,
+    endsAt: Temporal.Instant,
+  ): Promise<UnavailablePeriod | null>;
+
+  /** Whether there was one to delete. */
+  delete(id: UnavailablePeriodId): Promise<boolean>;
 }
+
+/**
+ * The hash behind a conflict's `stateToken` (002, D-024). A port because the
+ * domain computes the token and `node:crypto` is out of its reach.
+ */
+export type StateHasher = (input: string) => string;
 
 /** The owner's password (002, D-016). Implemented with scrypt; nothing here logs. */
 export interface PasswordHasher {

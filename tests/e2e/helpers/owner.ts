@@ -5,8 +5,9 @@ import { Pool } from 'pg';
 
 /**
  * The owner's side in e2e (002). One account, provisioned by the global setup
- * the way `owner:provision` does it, and a few direct writes for the states the
- * screens of this step cannot create yet (a blocked hour, a past day).
+ * the way `owner:provision` does it, and a few direct writes for setup: states
+ * no screen creates yet, and blocked time a suite needs without going through
+ * the form Historia 3 tests on its own.
  */
 
 export const E2E_OWNER = { username: 'duena', password: 'una contraseña muy larga' } as const;
@@ -37,7 +38,7 @@ export async function resetOwnerAccess(): Promise<void> {
   await db().query('TRUNCATE owner_session');
 }
 
-/** A blocked stretch, written straight into the table (the screen for it is Historia 3). */
+/** A blocked stretch, written straight into the table, as setup for another story. */
 export async function insertPeriod(startsAt: Date, endsAt: Date, reason: string | null): Promise<void> {
   await db().query('INSERT INTO unavailable_period (id, starts_at, ends_at, reason) VALUES ($1, $2, $3, $4)', [
     randomUUID(),

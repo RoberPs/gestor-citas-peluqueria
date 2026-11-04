@@ -69,7 +69,13 @@ function AppointmentCard({ appointment, date }: { readonly appointment: Appointm
   );
 }
 
-export function Timeline({ day }: { readonly day: AgendaDayDto }) {
+/** Releasing a period from where it shows (Historia 3). Absent on a day that is over. */
+export type ReleasePeriod = {
+  readonly action: (form: FormData) => Promise<void>;
+  readonly withCancelled: boolean;
+};
+
+export function Timeline({ day, release }: { readonly day: AgendaDayDto; readonly release?: ReleasePeriod }) {
   const hasAppointments = day.entries.some((entry) => entry.kind === 'APPOINTMENT');
 
   return (
@@ -99,6 +105,20 @@ export function Timeline({ day }: { readonly day: AgendaDayDto }) {
                     <span className="timeline-time">{span(day.date, entry.period.startsAt, entry.period.endsAt)}</span>{' '}
                     <span aria-hidden="true">⊘</span> {messages.owner.agenda.unavailable}
                     {entry.period.reason !== null && ` · ${entry.period.reason}`}
+                    {release !== undefined && (
+                      <form action={release.action}>
+                        <input type="hidden" name="periodo" value={entry.period.id} />
+                        <input type="hidden" name="fecha" value={day.date} />
+                        {release.withCancelled && <input type="hidden" name="canceladas" value="1" />}
+                        <button type="submit" className="button-secondary">
+                          {messages.owner.periods.release}
+                          <span className="visually-hidden">
+                            {' '}
+                            {span(day.date, entry.period.startsAt, entry.period.endsAt)}
+                          </span>
+                        </button>
+                      </form>
+                    )}
                   </li>
                 );
               case 'FREE':

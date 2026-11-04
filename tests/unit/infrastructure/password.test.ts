@@ -4,9 +4,15 @@ import { passwordHasher } from '@/infrastructure/security/password';
 /**
  * 002, T034 and D-016: scrypt from node:crypto, N = 2^17, r = 8, p = 1, a
  * 16 byte salt and a 64 byte key, with the parameters stored alongside.
+ *
+ * Each derivation is meant to be slow: over a second when the whole unit
+ * suite shares the CPU, and a test here runs up to four of them. The timeout
+ * says so, rather than the parameters being weakened for the test's sake.
  */
 
-describe('passwordHasher', () => {
+const SCRYPT_TIMEOUT_MS = 30_000;
+
+describe('passwordHasher', { timeout: SCRYPT_TIMEOUT_MS }, () => {
   it('stores scrypt$N$r$p$salt$hash, with the parameters of D-016', async () => {
     const encoded = await passwordHasher.hash('una contraseña larga');
     const [scheme, n, r, p, salt, key] = encoded.split('$');
