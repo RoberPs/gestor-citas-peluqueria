@@ -39,6 +39,10 @@ export const createAppointmentSchema = z
   .object({ serviceIds: z.array(z.string().uuid()), startsAt: instantSchema, customer: customerSchema, ...answerShape })
   .strict();
 
+export const editAppointmentSchema = z
+  .object({ serviceIds: z.array(z.string().uuid()), customer: customerSchema, ...answerShape })
+  .strict();
+
 export const rescheduleSchema = z.object({ startsAt: instantSchema, ...answerShape }).strict();
 
 export const cancellationSchema = z.object({ confirmed: z.literal(true) }).strict();

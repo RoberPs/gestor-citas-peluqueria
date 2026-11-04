@@ -2,6 +2,7 @@ import type { Temporal } from '@js-temporal/polyfill';
 import {
   buildResolutionPlan,
   computeStateToken,
+  conflictSpanOf,
   type Conflict,
   type Resolution,
   type ResolutionIntent,
@@ -54,7 +55,7 @@ export async function proposeOrApply(
   const stateToken = computeStateToken(conflicts, deps.stateHash);
   const asked = (): Result<never, ProtocolRejection> => err({
       kind: 'CONFLICT',
-      span: { startsAt: input.intent.startsAt, endsAt: input.intent.endsAt },
+      span: conflictSpanOf(input.intent) ?? { startsAt: input.intent.startsAt, endsAt: input.intent.endsAt },
       conflicts,
       warnings,
       stateToken,

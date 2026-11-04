@@ -8,16 +8,17 @@ import { agendaDayDto, ownerAppointmentDto, type AgendaDayDto } from '@/app/api/
 import { appointmentIdSchema } from '@/app/api/gestion/_lib/appointment-params';
 import { NavForm } from '@/components/nav-form';
 import { ManualBookingForm } from '@/components/owner/manual-booking-form';
-import { CancelForm, MoveForm } from '@/components/owner/move-form';
+import { CancelForm, EditForm, MoveForm } from '@/components/owner/move-form';
 import { OwnerHeader } from '@/components/owner/owner-header';
 import { PeriodForm } from '@/components/owner/period-form';
 import { Timeline, type AppointmentLinks } from '@/components/owner/timeline';
 import { ServicePicker } from '@/components/service-picker';
-import { selectServices } from '@/domain/catalog/selection';
+import { durationOfServices, mergeServiceSelection, selectServices } from '@/domain/catalog/selection';
+import { addMinutes, formatLocalTime } from '@/domain/shared/time';
 import { messages } from '@/messages/es-ES';
 import { requireOwnerPage } from '../_lib/require-owner-page';
 import { blockPeriod, releasePeriod } from './actions';
-import { cancelAppointment, createAppointment, moveAppointment } from './appointment-actions';
+import { cancelAppointment, createAppointment, editAppointment, moveAppointment } from './appointment-actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -87,10 +88,13 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
     : {
         newAt: (time) => `${here}&nueva=${encodeURIComponent(time)}#accion`,
         move: (id) => `${here}&mover=${id}#accion`,
+        edit: (id) => `${here}&editar=${id}#accion`,
         cancel: (id) => `${here}&cancelar=${id}#accion`,
       };
   const newAt = links === undefined ? undefined : single(query['nueva']);
   const toMove = links === undefined ? undefined : appointmentOf(dto, single(query['mover']));
+  const editId = appointmentIdSchema.safeParse(single(query['editar']));
+  const toEdit = links === undefined || !editId.success ? null : await container().appointments.findById(editId.data);
   // Looked up by id, not on the timeline: once cancelled it leaves the timeline, and
   // the panel still has to say so, with whom to call (FR-043).
   const cancelId = appointmentIdSchema.safeParse(single(query['cancelar']));
@@ -129,6 +133,39 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
           appointmentId={toMove.id}
           date={toMove.startsAt.localDate}
           time={toMove.startsAt.localTime}
+          closeHref={here}
+        />
+      </ActionPanel>
+    );
+  } else if (toEdit !== null && toEdit.status === 'CONFIRMED') {
+    // Today's offer, plus the retired services it already has: it keeps them (FR-072).
+    const current = toEdit.services.map((service) => service.serviceId);
+    const catalogue = (await container().config.loadCatalogue()).filter(
+      (service) => service.isActive || current.includes(service.id),
+    );
+    const requested = query['serviceIds'];
+    const serviceIds =
+      typeof requested === 'string'
+        ? serviceIdsFrom(requested, catalogue)
+        : catalogue.filter((service) => current.includes(service.id)).map((service) => service.id);
+    const merged = mergeServiceSelection({ catalogue, current: toEdit.services, requestedIds: serviceIds });
+    const minutes = merged.ok ? durationOfServices(merged.value) : null;
+    panel = (
+      <ActionPanel title={messages.owner.appointments.editTitle} hint={messages.owner.appointments.editHint}>
+        <ServicePicker
+          services={catalogue.map(serviceDto)}
+          selectedIds={serviceIds}
+          totalDurationMinutes={minutes}
+          action="/gestion/agenda"
+          keep={{ fecha: date, editar: toEdit.id, canceladas: withCancelled ? '1' : undefined }}
+        />
+        <EditForm
+          key={toEdit.id}
+          action={editAppointment}
+          appointmentId={toEdit.id}
+          serviceIds={serviceIds}
+          customer={toEdit.customer ?? { name: '', phone: '', email: null }}
+          endsAt={minutes === null ? null : formatLocalTime(addMinutes(toEdit.startsAt, minutes), salon.timezone)}
           closeHref={here}
         />
       </ActionPanel>

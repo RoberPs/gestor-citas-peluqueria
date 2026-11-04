@@ -75,7 +75,7 @@ export async function seedSalon(): Promise<void> {
 export async function bookFriday(
   from: string,
   to: string,
-  customer: { name?: string; phone?: string; email?: string } = {},
+  customer: { name?: string; phone?: string; email?: string; tokenHash?: Uint8Array } = {},
 ): Promise<string> {
   const id = randomUUID();
   const phone = customer.phone ?? '600112233';
@@ -90,7 +90,7 @@ export async function bookFriday(
       customer_email: customer.email ?? 'ana@example.com',
       customer_phone_normalized: `+34${phone}`,
       customer_email_normalized: customer.email ?? 'ana@example.com',
-      token_hash: randomBytes(32),
+      token_hash: customer.tokenHash === undefined ? randomBytes(32) : Buffer.from(customer.tokenHash),
     },
     { serviceId: CORTE, name: 'Corte de pelo', durationMinutes: 30, priceCents: 1500 },
   );

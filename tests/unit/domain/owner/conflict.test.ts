@@ -301,3 +301,46 @@ describe('shorteningsThatFit (escenario 4 de la Historia 6)', () => {
     expect(shorteningsThatFit(period('p1', '16:00', '17:00'), SPAN)).toEqual([]);
   });
 });
+
+describe('buildResolutionPlan with an edit (Historia 11, T199)', () => {
+  const edit: ResolutionIntent = {
+    kind: 'EDIT_APPOINTMENT',
+    appointmentId: 'mine',
+    startsAt: at('2026-09-18', '11:00'),
+    previousEndsAt: at('2026-09-18', '11:30'),
+    endsAt: at('2026-09-18', '12:30'),
+    services: [{ serviceId: 's1', name: 'Corte', durationMinutes: 90, priceCents: null }],
+    contact: validContact(),
+  };
+
+  it('has the same ways out as moving, and nothing that keeps both', () => {
+    const conflicts = detectConflicts({
+      startsAt: at('2026-09-18', '11:30'),
+      endsAt: at('2026-09-18', '12:30'),
+      appointments: [appointment('ana', '11:30', '12:00')],
+      periods: [],
+    });
+
+    expect(buildResolutionPlan({ intent: edit, conflicts, resolution: {}, now: NOW, timezone: MADRID })).toEqual({
+      ok: false,
+      error: 'UNRESOLVED_CONFLICT',
+    });
+    expect(
+      buildResolutionPlan({ intent: edit, conflicts, resolution: { cancelAppointments: ['ana'] }, now: NOW, timezone: MADRID }).ok,
+    ).toBe(true);
+  });
+
+  it('measures a shortening against what the edit grows into', () => {
+    const conflicts = detectConflicts({
+      startsAt: at('2026-09-18', '11:30'),
+      endsAt: at('2026-09-18', '12:30'),
+      appointments: [],
+      periods: [period('p1', '12:00', '13:00')],
+    });
+    const leaves = { id: 'p1', startsAt: at('2026-09-18', '12:30'), endsAt: at('2026-09-18', '13:00') };
+
+    expect(
+      buildResolutionPlan({ intent: edit, conflicts, resolution: { shortenPeriods: [leaves] }, now: NOW, timezone: MADRID }).ok,
+    ).toBe(true);
+  });
+});

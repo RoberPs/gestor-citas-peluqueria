@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { OpeningInterval, Weekday, WeeklySchedule } from '@/domain/catalog/salon';
-import type { Service, ServiceSnapshot } from '@/domain/catalog/service';
-import { fitsOpeningHours, selectServices, totalPriceOf } from '@/domain/catalog/selection';
+import { snapshotOf, type Service, type ServiceSnapshot } from '@/domain/catalog/service';
+import { fitsOpeningHours, mergeServiceSelection, selectServices, totalPriceOf } from '@/domain/catalog/selection';
 import { interval } from '../availability/_fixtures';
 
 /**
@@ -171,5 +171,55 @@ describe('totalPriceOf (FR-020)', () => {
 
   it('gives a single service without price no price, not a partial one', () => {
     expect(totalPriceOf([unpriced]).kind).toBe('NONE_PRICED');
+  });
+});
+
+describe('mergeServiceSelection (002, FR-072, BR-021)', () => {
+  /** Booked at 15,00 €; the catalogue says 18,00 € today. */
+  const BOOKED_CORTE: ServiceSnapshot = { serviceId: CORTE.id, name: 'Corte', durationMinutes: 30, priceCents: 1500 };
+  const BOOKED_RETIRED: ServiceSnapshot = {
+    serviceId: RETIRED.id,
+    name: RETIRED.name,
+    durationMinutes: 20,
+    priceCents: 900,
+  };
+  const catalogue = [CORTE, RETIRED, PEINADO, LAVADO];
+
+  it('keeps the snapshot of a service that stays, and gives a new one today\'s (escenario 4)', () => {
+    expect(mergeServiceSelection({ catalogue, current: [BOOKED_CORTE], requestedIds: [LAVADO.id, CORTE.id] })).toEqual({
+      ok: true,
+      value: [BOOKED_CORTE, snapshotOf(LAVADO)],
+    });
+  });
+
+  it('keeps a retired service the appointment already had, in catalogue order (escenario 8)', () => {
+    const merged = mergeServiceSelection({
+      catalogue,
+      current: [BOOKED_CORTE, BOOKED_RETIRED],
+      requestedIds: [PEINADO.id, RETIRED.id, CORTE.id],
+    });
+
+    expect(merged.ok && merged.value.map((service) => service.serviceId)).toEqual([
+      CORTE.id,
+      ...[RETIRED, PEINADO].sort((a, b) => a.displayOrder - b.displayOrder).map((service) => service.id),
+    ]);
+    expect(merged.ok && merged.value.find((service) => service.serviceId === RETIRED.id)).toEqual(BOOKED_RETIRED);
+  });
+
+  it('refuses to add a retired service', () => {
+    expect(mergeServiceSelection({ catalogue, current: [BOOKED_CORTE], requestedIds: [CORTE.id, RETIRED.id] })).toEqual({
+      ok: false,
+      error: { kind: 'UNKNOWN_SERVICE', serviceIds: [RETIRED.id] },
+    });
+  });
+
+  it.each([
+    ['nothing left (escenario 2)', [], 'EMPTY'],
+    ['a repeated service', [CORTE.id, CORTE.id], 'DUPLICATE'],
+  ] as const)('refuses %s', (_name, requestedIds, kind) => {
+    expect(mergeServiceSelection({ catalogue, current: [BOOKED_CORTE], requestedIds })).toMatchObject({
+      ok: false,
+      error: { kind },
+    });
   });
 });

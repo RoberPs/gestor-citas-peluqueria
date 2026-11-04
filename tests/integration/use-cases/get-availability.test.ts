@@ -375,6 +375,7 @@ describe('several services in one appointment (005, Historia 1)', () => {
   it('says a selection longer than every opening stretch can never fit (FR-010, D-007)', async () => {
     const real = createSalonConfigRepository(() => testPool());
     const twoHourStretches: SalonConfigRepository = {
+      loadCatalogue: () => real.loadCatalogue(),
       async load() {
         const configuration = await real.load();
         const stretch = (weekday: Weekday): OpeningInterval => ({

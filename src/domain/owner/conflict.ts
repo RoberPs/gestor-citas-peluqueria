@@ -142,12 +142,43 @@ export type ResolutionIntent =
       readonly endsAt: Temporal.Instant;
     }
   | {
+      /** Historia 11: same start, maybe a longer span (D-035). */
+      readonly kind: 'EDIT_APPOINTMENT';
+      readonly appointmentId: AppointmentId;
+      readonly startsAt: Temporal.Instant;
+      /** Its end before the edit: only what lies beyond it can be in the way. */
+      readonly previousEndsAt: Temporal.Instant;
+      readonly endsAt: Temporal.Instant;
+      readonly services: NonEmptyServiceList;
+      readonly contact: ValidatedContact;
+    }
+  | {
       readonly kind: 'CREATE_PERIOD';
       readonly id: UnavailablePeriodId;
       readonly startsAt: Temporal.Instant;
       readonly endsAt: Temporal.Instant;
       readonly reason: string | null;
     };
+
+/**
+ * Where to look for what is in the way of an intent: its span, or for an
+ * edit only what it grows into. Shortening or keeping an appointment as long
+ * finds nothing — not even a period it already sat under, which a block over
+ * it leaves on purpose (FR-022, FR-074). `null` is nothing to look at.
+ */
+export function conflictSpanOf(
+  intent: ResolutionIntent,
+): { readonly startsAt: Temporal.Instant; readonly endsAt: Temporal.Instant } | null {
+  if (intent.kind !== 'EDIT_APPOINTMENT') return { startsAt: intent.startsAt, endsAt: intent.endsAt };
+  return Temporal.Instant.compare(intent.endsAt, intent.previousEndsAt) > 0
+    ? { startsAt: intent.previousEndsAt, endsAt: intent.endsAt }
+    : null;
+}
+
+/** The appointment an intent changes, which does not get in its own way. */
+export function ownAppointmentOf(intent: ResolutionIntent): AppointmentId | undefined {
+  return intent.kind === 'RESCHEDULE_APPOINTMENT' || intent.kind === 'EDIT_APPOINTMENT' ? intent.appointmentId : undefined;
+}
 
 export type PeriodShortening = {
   readonly id: UnavailablePeriodId;
@@ -223,7 +254,8 @@ export function buildResolutionPlan(input: {
       now: input.now,
       timezone: input.timezone,
     });
-    if (!valid.ok || overlaps(shortening, intent)) return err('SHORTENING_DOES_NOT_FIT');
+    const span = conflictSpanOf(intent);
+    if (!valid.ok || (span !== null && overlaps(shortening, span))) return err('SHORTENING_DOES_NOT_FIT');
   }
 
   return ok({ intent, cancelAppointments: cancel, deletePeriods: remove, shortenPeriods: shorten, at: input.now });

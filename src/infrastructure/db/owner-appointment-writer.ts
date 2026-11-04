@@ -1,10 +1,10 @@
 import { Temporal } from '@js-temporal/polyfill';
-import { and, asc, eq, gt, inArray, lt, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, lt, notInArray, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import type { Pool } from 'pg';
 import type { AppliedPlan, OwnerAppointmentWriter } from '@/application/ports';
 import type { UnavailablePeriod } from '@/domain/catalog/salon';
-import { computeStateToken, detectConflicts, type ResolutionIntent } from '@/domain/owner/conflict';
+import { computeStateToken, conflictSpanOf, detectConflicts, ownAppointmentOf, type ResolutionIntent } from '@/domain/owner/conflict';
 import { err, ok } from '@/domain/shared/result';
 import { stateHash } from '../security/state-hash';
 import { dateOf, isExclusionViolation, toDomain, withServices } from './appointment-repository';
@@ -23,6 +23,9 @@ import { appointment, appointmentService, schema, unavailablePeriod } from './sc
 /** Any constant will do: there is one chair, and one lock for it. */
 const OWNER_WRITE_LOCK = 2_002_001;
 
+/** Beyond any position an appointment can have: the first pass of a renumbering. */
+const POSITION_OUT_OF_THE_WAY = 10_000;
+
 class StateChanged extends Error {}
 
 type Tx = Parameters<Parameters<ReturnType<typeof drizzle<typeof schema>>['transaction']>[0]>[0];
@@ -31,13 +34,11 @@ function instantOf(value: Date): Temporal.Instant {
   return Temporal.Instant.fromEpochMilliseconds(value.getTime());
 }
 
-function excludedId(intent: ResolutionIntent): string | undefined {
-  return intent.kind === 'RESCHEDULE_APPOINTMENT' ? intent.appointmentId : undefined;
-}
-
 async function inTheWay(tx: Tx, intent: ResolutionIntent) {
-  const from = dateOf(intent.startsAt);
-  const to = dateOf(intent.endsAt);
+  const span = conflictSpanOf(intent);
+  if (span === null) return [];
+  const from = dateOf(span.startsAt);
+  const to = dateOf(span.endsAt);
   const rows = await tx
     .select(withServices)
     .from(appointment)
@@ -55,10 +56,9 @@ async function inTheWay(tx: Tx, intent: ResolutionIntent) {
             .where(and(lt(unavailablePeriod.startsAt, to), gt(unavailablePeriod.endsAt, from)))
         ).map((row) => ({ id: row.id, startsAt: instantOf(row.startsAt), endsAt: instantOf(row.endsAt), reason: row.reason }));
 
-  const exclude = excludedId(intent);
+  const exclude = ownAppointmentOf(intent);
   return detectConflicts({
-    startsAt: intent.startsAt,
-    endsAt: intent.endsAt,
+    ...span,
     appointments: rows.map(toDomain),
     periods,
     ...(exclude === undefined ? {} : { excludeAppointmentId: exclude }),
@@ -104,6 +104,64 @@ async function applyIntent(tx: Tx, intent: ResolutionIntent): Promise<AppliedPla
         .where(and(eq(appointment.id, intent.appointmentId), eq(appointment.status, 'CONFIRMED')))
         .returning({ id: appointment.id });
       if (moved.length === 0) throw new StateChanged();
+      return { kind: 'APPOINTMENT', appointment: await read(tx, intent.appointmentId) };
+    }
+    case 'EDIT_APPOINTMENT': {
+      const { contact } = intent;
+      // id, start, origin, booking time and link stay as they were (FR-073).
+      const edited = await tx
+        .update(appointment)
+        .set({
+          endsAt: dateOf(intent.endsAt),
+          customerName: contact.name,
+          customerPhone: contact.phone,
+          customerEmail: contact.email,
+          customerPhoneNormalized: contact.normalizedPhone,
+          customerEmailNormalized: contact.normalizedEmail,
+        })
+        .where(and(eq(appointment.id, intent.appointmentId), eq(appointment.status, 'CONFIRMED')))
+        .returning({ id: appointment.id });
+      if (edited.length === 0) throw new StateChanged();
+
+      // The rows that stay are never rewritten, so a price raised since the
+      // booking does not creep in (BR-021). Only the ones leaving go, only
+      // the new ones come, and `position` is renumbered in two passes —
+      // out of the way first, past any real position — because it is part of
+      // the primary key and has to stay at least 1.
+      const ids = intent.services.map((service) => service.serviceId);
+      await tx
+        .delete(appointmentService)
+        .where(and(eq(appointmentService.appointmentId, intent.appointmentId), notInArray(appointmentService.serviceId, ids)));
+      const staying = await tx
+        .select({ serviceId: appointmentService.serviceId })
+        .from(appointmentService)
+        .where(eq(appointmentService.appointmentId, intent.appointmentId));
+      await tx
+        .update(appointmentService)
+        .set({ position: sql`${appointmentService.position} + ${POSITION_OUT_OF_THE_WAY}` })
+        .where(eq(appointmentService.appointmentId, intent.appointmentId));
+      for (const [index, service] of intent.services.entries()) {
+        if (staying.some((row) => row.serviceId === service.serviceId)) {
+          await tx
+            .update(appointmentService)
+            .set({ position: index + 1 })
+            .where(
+              and(
+                eq(appointmentService.appointmentId, intent.appointmentId),
+                eq(appointmentService.serviceId, service.serviceId),
+              ),
+            );
+        } else {
+          await tx.insert(appointmentService).values({
+            appointmentId: intent.appointmentId,
+            position: index + 1,
+            serviceId: service.serviceId,
+            name: service.name,
+            durationMinutes: service.durationMinutes,
+            priceCents: service.priceCents,
+          });
+        }
+      }
       return { kind: 'APPOINTMENT', appointment: await read(tx, intent.appointmentId) };
     }
     case 'CREATE_PERIOD': {

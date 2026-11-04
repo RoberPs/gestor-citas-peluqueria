@@ -207,3 +207,22 @@ export async function cancelAppointment(_previous: AppointmentFormState, form: F
   }
   return stateOf(await container().ownerAppointments.cancel(id.data), values);
 }
+
+const EDIT_FIELDS = ['cita', 'serviceIds', 'nombre', 'telefono', 'email'] as const;
+
+/** Historia 11: its services and its client's data, at the same start. */
+export async function editAppointment(_previous: AppointmentFormState, form: FormData): Promise<AppointmentFormState> {
+  await requireOwnerPage();
+  const values = valuesOf(form, EDIT_FIELDS);
+
+  const id = appointmentIdSchema.safeParse(values['cita']);
+  if (!id.success) return { kind: 'error', values, ...messages.owner.errors.badRequest, fields: [] };
+
+  const result = await container().ownerAppointments.edit({
+    id: id.data,
+    serviceIds: (values['serviceIds'] ?? '').split(',').filter((serviceId) => serviceId !== ''),
+    customer: { name: values['nombre'] ?? '', phone: values['telefono'] ?? '', email: values['email'] ?? null },
+    ...answerOf(form),
+  });
+  return stateOf(result, values);
+}

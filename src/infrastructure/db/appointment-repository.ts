@@ -140,7 +140,7 @@ export function createAppointmentRepository(getPool: () => Pool): AppointmentRep
       return rows.map(toDomain);
     },
 
-    async countFutureByContact(phone, email, now) {
+    async countFutureByContact(phone, email, now, excluding) {
       // Two counts, one query, and deliberately not their union: the rule is
       // `byPhone >= 3 || byEmail >= 3`. A `WHERE phone = $1 OR email = $2` count
       // would reject someone who has reached neither limit (BR-014).
@@ -150,8 +150,9 @@ export function createAppointmentRepository(getPool: () => Pool): AppointmentRep
            FROM appointment
           WHERE status = 'CONFIRMED'
             AND starts_at >= $3
-            AND (customer_phone_normalized = $1 OR customer_email_normalized = $2)`,
-        [phone, email, dateOf(now)],
+            AND (customer_phone_normalized = $1 OR customer_email_normalized = $2)
+            AND id IS DISTINCT FROM $4::uuid`,
+        [phone, email, dateOf(now), excluding ?? null],
       );
 
       return {

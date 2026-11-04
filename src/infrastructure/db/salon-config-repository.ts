@@ -25,6 +25,18 @@ import { openingInterval, salon, schema, service } from './schema';
  */
 export function createSalonConfigRepository(getPool: () => Pool): SalonConfigRepository {
   return {
+    async loadCatalogue() {
+      const rows = await drizzle(getPool(), { schema }).select().from(service).orderBy(asc(service.displayOrder));
+      return rows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        durationMinutes: row.durationMinutes,
+        priceCents: row.priceCents,
+        isActive: row.isActive,
+        displayOrder: row.displayOrder,
+      }));
+    },
+
     async load(): Promise<SalonConfiguration> {
       const database = drizzle(getPool(), { schema });
 

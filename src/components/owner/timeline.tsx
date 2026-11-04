@@ -31,6 +31,7 @@ function span(date: string, startsAt: Moment, endsAt: Moment): string {
 export type AppointmentLinks = {
   readonly newAt: (localTime: string) => string;
   readonly move: (id: string) => string;
+  readonly edit: (id: string) => string;
   readonly cancel: (id: string) => string;
 };
 
@@ -90,6 +91,7 @@ function AppointmentCard({
           {(
             [
               [links.move(appointment.id), messages.owner.appointments.move],
+              [links.edit(appointment.id), messages.owner.appointments.edit],
               [links.cancel(appointment.id), messages.owner.appointments.cancel],
             ] as const
           ).map(([href, label]) => (

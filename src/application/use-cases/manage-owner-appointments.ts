@@ -2,8 +2,14 @@ import { randomUUID } from 'node:crypto';
 import type { Temporal } from '@js-temporal/polyfill';
 import { openingOf } from '@/domain/availability/compute-range';
 import { durationOf, type Appointment, type AppointmentId } from '@/domain/booking/appointment';
-import { durationOfServices, selectServices, type SelectionError } from '@/domain/catalog/selection';
+import {
+  durationOfServices,
+  mergeServiceSelection,
+  selectServices,
+  type SelectionError,
+} from '@/domain/catalog/selection';
 import { validateContact, type ContactFieldError, type RawContact } from '@/domain/contact/contact';
+import { planAppointmentEdit } from '@/domain/owner/appointment-edit';
 import { applyOwnerCancellation, checkOwnerCanChange, type OwnerChangeBlock } from '@/domain/owner/cancellation';
 import { planManualBooking, type ManualBookingBlocker } from '@/domain/owner/manual-booking';
 import type { Clock } from '@/domain/shared/clock';
@@ -60,6 +66,8 @@ type Attempt = Result<
   | { readonly kind: 'STATE_CHANGED' }
   | { readonly kind: 'NOT_FOUND' }
   | { readonly kind: 'BLOCKED'; readonly reason: ManualBookingBlocker | OwnerChangeBlock }
+  | { readonly kind: 'INVALID_SELECTION'; readonly error: SelectionError }
+  | { readonly kind: 'INVALID_CONTACT'; readonly fields: readonly ContactFieldError[] }
 >;
 
 function notifyCustomerOf(appointment: Appointment): OwnerAppointmentSaved['notifyCustomer'] {
@@ -193,6 +201,83 @@ export function createManageOwnerAppointments(deps: Deps) {
           },
           conflicts: plan.value.conflicts,
           warnings: plan.value.warnings,
+          answer,
+          now,
+          timezone,
+        });
+      });
+
+      return settled(result, timezone);
+    },
+
+    /**
+     * Historia 11: its services and its client's data, at the same start
+     * (D-035). `serviceIds` is the whole list it will have; the ones it keeps
+     * keep their snapshot (BR-021). A new phone or email counts against its
+     * limit, this appointment aside (FR-075).
+     */
+    async edit(
+      input: {
+        readonly id: AppointmentId;
+        readonly serviceIds: readonly string[];
+        readonly customer: RawContact;
+      } & OwnerAnswer,
+    ): Promise<Result<OwnerAppointmentSaved, OwnerAppointmentFailure>> {
+      const [configuration, catalogue] = await Promise.all([deps.config.load(), deps.config.loadCatalogue()]);
+      const { timezone } = configuration.salon;
+
+      const result: Attempt = await withReplanning(input, async (answer): Promise<Attempt> => {
+        const current = await deps.appointments.findById(input.id);
+        if (current === null) return err({ kind: 'NOT_FOUND' });
+
+        const now = deps.clock.now();
+        const changeable = checkOwnerCanChange(current, now);
+        if (!changeable.ok) return err({ kind: 'BLOCKED', reason: changeable.error });
+
+        const services = mergeServiceSelection({ catalogue, current: current.services, requestedIds: input.serviceIds });
+        if (!services.ok) return err({ kind: 'INVALID_SELECTION', error: services.error });
+        // Optional also on an online appointment: its link does not depend on it (FR-075).
+        const contact = validateContact(input.customer, { email: 'OPTIONAL' });
+        if (!contact.ok) return err({ kind: 'INVALID_CONTACT', fields: contact.error });
+
+        const before = current.customer === null ? null : validateContact(current.customer, { email: 'OPTIONAL' });
+        const contactChanged =
+          before === null ||
+          !before.ok ||
+          before.value.normalizedPhone !== contact.value.normalizedPhone ||
+          before.value.normalizedEmail !== contact.value.normalizedEmail;
+        const endsAt = addMinutes(current.startsAt, durationOfServices(services.value));
+        const [[appointments, unavailablePeriods], counts] = await Promise.all([
+          inTheWay(current.startsAt, endsAt),
+          contactChanged
+            ? deps.appointments.countFutureByContact(
+                contact.value.normalizedPhone,
+                contact.value.normalizedEmail,
+                now,
+                current.id,
+              )
+            : Promise.resolve(null),
+        ]);
+
+        const plan = planAppointmentEdit({
+          appointment: current,
+          services: services.value,
+          contact: contact.value,
+          openingIntervals: openingOf(localDateOf(current.startsAt, timezone), configuration.schedule).openingIntervals,
+          appointments,
+          unavailablePeriods,
+          futureCountsForNewContact: counts,
+          now,
+          policy: configuration.policy,
+          timezone,
+        });
+        if (!plan.ok) return err({ kind: 'BLOCKED', reason: plan.error });
+
+        const { conflicts, warnings, ...edit } = plan.value;
+        return proposeOrApply(deps, {
+          intent: { ...edit, kind: 'EDIT_APPOINTMENT' },
+          conflicts,
+          warnings,
           answer,
           now,
           timezone,

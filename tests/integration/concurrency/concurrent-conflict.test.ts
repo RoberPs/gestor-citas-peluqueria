@@ -1,6 +1,11 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { createConfirmBooking } from '@/application/use-cases/confirm-booking';
+import { createAppointmentRepository } from '@/infrastructure/db/appointment-repository';
+import { createSalonConfigRepository } from '@/infrastructure/db/salon-config-repository';
+import { createUnavailablePeriodRepository } from '@/infrastructure/db/unavailable-period-repository';
+import { tokenGenerator } from '@/infrastructure/security/token';
 import { closeTestDb, ensureSchema, testPool, truncateAll } from '../helpers/test-db';
-import { confirmedCount, CORTE, friday, LUIS, ownerAppointments, seedSalon } from '../use-cases/_owner-fixtures';
+import { clock, confirmedCount, CORTE, friday, LUIS, ownerAppointments, seedSalon } from '../use-cases/_owner-fixtures';
 
 /**
  * 002, T110: two confirmations that overlap, from two devices at once, over
@@ -55,6 +60,43 @@ describe('two overlapping confirmations at once (escenario 5 de la Historia 6)',
     );
     await Promise.all(attempts);
 
+    const { rows } = await testPool().query<{ count: string }>(
+      `SELECT count(*) FROM appointment a JOIN appointment b ON a.id < b.id
+        WHERE a.status = 'CONFIRMED' AND b.status = 'CONFIRMED'
+          AND tstzrange(a.starts_at, a.ends_at, '[)') && tstzrange(b.starts_at, b.ends_at, '[)')`,
+    );
+    expect(Number(rows[0]?.count)).toBe(0);
+  });
+});
+
+describe('an edit that grows and an online booking over the same time, at once (T202)', () => {
+  it('lets exactly one through and never stores an overlap', async () => {
+    const owner = ownerAppointments();
+    const created = await owner.create({ serviceIds: [CORTE], startsAt: friday('11:00'), customer: LUIS });
+    if (!created.ok) throw new Error(created.error.kind);
+
+    const confirm = createConfirmBooking({
+      config: createSalonConfigRepository(testPool),
+      appointments: createAppointmentRepository(testPool),
+      periods: createUnavailablePeriodRepository(testPool),
+      tokens: tokenGenerator,
+      clock,
+    });
+
+    const [edited, booked] = await Promise.all([
+      owner.edit({
+        id: created.value.appointment.id,
+        serviceIds: [CORTE, '00000000-0000-4000-8000-000000000012'],
+        customer: LUIS,
+      }),
+      confirm({
+        serviceIds: [CORTE],
+        startsAt: friday('11:30').toString(),
+        contact: { name: 'Marta Ruiz', phone: '622334455', email: 'm@x.es' },
+      }),
+    ]);
+
+    expect([edited.ok, booked.ok].filter(Boolean)).toHaveLength(1);
     const { rows } = await testPool().query<{ count: string }>(
       `SELECT count(*) FROM appointment a JOIN appointment b ON a.id < b.id
         WHERE a.status = 'CONFIRMED' AND b.status = 'CONFIRMED'

@@ -11,6 +11,7 @@ import type {
   UnavailablePeriodId,
 } from '@/domain/catalog/salon';
 import type { NonEmptyServiceList } from '@/domain/catalog/selection';
+import type { Service } from '@/domain/catalog/service';
 import type { NormalizedEmail, NormalizedPhone, ValidatedContact } from '@/domain/contact/contact';
 import type { LockoutState } from '@/domain/owner/account';
 import type { ResolutionPlan } from '@/domain/owner/conflict';
@@ -59,6 +60,8 @@ export interface AppointmentRepository {
     /** `null` counts nothing: an appointment without email takes no email quota. */
     email: NormalizedEmail | null,
     now: Temporal.Instant,
+    /** When editing: the appointment does not count against its own new contact (FR-075). */
+    excluding?: AppointmentId,
   ): Promise<{ readonly byPhone: number; readonly byEmail: number }>;
 
   /**
@@ -102,6 +105,12 @@ export interface SalonConfigRepository {
    * writing it is a separate port no client use case depends on.
    */
   load(): Promise<SalonConfiguration>;
+
+  /**
+   * Every service, retired ones included, in display order (002, D-035): an
+   * edited appointment keeps a retired service in its catalogue place.
+   */
+  loadCatalogue(): Promise<readonly Service[]>;
 }
 
 /** The owner's blocked time (002, D-019). Never cached: a new period rules at once (FR-056). */

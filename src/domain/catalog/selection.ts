@@ -65,6 +65,45 @@ export function selectServices(
   return ok({ services, durationMinutes: durationOfServices(services) });
 }
 
+/**
+ * The services of an appointment the owner edits (002, FR-072, BR-021, D-035).
+ *
+ * The same failures as `selectServices`, with the one difference that is the
+ * whole point: a service the appointment already has keeps ITS snapshot, even
+ * retired or repriced since; only a new one has to be on offer, and takes
+ * today's. Catalogue order, retired ones included (FR-014).
+ */
+export function mergeServiceSelection(input: {
+  /** The whole catalogue, active and retired. */
+  readonly catalogue: readonly Service[];
+  readonly current: NonEmptyServiceList;
+  readonly requestedIds: readonly ServiceId[];
+}): Result<NonEmptyServiceList, SelectionError> {
+  const { catalogue, requestedIds } = input;
+  if (requestedIds.length === 0) return err({ kind: 'EMPTY' });
+  if (new Set(requestedIds).size !== requestedIds.length) return err({ kind: 'DUPLICATE' });
+
+  const kept = new Map(input.current.map((service) => [service.serviceId, service]));
+  const offered = (id: ServiceId) => catalogue.find((service) => service.id === id && service.isActive);
+  const unknown = requestedIds.filter((id) => !kept.has(id) && offered(id) === undefined);
+  if (unknown.length > 0) return err({ kind: 'UNKNOWN_SERVICE', serviceIds: unknown });
+
+  const order = (id: ServiceId) =>
+    catalogue.find((service) => service.id === id)?.displayOrder ?? Number.POSITIVE_INFINITY;
+  const [first, ...rest] = [...requestedIds]
+    .sort((a, b) => order(a) - order(b))
+    .flatMap((id) => {
+      const snapshot = kept.get(id);
+      if (snapshot !== undefined) return [snapshot];
+      const service = offered(id);
+      return service === undefined ? [] : [snapshotOf(service)];
+    });
+
+  // Unreachable once every id has been found, but the type has to hear it.
+  if (first === undefined) return err({ kind: 'EMPTY' });
+  return ok([first, ...rest]);
+}
+
 export function totalPriceOf(services: NonEmptyServiceList): PriceTotal {
   const known = services.flatMap((service) =>
     service.priceCents === null ? [] : [service.priceCents],
