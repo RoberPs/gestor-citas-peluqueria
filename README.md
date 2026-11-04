@@ -63,7 +63,7 @@ romper la garantía de no-superposición. Falta probarlo a mano con la dueña de
 | [001 · Reserva del cliente](specs/001-client-appointment-booking/spec.md) | Implementada | 118 / 118 | `001-client-appointment-booking` | Sí (PR #1) |
 | [002 · Gestión del salón](specs/002-salon-management/spec.md) | En curso: MVP completo (US1 a US6, US10 y US11), hecho el 2026-11-04; faltan US7, US8, US9 y el pulido | 164 / 212 (T139 y T140 las cubrió la 005) | `002-salon-management` | Sólo la documentación de antes de la revisión (PR #4) |
 | [003 · Versión responsive para tablet y ordenador](specs/003-responsive-desktop/spec.md) | Implementada | 35 / 35 | `003-responsive-desktop` | Sí (PR #3) |
-| 004 · Avisos por email y SMS | Planificada, sin spec | — | — | — |
+| [004 · Email de confirmación al reservar](specs/004-notifications/spec.md) | Implementada y probada a mano; falta dar de alta el proveedor real | 85 / 85 | `004-notifications` | No |
 | [005 · Varios servicios por cita y precio opcional](specs/005-multiple-services/spec.md) | Implementada | 55 / 55 | `005-multiple-services` | Sí (PR #6) |
 
 `main` contiene la 001, la 003 y la 005 completas, la enmienda 1.1.0 de la constitución
@@ -174,19 +174,45 @@ Con las US4, US5, US6 y US11 (paso 6), todavía sin probar a mano con la dueña 
 - Al bloquear un rato, la API también permite cancelar en la misma operación las citas
   que pisa; la pantalla sigue ofreciendo sólo bloquear sin cancelar ninguna.
 
+### Qué añade la 004 (email de confirmación)
+
+Probado a mano el 2026-11-04 con el proveedor falso. Con `NOTIFICATIONS_EMAIL=on`:
+
+- El formulario de reserva ofrece, desmarcada, la casilla «Enviadme la confirmación de
+  esta cita por email». Si se marca, la pantalla de confirmación dice a qué dirección
+  se envía y que conviene mirar el spam, y sigue mostrando el enlace.
+- Sale **un único** email con el día, las horas, los servicios y su total, la
+  dirección y el teléfono del salón, el enlace de gestión y la vía de baja. Del cliente
+  sólo lleva el nombre. Tiene versión HTML y de sólo texto, sin imágenes ni rastreo.
+- La reserva no espera al proveedor: el primer intento sale justo después de
+  responder, y un fallo transitorio se reintenta durante 1 hora con
+  `npm run notifications:dispatch` (cron cada minuto). Una cita cancelada, con el email
+  cambiado por la dueña o dada de baja antes del envío no recibe nada.
+- **Baja** desde el email (`/baja/{token}`, que pide confirmar con un botón, y la baja
+  de un clic del gestor de correo) o desde la pantalla de la cita («Dejar de recibir
+  emails»). Afecta sólo a esa cita y no la cambia.
+- La agenda y el listado de la dueña marcan «⚠ Confirmación por email no enviada», con
+  el teléfono del cliente, cuando la confirmación falló definitivamente.
+- Las citas apuntadas a mano y los cambios de la dueña no envían nada. No hay SMS.
+- Para probarlo en local: `npm run email:fake` (proveedor falso en
+  `http://127.0.0.1:4010`) y la app con las variables de `.env.example`. Antes de enviar
+  a clientes reales hay que completar la puesta en producción de
+  `specs/004-notifications/quickstart.md`.
+
 ### Estado de los checks
 
-En la rama `002-salon-management`, el 2026-11-04, con el paso 6 (US4, US5, US6 y US11) de la 002. Playwright
-tiene tres proyectos, uno por tamaño (ver `playwright.config.ts`).
+En la rama `004-notifications`, el 2026-11-04, con la 004 sobre el paso 6 de la 002. La
+suite e2e corre entera con el canal de email encendido contra un proveedor falso.
+Playwright tiene tres proyectos, uno por tamaño (ver `playwright.config.ts`).
 
 | Check | Resultado |
 |---|---|
-| `npm test` (unitarios) | 565 / 565 ✅ |
-| `npm run test:integration` | 306 / 306 ✅ |
-| `npm run test:contract` | 173 / 173 ✅ |
-| `npm run test:e2e` | 326 / 326 ✅ |
-| · proyecto `mobile-360` (la suite de la 001, la 005 y la 002) | 143 / 143 ✅ |
-| · proyecto `desktop-1280` (lo mismo sin rendimiento, más `responsive.spec.ts`) | 173 / 173 ✅ |
+| `npm test` (unitarios) | 695 / 695 ✅ |
+| `npm run test:integration` | 395 / 395 ✅ |
+| `npm run test:contract` | 200 / 200 ✅ |
+| `npm run test:e2e` | 358 / 358 ✅ |
+| · proyecto `mobile-360` (la suite de la 001, la 005, la 002 y la 004) | 160 / 160 ✅ |
+| · proyecto `desktop-1280` (lo mismo sin rendimiento, más `responsive.spec.ts`) | 188 / 188 ✅ |
 | · proyecto `tablet-768` (accesibilidad) | 10 / 10 ✅ |
 | `npm run lint` | ✅ |
 | `npm run check:layers` | ✅ |
@@ -231,5 +257,5 @@ no hay título, y `us5-cancel` fallaba de forma intermitente por eso.
 
 ### Restricciones a tener en cuenta
 
-- v1 no envía SMS ni email. La 004 cambiará esa decisión y activará el Principio IV
-  de la constitución.
+- La app sólo envía un mensaje: el email de confirmación de una reserva online, si el
+  cliente lo pide (004, Principio IV). No envía SMS ni recordatorios.

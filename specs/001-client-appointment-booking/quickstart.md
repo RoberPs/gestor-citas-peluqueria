@@ -218,6 +218,8 @@ Tras la purga de una cita, verifica los dos lados de BR-018:
 
 La última forma del comando es la que cubre la exigencia del Principio III sobre el borrado a petición del cliente mientras la pantalla correspondiente llega en otra feature.
 
+**Desde la `004-notifications` el borrado a petición tiene un segundo paso**: el comando ya inutiliza la vía de baja de la cita y descarta su email pendiente, pero si la cita tuvo un email enviado o fallido, hay que borrar ese envío también en el proveedor, con el id del envío (tabla `notification`). El procedimiento completo está en la sección «Borrado de datos a petición» de `specs/004-notifications/quickstart.md`.
+
 ---
 
 ## Despliegue
@@ -297,6 +299,20 @@ purga se desplaza una hora dos veces al año.
 
 Es el **único** proceso en segundo plano de la feature. El estado «completada»
 no necesita ninguno: se deriva del reloj al leer la cita (FR-031).
+
+### Cron de los emails de confirmación (004)
+
+Con `NOTIFICATIONS_EMAIL=on`, una segunda entrada, **cada minuto**, junto a la de
+la purga: reintenta durante 1 hora los emails de confirmación que no salieron al
+primer intento (004, D-003). El log sólo lleva ids, estados y recuentos.
+
+```cron
+CRON_TZ=Europe/Madrid
+* * * * * cd /srv/gestor-citas && docker compose -f docker-compose.prod.yml exec -T app npm run notifications:dispatch >> /var/log/salon-notifications.log 2>&1
+```
+
+Su puesta en producción completa (dominio, contrato con el proveedor, variables)
+está en `specs/004-notifications/quickstart.md`.
 
 Conviene estrenar la entrada en seco antes de dejarla suelta:
 

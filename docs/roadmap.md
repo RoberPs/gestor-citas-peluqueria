@@ -151,8 +151,24 @@ verde, y es un punto donde se puede parar.
       que pisa (T116); la pantalla de la US3 sigue ofreciendo sólo acusarlas.
   - Pendiente: probarlo a mano en el navegador con la dueña del producto, y la medición
     de SC-015 en el e2e de editar (T204).
-- [ ] **7 · `004-notifications`:** avisos por email y, si se decide, SMS.
-  Ver el apartado "Avisos" más abajo.
+- [x] **7 · `004-notifications`:** email de confirmación al reservar — rama
+  `004-notifications`, 2026-11-04. Sin SMS (canal apagado, sin adaptador).
+  - Resultado: casilla en el formulario (desmarcada), consentimiento y envío pendiente
+    en la misma transacción que la cita (migración `0008`), primer intento con
+    `after()` y reintentos durante 1 hora con `npm run notifications:dispatch` por cron,
+    Resend por HTTP con `Idempotency-Key`, baja desde el email (`/baja/{token}` y baja
+    de un clic RFC 8058) y desde la cita, anonimización que alcanza baja y envíos
+    pendientes, y la marca «Confirmación por email no enviada» en la agenda y el
+    listado. Contratos: cliente 2.2.0 y gestión 1.3.0.
+  - Checks: unitarios 695, integración 395, contrato 200, e2e 358; lint y
+    `check:layers` en verde.
+  - Probado a mano el 2026-11-04 con el proveedor falso, siguiendo la «Validación
+    manual» del quickstart (T085): todo como se espera. En el camino salieron los
+    límites de la 001 (5 reservas por hora por IP, 3 citas futuras por email), que se
+    comportan como deben. La bandeja del proveedor falso pasó a renderizar los emails
+    en `http://127.0.0.1:4010/` para poder leerlos.
+  - Pendiente antes de enviar a clientes reales: el alta en Resend (dominio, región UE)
+    y la tabla del contrato de encargado en `specs/004-notifications/quickstart.md`.
 - [ ] **8 · 002, US7 + US8 + US9:** editar horario, catálogo y parámetros desde la app.
 - [ ] **9 · Pulido final:** accesibilidad, rendimiento, revisión de datos personales en
   logs, quickstart y corrección de los defectos menores listados en `README.md`.
@@ -177,7 +193,8 @@ Pantalla privada de la dueña, dentro de la 002.
 
 ## Avisos (004)
 
-Cambia una decisión vigente: el CLAUDE.md y la spec 001 dicen que v1 no envía nada.
+*Hecho en el paso 7 (email); el SMS sigue pendiente de presupuesto.* Cambia una
+decisión vigente: el CLAUDE.md y la spec 001 dicen que v1 no envía nada.
 Activa el **Principio IV** de la constitución: consentimiento por canal, baja y
 registro de envíos.
 
@@ -204,6 +221,15 @@ un proveedor de pago cuando se decida el presupuesto.
 Ninguna por ahora.
 
 ## Decisiones tomadas
+
+- 2026-11-04 · **004 · Clarificación:** la baja afecta **sólo a esa cita**, sin lista
+  de direcciones dadas de baja; la dueña ve **sólo las confirmaciones fallidas**, con
+  el teléfono del cliente para llamarle; los emails salen **del dominio del salón si lo
+  tiene**, si no del de la app, con el nombre del salón como remitente y respuestas al
+  email del salón. Falta confirmar con el cliente si tiene dominio.
+- 2026-11-04 · **004 · Límite en las rutas de baja:** como el resto de rutas con token,
+  superar el límite por IP se responde con el `404` neutro, nunca `429` (FR-038 de la
+  001). Corrige una errata de `contracts/http-api-changes.md`, que decía `429`.
 
 - 2026-11-04 · **002 · Detalles del paso 2b, confirmados en la prueba del paso 4:** la
   dueña los deja como están. Un teléfono a medias en la búsqueda pide el número entero
