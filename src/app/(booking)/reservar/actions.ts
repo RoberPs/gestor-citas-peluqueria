@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { after } from 'next/server';
 import { container } from '@/app/_lib/container';
 import { resolveClientIp } from '@/infrastructure/config/env';
 import { rateLimiter } from '@/infrastructure/security/rate-limiter';
@@ -28,11 +29,14 @@ export async function submitBooking(
   _previous: BookingFormState,
   formData: FormData,
 ): Promise<BookingFormState> {
-  const values = {
+  const contact = {
     name: text(formData, 'name'),
     phone: text(formData, 'phone'),
     email: text(formData, 'email'),
   };
+  // 004, FR-001: a ticked checkbox posts its value; an unticked one, nothing.
+  const emailConsent = formData.get('emailConsent') !== null;
+  const values = { ...contact, emailConsent };
 
   const { salon } = await container().config.load();
 
@@ -56,10 +60,16 @@ export async function submitBooking(
   const result = await container().confirmBooking({
     serviceIds: serviceIds === '' ? [] : serviceIds.split(','),
     startsAt: text(formData, 'startsAt'),
-    contact: values,
+    contact,
+    emailConsent,
   });
 
   if (result.ok) {
+    // 004, D-003: the first attempt of the email runs once the answer has
+    // gone, so the client never waits for the provider (FR-010).
+    const { notificationId } = result.value;
+    if (notificationId !== null) after(() => container().sendConfirmation(notificationId));
+
     // POST-Redirect-GET (D-010): what follows is a GET, so reloading the
     // confirmation cannot create a second appointment.
     redirect(`/cita/${result.value.token}?nueva=1`);

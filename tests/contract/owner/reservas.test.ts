@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { closeTestDb, testPool, truncateAppointments } from '../../integration/helpers/test-db';
+import { randomBytes } from 'node:crypto';
+import { closeTestDb, insertEmailConfirmation, testPool, truncateAppointments } from '../../integration/helpers/test-db';
 import { CONTRACT_NOW, CORTE, LAVADO, seedContractDatabase } from '../helpers/seed-contract-db';
 import { ownerContract, ownerCookie, ownerGet, provisionOwner } from './helpers';
 
@@ -137,5 +138,27 @@ describe('GET /gestion/reservas', () => {
 
     expect(response.status).toBe(401);
     expectMatchesContract(responseSchema('/gestion/reservas', 'get', '401'), await response.json());
+  });
+});
+
+describe('confirmationEmailFailed (004, 1.3.0, FR-020a)', () => {
+  it('is there on every row, true only where the confirmation failed for good', async () => {
+    await bookAt('2026-09-18T08:00:00Z', [CORTE], '600112233');
+    await bookAt('2026-09-18T09:00:00Z', [CORTE], '611223344');
+    const { rows } = await testPool().query<{ id: string }>(
+      "SELECT id FROM appointment WHERE starts_at = '2026-09-18T08:00:00Z'",
+    );
+    await insertEmailConfirmation(rows[0]?.id ?? '', { unsubscribeTokenHash: randomBytes(32), status: 'FAILED' });
+
+    const response = await get('');
+    const body = (await response.json()) as {
+      rows: { startsAt: { localTime: string }; confirmationEmailFailed: boolean }[];
+    };
+
+    expectMatchesContract(okSchema, body);
+    expect(body.rows.map((row) => [row.startsAt.localTime, row.confirmationEmailFailed])).toEqual([
+      ['10:00', true],
+      ['11:00', false],
+    ]);
   });
 });

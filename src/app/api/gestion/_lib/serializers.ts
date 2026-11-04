@@ -53,12 +53,16 @@ export type OwnerAppointmentDto = {
   readonly isPast: boolean;
   /** The token itself never leaves: it is the client's credential, not the owner's. */
   readonly hasManagementLink: boolean;
+  /** 1.3.0 (004, FR-020a): in the agenda and the bookings list, whether to call the client. */
+  readonly confirmationEmailFailed?: boolean;
 };
 
 export function ownerAppointmentDto(
   appointment: Appointment,
   now: Temporal.Instant,
   timezone: string,
+  /** The agenda's and the list's decision (004); the other answers leave it out. */
+  confirmationCalls?: ReadonlySet<string>,
 ): OwnerAppointmentDto {
   return {
     id: appointment.id,
@@ -81,6 +85,7 @@ export function ownerAppointmentDto(
     isPast: isPastSlot(appointment.endsAt, now),
     // Online and not anonymised: the database ties the link to exactly that (D-026).
     hasManagementLink: appointment.origin === 'ONLINE' && appointment.anonymizedAt === null,
+    ...(confirmationCalls === undefined ? {} : { confirmationEmailFailed: confirmationCalls.has(appointment.id) }),
   };
 }
 
@@ -112,10 +117,18 @@ export function conflictDto(conflict: Conflict, timezone: string) {
 
 export type ConflictDto = ReturnType<typeof conflictDto>;
 
-function entryDto(entry: TimelineEntry, now: Temporal.Instant, timezone: string) {
+function entryDto(
+  entry: TimelineEntry,
+  now: Temporal.Instant,
+  timezone: string,
+  confirmationCalls: ReadonlySet<string>,
+) {
   switch (entry.kind) {
     case 'APPOINTMENT':
-      return { kind: entry.kind, appointment: ownerAppointmentDto(entry.appointment, now, timezone) };
+      return {
+        kind: entry.kind,
+        appointment: ownerAppointmentDto(entry.appointment, now, timezone, confirmationCalls),
+      };
     case 'UNAVAILABLE':
       return { kind: entry.kind, period: periodDto(entry.period, timezone) };
     case 'FREE':
@@ -127,12 +140,17 @@ function entryDto(entry: TimelineEntry, now: Temporal.Instant, timezone: string)
   }
 }
 
-export function agendaDayDto(day: AgendaDay, now: Temporal.Instant, timezone: string) {
+export function agendaDayDto(
+  day: AgendaDay,
+  now: Temporal.Instant,
+  timezone: string,
+  confirmationCalls: ReadonlySet<string>,
+) {
   return {
     date: day.date.toString(),
     isClosed: day.isClosed,
     isReadOnly: day.isReadOnly,
-    entries: day.entries.map((entry) => entryDto(entry, now, timezone)),
+    entries: day.entries.map((entry) => entryDto(entry, now, timezone, confirmationCalls)),
   };
 }
 

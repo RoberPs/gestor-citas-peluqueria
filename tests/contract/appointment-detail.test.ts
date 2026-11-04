@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   CONTRACT_NOW,
@@ -248,5 +249,32 @@ describe('GET /appointments/{token}: who cancelled it (2.1.0, 002 D-037)', () =>
 
     expectMatchesContract(detailSchema, body);
     expect(body.cancelledBy).toBe(expected);
+  });
+});
+
+describe('emailNotifications (004, 2.2.0)', () => {
+  it('is always there, inactive without a consent', async () => {
+    const body = (await (await lookup(await book())).json()) as { emailNotifications: unknown };
+
+    expect(body.emailNotifications).toEqual({ active: false });
+  });
+
+  it('is active while the appointment has a live email consent', async () => {
+    const token = await book();
+    await testPool().query(
+      `INSERT INTO channel_consent (appointment_id, channel, granted_at, unsubscribe_token_hash)
+       SELECT id, 'EMAIL', now(), $1 FROM appointment`,
+      [randomBytes(32)],
+    );
+
+    const response = await lookup(token);
+    const body = (await response.json()) as { emailNotifications: unknown };
+
+    expect(body.emailNotifications).toEqual({ active: true });
+    expectMatchesContract(detailSchema, body);
+  });
+
+  it('is declared as required by the contract', () => {
+    expect(detailSchema['required']).toContain('emailNotifications');
   });
 });

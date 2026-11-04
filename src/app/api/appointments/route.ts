@@ -1,4 +1,5 @@
 import { Temporal } from '@js-temporal/polyfill';
+import { after } from 'next/server';
 import { z } from 'zod';
 import { container } from '@/app/_lib/container';
 import type { BookingRejection } from '@/domain/booking/confirm';
@@ -39,6 +40,9 @@ const bodySchema = z
       .refine((ids) => new Set(ids).size === ids.length),
     startsAt: z.string().min(1),
     customer: customerSchema,
+    // 2.2.0 (004, D-010): optional and false by default. Ignored while the
+    // email channel is off (D-005).
+    emailConsent: z.boolean().optional(),
   })
   .strict();
 
@@ -144,9 +148,14 @@ export async function POST(request: Request): Promise<Response> {
     serviceIds: parsed.data.serviceIds,
     startsAt: parsed.data.startsAt,
     contact: parsed.data.customer,
+    emailConsent: parsed.data.emailConsent ?? false,
   });
 
   if (result.ok) {
+    // 004, D-003: the email is no part of the answer (FR-010).
+    const { notificationId } = result.value;
+    if (notificationId !== null) after(() => container().sendConfirmation(notificationId));
+
     // The trace references the internal id and nothing else. It never appears
     // in a client URL, and the three personal fields never appear here
     // (FR-036); the logger redacts them even if a future edit slips one in.

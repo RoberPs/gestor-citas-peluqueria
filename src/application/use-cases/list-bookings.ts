@@ -5,6 +5,7 @@ import {
   type BookingListQuery,
   type BookingListQueryError,
 } from '@/domain/owner/booking-list';
+import { needsConfirmationCall } from '@/domain/notifications/owner-marker';
 import type { Clock } from '@/domain/shared/clock';
 import { err, ok, type Result } from '@/domain/shared/result';
 import type { BookingListPage, BookingListReader, SalonConfigRepository } from '../ports';
@@ -20,6 +21,8 @@ export type BookingListView = {
   readonly query: BookingListQuery;
   readonly page: BookingListPage;
   readonly salon: Salon;
+  /** 004, FR-020a: the rows whose confirmation failed and whose client to call. */
+  readonly confirmationCalls: ReadonlySet<string>;
 };
 
 /** The query as it arrives, before the domain has decided anything about it. */
@@ -43,9 +46,15 @@ export function createListBookings(deps: {
   ): Promise<Result<BookingListView, BookingListQueryError>> {
     const { salon } = await deps.config.load();
 
-    const query = parseBookingListQuery({ ...input, now: deps.clock.now(), timezone: salon.timezone });
+    const now = deps.clock.now();
+    const query = parseBookingListQuery({ ...input, now, timezone: salon.timezone });
     if (!query.ok) return err(query.error);
 
-    return ok({ query: query.value, page: await deps.bookings.readPage(query.value), salon });
+    const page = await deps.bookings.readPage(query.value);
+    const confirmationCalls = new Set(
+      page.rows.filter((row) => needsConfirmationCall(row, row.confirmationDelivery, now)).map((row) => row.id),
+    );
+
+    return ok({ query: query.value, page, salon, confirmationCalls });
   };
 }

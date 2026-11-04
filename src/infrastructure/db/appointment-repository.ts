@@ -2,12 +2,12 @@ import { Temporal } from '@js-temporal/polyfill';
 import { and, asc, eq, getTableColumns, gt, gte, isNotNull, lt, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import type { Pool } from 'pg';
-import type { AppointmentRepository, NewAppointment } from '@/application/ports';
+import type { AppointmentRepository, AppointmentWithDelivery, NewAppointment } from '@/application/ports';
 import type { Appointment, BusyInterval } from '@/domain/booking/appointment';
 import type { NonEmptyServiceList } from '@/domain/catalog/selection';
 import type { ServiceSnapshot } from '@/domain/catalog/service';
 import { err, ok, type Result } from '@/domain/shared/result';
-import { appointment, appointmentService, schema } from './schema';
+import { appointment, appointmentService, channelConsent, notification, schema } from './schema';
 
 /**
  * The only place that knows this feature stores anything in PostgreSQL.
@@ -82,6 +82,26 @@ export function toDomain(row: AppointmentWithServices): Appointment {
   };
 }
 
+/**
+ * 004, D-011: the confirmation by email of each appointment, joined in the
+ * query that reads it. The unique `(appointment_id, channel, kind)` makes it
+ * at most one row, so the join never multiplies appointments.
+ */
+export const confirmationOfAppointment = and(
+  eq(notification.appointmentId, appointment.id),
+  eq(notification.channel, 'EMAIL'),
+  eq(notification.kind, 'BOOKING_CONFIRMATION'),
+);
+
+export const withServicesAndDelivery = { ...withServices, confirmationStatus: notification.status };
+
+export function toDomainWithDelivery(
+  row: AppointmentWithServices & { readonly confirmationStatus: string | null },
+): AppointmentWithDelivery {
+  const delivery = row.confirmationStatus === null ? null : row.confirmationStatus === 'FAILED' ? 'FAILED' : 'OTHER';
+  return { ...toDomain(row), confirmationDelivery: delivery };
+}
+
 export function isExclusionViolation(error: unknown): boolean {
   return (error as { code?: string } | null)?.code === EXCLUSION_VIOLATION;
 }
@@ -132,12 +152,13 @@ export function createAppointmentRepository(getPool: () => Pool): AppointmentRep
       // the window is enough, so one still under way at its start is in.
       const touches = and(lt(appointment.startsAt, dateOf(to)), gt(appointment.endsAt, dateOf(from)));
       const rows = await database()
-        .select(withServices)
+        .select(withServicesAndDelivery)
         .from(appointment)
+        .leftJoin(notification, confirmationOfAppointment)
         .where(includeCancelled ? touches : and(touches, eq(appointment.status, 'CONFIRMED')))
         .orderBy(asc(appointment.startsAt), asc(appointment.id));
 
-      return rows.map(toDomain);
+      return rows.map(toDomainWithDelivery);
     },
 
     async countFutureByContact(phone, email, now, excluding) {
@@ -164,7 +185,8 @@ export function createAppointmentRepository(getPool: () => Pool): AppointmentRep
     async insert(input: NewAppointment): Promise<Result<Appointment, 'SLOT_TAKEN'>> {
       try {
         // One transaction: if the exclusion constraint refuses the appointment,
-        // no service row is left behind without it (D-011).
+        // no service row is left behind without it (D-011), and no consent or
+        // notification either (004, D-001).
         const row = await database().transaction(async (tx) => {
           const inserted = await tx
             .insert(appointment)
@@ -198,6 +220,30 @@ export function createAppointmentRepository(getPool: () => Pool): AppointmentRep
               priceCents: service.priceCents,
             })),
           );
+
+          const confirmation = input.emailConfirmation;
+          if (confirmation !== undefined) {
+            const at = dateOf(input.createdAt);
+            await tx.insert(channelConsent).values({
+              appointmentId: input.id,
+              channel: 'EMAIL',
+              grantedAt: at,
+              unsubscribeTokenHash: Buffer.from(confirmation.unsubscribeTokenHash),
+            });
+            // Due at once: the first attempt runs right after the answer, and
+            // if that never happens the dispatch picks it up (D-003).
+            await tx.insert(notification).values({
+              id: confirmation.notificationId,
+              appointmentId: input.id,
+              channel: 'EMAIL',
+              kind: 'BOOKING_CONFIRMATION',
+              status: 'PENDING',
+              createdAt: at,
+              nextAttemptAt: at,
+              updatedAt: at,
+              sealedTokens: Buffer.from(confirmation.sealedTokens),
+            });
+          }
 
           return inserted[0];
         });
@@ -248,7 +294,10 @@ export function createAppointmentRepository(getPool: () => Pool): AppointmentRep
 
 /** Rows whose personal data is due for deletion, and the deletion itself (D-012). */
 export type PersonalDataPurge = {
-  /** FR-035: strips the three fields, their canonical forms and the token hash. */
+  /**
+   * FR-035: strips the three fields, their canonical forms and the token hash,
+   * and with them the email's unsubscribe link and pending confirmation (004).
+   */
   anonymizeDueBefore(cutoff: Temporal.Instant): Promise<number>;
   anonymizeOne(id: string): Promise<number>;
   countDueBefore(cutoff: Temporal.Instant): Promise<number>;
@@ -261,6 +310,30 @@ const ANONYMIZE_SET = `
   customer_phone_normalized = NULL, customer_email_normalized = NULL,
   token_hash = NULL, anonymized_at = now()
 `;
+
+/**
+ * 004, FR-021, D-012: the appointments `where` selects lose their person, and
+ * in the same statement their unsubscribe links stop resolving and their
+ * pending confirmations are dropped, sealed links included. There is no moment
+ * in which the person is gone and their email could still go out.
+ */
+function anonymizing(where: string): string {
+  return `
+    WITH anonymized AS (
+      UPDATE appointment SET ${ANONYMIZE_SET}
+       WHERE ${where} AND anonymized_at IS NULL
+      RETURNING id
+    ), consents AS (
+      UPDATE channel_consent SET unsubscribe_token_hash = NULL
+       WHERE appointment_id IN (SELECT id FROM anonymized)
+    ), notifications AS (
+      UPDATE notification
+         SET status = 'NOT_SENT', skip_reason = 'PERSONAL_DATA_DELETED',
+             sealed_tokens = NULL, next_attempt_at = NULL, updated_at = now()
+       WHERE appointment_id IN (SELECT id FROM anonymized) AND status = 'PENDING'
+    )
+    SELECT count(*) AS count FROM anonymized`;
+}
 
 export function createPersonalDataPurge(getPool: () => Pool): PersonalDataPurge {
   return {
@@ -285,21 +358,13 @@ export function createPersonalDataPurge(getPool: () => Pool): PersonalDataPurge 
     async anonymizeDueBefore(cutoff) {
       // One statement, so there is no moment in which the appointment is
       // anonymised and the link still resolves (FR-035).
-      const { rowCount } = await getPool().query(
-        `UPDATE appointment SET ${ANONYMIZE_SET}
-          WHERE starts_at < $1 AND anonymized_at IS NULL`,
-        [dateOf(cutoff)],
-      );
-      return rowCount ?? 0;
+      const { rows } = await getPool().query<{ count: string }>(anonymizing('starts_at < $1'), [dateOf(cutoff)]);
+      return Number(rows[0]?.count ?? 0);
     },
 
     async anonymizeOne(id) {
-      const { rowCount } = await getPool().query(
-        `UPDATE appointment SET ${ANONYMIZE_SET}
-          WHERE id = $1 AND anonymized_at IS NULL`,
-        [id],
-      );
-      return rowCount ?? 0;
+      const { rows } = await getPool().query<{ count: string }>(anonymizing('id = $1'), [id]);
+      return Number(rows[0]?.count ?? 0);
     },
   };
 }

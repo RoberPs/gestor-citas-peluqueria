@@ -22,7 +22,9 @@
     "test:all": "npm run test && npm run test:integration && npm run test:contract && npm run test:e2e",
     "lint": "eslint . && tsc --noEmit",
     "check:layers": "depcruise src --config .dependency-cruiser.cjs",
-    "retention:purge": "tsx scripts/retention-purge.ts"
+    "retention:purge": "tsx scripts/retention-purge.ts",
+    "notifications:dispatch": "tsx scripts/dispatch-notifications.ts",
+    "email:fake": "tsx scripts/fake-email-provider.ts"
   },
   "dependencies": {
     "@js-temporal/polyfill": "^0.4.4",

@@ -1,11 +1,16 @@
+import { randomBytes } from 'node:crypto';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { createDispatchNotifications } from '@/application/use-cases/dispatch-notifications';
+import { createNotificationRepository } from '@/infrastructure/db/notification-repository';
+import { confirmationEmailRenderer } from '@/infrastructure/notifications/confirmation-email';
+import { createTokenSealer } from '@/infrastructure/security/token-sealer';
 import { createRescheduleAppointment } from '@/application/use-cases/reschedule-appointment';
 import { createViewAppointment } from '@/application/use-cases/view-appointment';
 import { createAppointmentRepository } from '@/infrastructure/db/appointment-repository';
 import { createSalonConfigRepository } from '@/infrastructure/db/salon-config-repository';
 import { createUnavailablePeriodRepository } from '@/infrastructure/db/unavailable-period-repository';
 import { tokenGenerator } from '@/infrastructure/security/token';
-import { closeTestDb, ensureSchema, testPool, truncateAll } from '../helpers/test-db';
+import { closeTestDb, ensureSchema, insertEmailConfirmation, testPool, truncateAll } from '../helpers/test-db';
 import {
   BARBA,
   bookFriday,
@@ -213,5 +218,79 @@ describe("the client's link after an edit (FR-076, T203)", () => {
 
     const moved = await createRescheduleAppointment(client)(token, friday('16:00').toString());
     expect(moved.ok && moved.value.detail.appointment.endsAt).toEqual(friday('17:00'));
+  });
+});
+
+describe('the email consent of an online appointment the owner edits (004, FR-008)', () => {
+  async function consentOf(id: string) {
+    const { rows } = await testPool().query<{ ended_at: Date | null; end_reason: string | null }>(
+      'SELECT ended_at, end_reason FROM channel_consent WHERE appointment_id = $1',
+      [id],
+    );
+    return rows[0];
+  }
+
+  async function notificationOf(id: string) {
+    const { rows } = await testPool().query<{ status: string; skip_reason: string | null }>(
+      'SELECT status, skip_reason FROM notification WHERE appointment_id = $1',
+      [id],
+    );
+    return rows[0];
+  }
+
+  async function bookWithConsent(): Promise<string> {
+    const id = await bookFriday('11:00', '11:30');
+    await insertEmailConfirmation(id, { unsubscribeTokenHash: randomBytes(32) });
+    return id;
+  }
+
+  async function notificationIdOf(id: string): Promise<string> {
+    const { rows } = await testPool().query<{ id: string }>('SELECT id FROM notification WHERE appointment_id = $1', [id]);
+    return rows[0]?.id ?? '';
+  }
+
+  it.each([
+    ['changed', 'otra@example.com'],
+    ['removed', null],
+  ])('ends it as EMAIL_CHANGED when the email is %s, in the same transaction', async (_what, email) => {
+    const id = await bookWithConsent();
+
+    const edited = await useCase.edit({ id, serviceIds: [CORTE], customer: { ...ANA, email } });
+
+    expect(edited.ok).toBe(true);
+    const consent = await consentOf(id);
+    expect(consent?.end_reason).toBe('EMAIL_CHANGED');
+    expect(consent?.ended_at?.getTime()).toBe(clock.now().epochMilliseconds);
+  });
+
+  it('and its pending confirmation then ends as not sent', async () => {
+    const id = await bookWithConsent();
+    await useCase.edit({ id, serviceIds: [CORTE], customer: { ...ANA, email: 'otra@example.com' } });
+
+    const report = await createDispatchNotifications({
+      config: createSalonConfigRepository(testPool),
+      notifications: createNotificationRepository(testPool, createTokenSealer(randomBytes(32).toString('base64'))),
+      notifier: {
+        send: async () => {
+          throw new Error('nothing should reach the provider');
+        },
+      },
+      render: confirmationEmailRenderer,
+      clock,
+    }).dispatchOne(await notificationIdOf(id));
+
+    expect(report?.status).toBe('NOT_SENT');
+    expect(await notificationOf(id)).toEqual({ status: 'NOT_SENT', skip_reason: 'CONSENT_ENDED' });
+  });
+
+  it.each([
+    ['its services', { serviceIds: [BARBA, CORTE], customer: ANA }],
+    ['its phone', { serviceIds: [CORTE], customer: { ...ANA, phone: '611223344' } }],
+    ['the case of its email', { serviceIds: [CORTE], customer: { ...ANA, email: 'ANA@example.com' } }],
+  ])('leaves it live when the edit changes %s', async (_what, change) => {
+    const id = await bookWithConsent();
+
+    expect((await useCase.edit({ id, ...change })).ok).toBe(true);
+    expect(await consentOf(id)).toEqual({ ended_at: null, end_reason: null });
   });
 });

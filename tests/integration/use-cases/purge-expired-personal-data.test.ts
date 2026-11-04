@@ -8,12 +8,14 @@ import {
   createAppointmentRepository,
   createPersonalDataPurge,
 } from '@/infrastructure/db/appointment-repository';
+import { createConsentRepository } from '@/infrastructure/db/consent-repository';
 import { createSalonConfigRepository } from '@/infrastructure/db/salon-config-repository';
 import { generate, tokenGenerator } from '@/infrastructure/security/token';
 import {
   closeTestDb,
   ensureSchema,
   insertAppointmentRow,
+  insertEmailConfirmation,
   testPool,
   truncateAppointments,
 } from '../helpers/test-db';
@@ -273,5 +275,65 @@ describe('--appointment <uuid>: deletion on request (Principio III)', () => {
     const outcome = await useCases.purge({ appointmentId: randomUUID() });
 
     expect(outcome.affected).toBe(0);
+  });
+});
+
+describe('the email of an appointment whose data goes (004, FR-021, D-012)', () => {
+  async function consentAndNotification(id: string) {
+    const { rows } = await testPool().query<{
+      unsubscribe_token_hash: Buffer | null;
+      status: string;
+      skip_reason: string | null;
+      sealed_tokens: Buffer | null;
+      next_attempt_at: Date | null;
+    }>(
+      `SELECT c.unsubscribe_token_hash, n.status, n.skip_reason, n.sealed_tokens, n.next_attempt_at
+         FROM channel_consent c JOIN notification n ON n.appointment_id = c.appointment_id
+        WHERE c.appointment_id = $1`,
+      [id],
+    );
+    return rows[0];
+  }
+
+  it.each([
+    ['the nightly sweep', '2025-01-10T10:00:00Z', undefined],
+    ['the deletion on request', '2026-06-10T10:00:00Z', 'byId'],
+  ] as const)('%s also kills the unsubscribe link and drops a pending notification', async (_what, startsAt, by) => {
+    const appointment = await insertAppointment(startsAt);
+    const unsubscribe = generate();
+    await insertEmailConfirmation(appointment.id, { unsubscribeTokenHash: unsubscribe.hash });
+
+    await useCases.purge(by === 'byId' ? { appointmentId: appointment.id } : {});
+
+    expect(await consentAndNotification(appointment.id)).toEqual({
+      unsubscribe_token_hash: null,
+      status: 'NOT_SENT',
+      skip_reason: 'PERSONAL_DATA_DELETED',
+      sealed_tokens: null,
+      next_attempt_at: null,
+    });
+    expect(
+      await createConsentRepository(() => testPool()).findByUnsubscribeTokenHash(unsubscribe.hash),
+    ).toBeNull();
+  });
+
+  it('leaves a notification already sent as it was', async () => {
+    const appointment = await insertAppointment('2025-01-10T10:00:00Z');
+    await insertEmailConfirmation(appointment.id, { unsubscribeTokenHash: generate().hash, status: 'SENT' });
+
+    await useCases.purge();
+
+    expect((await consentAndNotification(appointment.id))?.status).toBe('SENT');
+  });
+
+  it('leaves the email of an appointment that keeps its data alone', async () => {
+    const recent = await insertAppointment('2026-06-10T10:00:00Z');
+    const unsubscribe = generate();
+    await insertEmailConfirmation(recent.id, { unsubscribeTokenHash: unsubscribe.hash });
+
+    await useCases.purge();
+
+    expect((await consentAndNotification(recent.id))?.status).toBe('PENDING');
+    expect(await createConsentRepository(() => testPool()).findByUnsubscribeTokenHash(unsubscribe.hash)).not.toBeNull();
   });
 });

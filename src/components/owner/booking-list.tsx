@@ -1,5 +1,6 @@
 import { longDateLabel } from '@/app/_lib/format';
 import type { OwnerAppointmentDto } from '@/app/api/gestion/_lib/serializers';
+import { ConfirmationFailed } from '@/components/owner/confirmation-failed';
 import { ServiceSummary } from '@/components/service-summary';
 import { messages } from '@/messages/es-ES';
 
@@ -57,6 +58,7 @@ export function BookingList({ rows }: { readonly rows: readonly OwnerAppointment
                 </a>
               </p>
             )}
+            <ConfirmationFailed appointment={row} />
 
             <dl className="summary">
               <ServiceSummary

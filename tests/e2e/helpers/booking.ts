@@ -12,6 +12,8 @@ import { expect, type Locator, type Page } from '@playwright/test';
 
 export const DAY_GRID = 'ul[aria-label="Días disponibles"]';
 export const SLOT_LIST = 'ul[aria-label="Horas disponibles"]';
+/** 004, FR-001: the checkbox of the confirmation by email. */
+export const EMAIL_CONSENT_LABEL = 'Enviadme la confirmación de esta cita por email';
 
 /**
  * Choosing a service, a day or a range is an in-app navigation since 003
@@ -50,17 +52,11 @@ export type BookedAppointment = {
   readonly localTime: string;
 };
 
-export async function bookAppointment(
-  page: Page,
-  options: { service?: string; customer?: { name: string; phone: string; email: string } } = {},
-): Promise<BookedAppointment> {
-  const service = options.service ?? 'Corte';
-  const customer = options.customer ?? {
-    name: 'Ana López',
-    phone: '600 11 22 33',
-    email: 'ana@example.com',
-  };
-
+/**
+ * Walks to the booking form for that service, on the last day with room, and
+ * returns the hour chosen, as the salon writes it.
+ */
+export async function openBookingForm(page: Page, service = 'Corte'): Promise<string> {
   await page.goto('/');
   await chooseOnlyService(page, service);
 
@@ -74,9 +70,30 @@ export async function bookAppointment(
   const localTime = ((await slot.textContent()) ?? '').trim().slice(0, 5);
   await slot.click();
 
+  return localTime;
+}
+
+export async function bookAppointment(
+  page: Page,
+  options: {
+    service?: string;
+    customer?: { name: string; phone: string; email: string };
+    /** 004: tick «Enviadme la confirmación…» before confirming. */
+    emailConsent?: boolean;
+  } = {},
+): Promise<BookedAppointment> {
+  const customer = options.customer ?? {
+    name: 'Ana López',
+    phone: '600 11 22 33',
+    email: 'ana@example.com',
+  };
+
+  const localTime = await openBookingForm(page, options.service);
+
   await page.getByLabel('Nombre').fill(customer.name);
   await page.getByLabel('Teléfono').fill(customer.phone);
-  await page.getByLabel('Email').fill(customer.email);
+  await page.getByLabel('Email', { exact: true }).fill(customer.email);
+  if (options.emailConsent === true) await page.getByLabel(EMAIL_CONSENT_LABEL).check();
   await page.getByRole('button', { name: 'Confirmar la cita' }).click();
 
   await page.waitForURL(/\/cita\/[A-Za-z0-9_-]{43}\?nueva=1/);

@@ -25,9 +25,12 @@ import { messages } from '@/messages/es-ES';
 export function BookingForm({
   serviceIds,
   startsAt,
+  emailConsentOffered,
 }: {
   readonly serviceIds: readonly string[];
   readonly startsAt: string;
+  /** 004, FR-004: the checkbox exists only while the email channel is on. */
+  readonly emailConsentOffered: boolean;
 }) {
   const [state, action, pending] = useActionState<BookingFormState, FormData>(
     submitBooking,
@@ -83,6 +86,24 @@ export function BookingForm({
         onChange={(value) => update('email', value)}
         error={state.fieldErrors.email}
       />
+
+      {/* 004, FR-001: unticked until the client ticks it, and kept as it was
+          after a rejected attempt, like the fields above. */}
+      {emailConsentOffered && (
+        <div className="field field-check">
+          <input
+            id="emailConsent"
+            name="emailConsent"
+            type="checkbox"
+            defaultChecked={state.values.emailConsent}
+            aria-describedby="emailConsent-hint"
+          />
+          <label htmlFor="emailConsent">{messages.booking.emailConsentLabel}</label>
+          <p className="muted" id="emailConsent-hint">
+            {messages.booking.emailConsentHint}
+          </p>
+        </div>
+      )}
 
       <p className="muted">{messages.booking.dataUse}</p>
 

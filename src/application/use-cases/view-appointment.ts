@@ -6,8 +6,9 @@ import {
   type ModificationBlock,
 } from '@/domain/booking/modification-rules';
 import type { BookingPolicy, Salon } from '@/domain/catalog/salon';
+import { isConsentActive } from '@/domain/notifications/consent';
 import type { Clock } from '@/domain/shared/clock';
-import type { AppointmentRepository, SalonConfigRepository, TokenGenerator } from '../ports';
+import type { AppointmentRepository, ConsentRepository, SalonConfigRepository, TokenGenerator } from '../ports';
 
 /**
  * Opening the management link (Historia 3 and Historia 4).
@@ -34,13 +35,29 @@ export type AppointmentDetail = {
    * wording is the message catalogue's, so neither is restated in a component.
    */
   readonly block: ModificationBlock | null;
+  /** 004, FR-017: whether the appointment has a live email consent. */
+  readonly emailNotifications: { readonly active: boolean };
 };
+
+/**
+ * 004, FR-017: whether the appointment receives emails. By primary key, one
+ * indexed lookup. Without the port, none does, as before 004.
+ */
+export async function emailNotificationsOf(
+  consents: ConsentRepository | undefined,
+  appointment: Appointment,
+): Promise<AppointmentDetail['emailNotifications']> {
+  const consent = (await consents?.findForAppointment(appointment.id, 'EMAIL')) ?? null;
+  return { active: isConsentActive(consent, 'EMAIL') };
+}
 
 export function createViewAppointment(deps: {
   readonly config: SalonConfigRepository;
   readonly appointments: AppointmentRepository;
   readonly tokens: TokenGenerator;
   readonly clock: Clock;
+  /** 004: without it no appointment receives emails, as before 004. */
+  readonly consents?: ConsentRepository;
 }) {
   return async function viewAppointment(token: string): Promise<AppointmentDetail | null> {
     // The hash is computed for any string at all, so a malformed token takes
@@ -48,7 +65,10 @@ export function createViewAppointment(deps: {
     const appointment = await deps.appointments.findByTokenHash(deps.tokens.hash(token));
     if (appointment === null) return null;
 
-    const configuration = await deps.config.load();
+    const [configuration, emailNotifications] = await Promise.all([
+      deps.config.load(),
+      emailNotificationsOf(deps.consents, appointment),
+    ]);
     const now = deps.clock.now();
 
     const cancellable = canCancel(appointment, now, configuration.policy);
@@ -62,6 +82,7 @@ export function createViewAppointment(deps: {
       canCancel: cancellable.ok,
       canReschedule: reschedulable.ok,
       block: cancellable.ok ? null : cancellable.error,
+      emailNotifications,
     };
   };
 }

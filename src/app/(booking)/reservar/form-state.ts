@@ -8,12 +8,17 @@
 export type BookingFormState = {
   readonly fieldErrors: Readonly<Partial<Record<'name' | 'phone' | 'email', string>>>;
   readonly summaryError: { readonly message: string; readonly nextAction: string } | null;
-  /** What the client typed, so nothing they got right is lost. */
-  readonly values: { readonly name: string; readonly phone: string; readonly email: string };
+  /** What the client typed, so nothing they got right is lost — the checkbox too (004). */
+  readonly values: {
+    readonly name: string;
+    readonly phone: string;
+    readonly email: string;
+    readonly emailConsent: boolean;
+  };
 };
 
 export const emptyBookingFormState: BookingFormState = {
   fieldErrors: {},
   summaryError: null,
-  values: { name: '', phone: '', email: '' },
+  values: { name: '', phone: '', email: '', emailConsent: false },
 };

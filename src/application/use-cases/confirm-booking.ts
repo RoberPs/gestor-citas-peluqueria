@@ -8,10 +8,14 @@ import type { Clock } from '@/domain/shared/clock';
 import type { RawContact } from '@/domain/contact/contact';
 import { err, ok, type Result } from '@/domain/shared/result';
 import { localDateOf } from '@/domain/shared/time';
+import type { NotificationId } from '@/domain/notifications/consent';
 import type {
   AppointmentRepository,
+  ChannelSettings,
+  NewAppointment,
   SalonConfigRepository,
   TokenGenerator,
+  TokenSealer,
   UnavailablePeriodRepository,
 } from '../ports';
 
@@ -33,6 +37,11 @@ export type ConfirmBookingInput = {
   /** The absolute instant, exactly as `/availability` handed it out. */
   readonly startsAt: string;
   readonly contact: RawContact;
+  /**
+   * 004, FR-001: the client ticked «Enviadme la confirmación…». Ignored while
+   * the email channel is off (D-005).
+   */
+  readonly emailConsent?: boolean;
 };
 
 export type ConfirmBookingFailure =
@@ -50,11 +59,13 @@ export type ConfirmBookingFailure =
 export type ConfirmedBooking = {
   readonly appointment: Appointment;
   /**
-   * The only copy of the clear token that will ever exist outside the client's
-   * browser. v1 sends no message, so the confirmation screen is its one
-   * delivery (FR-015, asunción 5).
+   * The clear token, which the database never holds. The confirmation screen
+   * shows it (FR-015); since 004 the confirmation email may carry it too, sealed
+   * in its notification until it is sent (D-002).
    */
   readonly token: string;
+  /** 004: the pending confirmation by email, for its first attempt; `null` when none. */
+  readonly notificationId: NotificationId | null;
 };
 
 function parseInstant(value: string): Temporal.Instant | null {
@@ -71,7 +82,31 @@ export function createConfirmBooking(deps: {
   readonly periods: UnavailablePeriodRepository;
   readonly tokens: TokenGenerator;
   readonly clock: Clock;
+  /** 004: without them the email channel is off, as before 004. */
+  readonly notifications?: { readonly channels: ChannelSettings; readonly sealer: TokenSealer };
 }) {
+  /**
+   * D-001 and D-002: a second token, for the unsubscribe link, and both
+   * sealed, written with the appointment. Only with the checkbox ticked, the
+   * channel on and an address to write to.
+   */
+  function emailConfirmationFor(
+    token: string,
+    input: ConfirmBookingInput,
+    hasEmail: boolean,
+  ): NewAppointment['emailConfirmation'] {
+    const notifications = deps.notifications;
+    if (input.emailConsent !== true || !hasEmail || notifications === undefined) return undefined;
+    if (!notifications.channels.enabledChannels().has('EMAIL')) return undefined;
+
+    const unsubscribe = deps.tokens.generate();
+    return {
+      unsubscribeTokenHash: unsubscribe.hash,
+      notificationId: randomUUID(),
+      sealedTokens: notifications.sealer.seal({ management: token, unsubscribe: unsubscribe.token }),
+    };
+  }
+
   return async function confirmBooking(
     input: ConfirmBookingInput,
   ): Promise<Result<ConfirmedBooking, ConfirmBookingFailure>> {
@@ -143,6 +178,11 @@ export function createConfirmBooking(deps: {
     }
 
     const { token, hash } = deps.tokens.generate();
+    const emailConfirmation = emailConfirmationFor(
+      token,
+      input,
+      validated.value.contact.normalizedEmail !== null,
+    );
 
     const inserted = await deps.appointments.insert({
       id: randomUUID(),
@@ -152,11 +192,16 @@ export function createConfirmBooking(deps: {
       contact: validated.value.contact,
       tokenHash: hash,
       createdAt: now,
+      ...(emailConfirmation === undefined ? {} : { emailConfirmation }),
     });
 
     // The exclusion constraint had the last word, as it is meant to.
     if (!inserted.ok) return err({ kind: 'REJECTED', rejection: { kind: 'SLOT_TAKEN' } });
 
-    return ok({ appointment: inserted.value, token });
+    return ok({
+      appointment: inserted.value,
+      token,
+      notificationId: emailConfirmation?.notificationId ?? null,
+    });
   };
 }

@@ -35,12 +35,12 @@ export async function GET(request: Request): Promise<Response> {
   const result = await container().listBookings(input);
   if (!result.ok) return jsonError(400, listErrorOf(result.error));
 
-  const { query, page, salon } = result.value;
+  const { query, page, salon, confirmationCalls } = result.value;
   const now = container().clock.now();
 
   return jsonOk({
     query: paramsOf(query, parsed.data.buscar),
-    rows: page.rows.map((row) => ownerAppointmentDto(row, now, salon.timezone)),
+    rows: page.rows.map((row) => ownerAppointmentDto(row, now, salon.timezone, confirmationCalls)),
     next: page.next === null ? null : encodeCursor(page.next),
   });
 }

@@ -2,9 +2,14 @@ openapi: 3.1.0
 
 info:
   title: API de reserva de citas — cara al cliente
-  version: 2.1.0
+  version: 2.2.0
   description: |
     Interfaz HTTP de la feature `001-client-appointment-booking`.
+
+    **Versión 2.2.0** (feature `004-notifications`): la reserva acepta
+    `emailConsent`, la cita dice si recibe emails (`emailNotifications`) y hay dos
+    rutas de baja. Cambio compatible; el detalle está en
+    `specs/004-notifications/contracts/http-api-changes.md`.
 
     **Versión 2.1.0** (feature `002-salon-management`): `AppointmentDetail` dice quién
     canceló la cita (`cancelledBy`). Los cambios respecto a la 2.0.0 están en
@@ -156,9 +161,10 @@ paths:
           headers:
             Location:
               description: |
-                `/cita/{token}?nueva=1`. **Único lugar donde se entrega el token**:
-                v1 no envía ningún mensaje (asunción 5), y la pantalla de destino
-                muestra el aviso destacado de guardarlo (FR-015).
+                `/cita/{token}?nueva=1`. La pantalla de destino muestra el aviso
+                destacado de guardar el enlace (FR-015). Desde la 2.2.0, si el cliente
+                pidió la confirmación por email, el email también lo lleva (004); el
+                envío no forma parte de esta respuesta (004, FR-010).
               schema: { type: string }
         '400':
           description: |
@@ -364,6 +370,56 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/SlotConflictError' }
 
+  /appointments/{token}/email-consent/revocation:
+    post:
+      tags: [Gestión de la cita]
+      summary: Dejar de recibir emails de esta cita
+      description: |
+        2.2.0 (004, FR-017). La baja desde la pantalla de la cita. Sin cuerpo.
+        Termina el consentimiento de email de esta cita y nada más: la cita no
+        cambia, tampoco si está cancelada o ya pasó. Es **inocua**: con la baja
+        hecha, ya hecha o sin consentimiento, responde lo mismo (004, FR-016).
+
+        Como el resto de rutas con token, el límite de aperturas por IP se
+        responde con el `404` neutro, nunca con `429` (FR-038).
+      parameters:
+        - $ref: '#/components/parameters/AppointmentToken'
+      responses:
+        '204':
+          description: Sin consentimiento de email vigente para esta cita.
+        '404':
+          $ref: '#/components/responses/NeutralNotFound'
+
+  /unsubscribe/{unsubscribeToken}:
+    post:
+      tags: [Baja]
+      summary: Baja de un clic desde el gestor de correo
+      description: |
+        2.2.0 (004, D-009). La URL de la cabecera `List-Unsubscribe` de cada email,
+        con `List-Unsubscribe-Post: List-Unsubscribe=One-Click` (RFC 8058). Es un
+        `POST`: un enlace que un antivirus abra solo no da de baja a nadie. La
+        página de baja para personas es `/baja/{unsubscribeToken}`, que pide
+        confirmar con un botón (004, FR-015).
+
+        El token de baja es otra credencial que el de gestión: no permite consultar
+        ni cambiar la cita (004, FR-024). Un token inexistente, malformado o de una
+        cita anonimizada, y el límite de aperturas por IP, reciben el mismo `404`
+        neutro que un enlace de gestión inválido (004, FR-018; FR-038).
+      parameters:
+        - $ref: '#/components/parameters/UnsubscribeToken'
+      requestBody:
+        required: false
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              description: '`List-Unsubscribe=One-Click`. Se acepta y se ignora.'
+      responses:
+        '204':
+          description: Baja hecha, o ya estaba hecha.
+        '404':
+          $ref: '#/components/responses/NeutralNotFound'
+
 components:
 
   parameters:
@@ -376,6 +432,18 @@ components:
         (256 bits, por encima del mínimo de 128 de FR-017). Es la autenticación y
         la autorización de esa cita y de ninguna otra (asunción 1, BR-016).
         La base de datos guarda sólo su hash SHA-256 (D-005).
+      schema:
+        type: string
+        pattern: '^[A-Za-z0-9_-]{43}$'
+
+    UnsubscribeToken:
+      name: unsubscribeToken
+      in: path
+      required: true
+      description: |
+        2.2.0 (004, FR-024). La vía de baja de los emails de una cita: 32 bytes
+        aleatorios en base64url, como el token de gestión, y la base de datos guarda
+        sólo su SHA-256. Es una credencial distinta: no abre la cita.
       schema:
         type: string
         pattern: '^[A-Za-z0-9_-]{43}$'
@@ -628,6 +696,13 @@ components:
           description: Inicio del hueco, tal como lo devolvió `/availability`.
         customer:
           $ref: '#/components/schemas/CustomerContact'
+        emailConsent:
+          type: boolean
+          default: false
+          description: >
+            2.2.0 (004, FR-001): el cliente pide recibir la confirmación por email.
+            Con el canal de email apagado se acepta y se ignora (004, D-005). No
+            cambia ninguna validación ni ningún error de la reserva.
 
     CustomerContact:
       type: object
@@ -657,7 +732,7 @@ components:
       type: object
       required:
         [view, services, price, date, startsLocalTime, endsLocalTime, durationMinutes,
-         startsAt, canCancel, canReschedule, cancelledBy, salon]
+         startsAt, canCancel, canReschedule, cancelledBy, salon, emailNotifications]
       properties:
         view:
           type: string
@@ -713,6 +788,15 @@ components:
           const: 24
         salon:
           $ref: '#/components/schemas/SalonInfo'
+        emailNotifications:
+          type: object
+          required: [active]
+          additionalProperties: false
+          description: 2.2.0 (004).
+          properties:
+            active:
+              type: boolean
+              description: Hay consentimiento de email vigente para esta cita (004, FR-017).
 
     Error:
       type: object

@@ -151,8 +151,40 @@ verde, y es un punto donde se puede parar.
       que pisa (T116); la pantalla de la US3 sigue ofreciendo sólo acusarlas.
   - Pendiente: probarlo a mano en el navegador con la dueña del producto, y la medición
     de SC-015 en el e2e de editar (T204).
-- [ ] **7 · `004-notifications`:** avisos por email y, si se decide, SMS.
-  Ver el apartado "Avisos" más abajo.
+- [x] **7 · `004-notifications`:** email de confirmación al reservar — rama
+  `004-notifications`, 2026-11-04. Sin SMS (canal apagado, sin adaptador).
+  - Resultado: casilla en el formulario (desmarcada), consentimiento y envío pendiente
+    en la misma transacción que la cita (migración `0008`), primer intento con
+    `after()` y reintentos durante 1 hora con `npm run notifications:dispatch` por cron,
+    Resend por HTTP con `Idempotency-Key`, baja desde el email (`/baja/{token}` y baja
+    de un clic RFC 8058) y desde la cita, anonimización que alcanza baja y envíos
+    pendientes, y la marca «Confirmación por email no enviada» en la agenda y el
+    listado. Contratos: cliente 2.2.0 y gestión 1.3.0.
+  - Checks: unitarios 695, integración 395, contrato 200, e2e 358; lint y
+    `check:layers` en verde.
+  - Probado a mano el 2026-11-04 con el proveedor falso, siguiendo la «Validación
+    manual» del quickstart (T085): todo como se espera. En el camino salieron los
+    límites de la 001 (5 reservas por hora por IP, 3 citas futuras por email), que se
+    comportan como deben. La bandeja del proveedor falso pasó a renderizar los emails
+    en `http://127.0.0.1:4010/` para poder leerlos.
+  - Pendiente antes de enviar a clientes reales: el alta en Resend (dominio, región UE)
+    y la tabla del contrato de encargado en `specs/004-notifications/quickstart.md`.
+- [ ] **7b · Producción de prueba** en `niza.automatizacionro.work`, en el VPS y el
+  Cloudflare del chatbot multicliente. Va antes de los pasos 8 y 9. Ver las decisiones
+  del 2026-11-04 sobre producción.
+  - [ ] Fusionar la 002 y la 004 en `main` con la CI en verde, una PR por feature. La
+    002 entró con la PR #8 el 2026-11-04.
+  - [x] Adaptador de Brevo detrás del puerto `Notifier`, con TDD, y `EMAIL_PROVIDER`
+    para volver a Resend; D-004 revisada, quickstart y `.env.example` de la 004
+    actualizados.
+  - [ ] Imagen para el VPS compartido: HSTS y CSP en `next.config.ts`, `/health` y
+    `HEALTHCHECK`, imagen base fijada por digest, versión en la etiqueta, contenedor
+    endurecido y publicada en GHCR.
+  - [ ] `deploy/`: compose propio con su PostgreSQL sin puertos y en la red
+    `chatbot_proxy`, bloque para el Caddyfile del chatbot, copias diarias cifradas que
+    baje `descargar-copias.ps1`, crons y script con los datos del salón.
+  - [ ] Puesta en marcha en el VPS: DNS, entornos `0600`, alta de la dueña y pruebas de
+    punta a punta.
 - [ ] **8 · 002, US7 + US8 + US9:** editar horario, catálogo y parámetros desde la app.
 - [ ] **9 · Pulido final:** accesibilidad, rendimiento, revisión de datos personales en
   logs, quickstart y corrección de los defectos menores listados en `README.md`.
@@ -177,7 +209,8 @@ Pantalla privada de la dueña, dentro de la 002.
 
 ## Avisos (004)
 
-Cambia una decisión vigente: el CLAUDE.md y la spec 001 dicen que v1 no envía nada.
+*Hecho en el paso 7 (email); el SMS sigue pendiente de presupuesto.* Cambia una
+decisión vigente: el CLAUDE.md y la spec 001 dicen que v1 no envía nada.
 Activa el **Principio IV** de la constitución: consentimiento por canal, baja y
 registro de envíos.
 
@@ -204,6 +237,43 @@ un proveedor de pago cuando se decida el presupuesto.
 Ninguna por ahora.
 
 ## Decisiones tomadas
+
+- 2026-11-04 · **Producción · Alcance:** se despliega ya el MVP completo con la 004;
+  los pasos 8 y 9 van después. Mientras no exista la US7–US9, el horario y los
+  servicios se cargan con un script de datos del salón.
+- 2026-11-04 · **Producción · Prueba antes de abrirla:** el primer despliegue es de
+  prueba, con los datos de la demo y sin anunciarlo a clientes. Copias y registro de
+  envíos listos antes de abrirlo al público.
+- 2026-11-04 · **Producción · Dominio:** `niza.automatizacionro.work`, en la zona de
+  Cloudflare del chatbot. Si el cliente lo acepta, después se migra a su dominio, o a
+  uno nuevo que se le gestione en Cloudflare. El dominio es sólo configuración
+  (`PUBLIC_BASE_URL` y el bloque de Caddy); al migrar, el subdominio de prueba redirige
+  al nuevo conservando la ruta, para que los enlaces de los emails ya enviados sigan
+  valiendo. El dominio nuevo tiene que estar en Cloudflare, porque el cortafuegos del
+  VPS sólo admite el 443 desde sus rangos.
+- 2026-11-04 · **004 · Proveedor: Brevo en lugar de Resend.** Reutiliza la cuenta, el
+  dominio verificado y el DPA del chatbot; 300 emails al día compartidos bastan. Se
+  usa su API HTTP con una clave propia del proyecto. Se acepta que, sin clave de
+  idempotencia, un corte entre el envío y su anotación pueda duplicar una confirmación.
+  Sustituye la decisión D-004 de la 004. Si Brevo no funciona bien, se vuelve a Resend:
+  su adaptador se conserva y se elige con `EMAIL_PROVIDER=resend`. Al comprobar su API
+  salió que Brevo sí admite idempotencia (30 minutos) y que añade su propia baja de un
+  clic, que va a la lista de bloqueados de toda la cuenta; la dueña del producto lo
+  acepta. Detalle en «D-004 revisada» de `specs/004-notifications/research.md`.
+- 2026-11-04 · **Producción · Infraestructura compartida:** el Caddy del chatbot
+  sigue siendo el único en los puertos 80 y 443, y este proyecto se le suma con un
+  bloque propio y la red `chatbot_proxy`. PostgreSQL propio, porque `btree_gist` pide
+  superusuario. La imagen se construye en el PC y se publica en GHCR, como la del
+  chatbot.
+
+- 2026-11-04 · **004 · Clarificación:** la baja afecta **sólo a esa cita**, sin lista
+  de direcciones dadas de baja; la dueña ve **sólo las confirmaciones fallidas**, con
+  el teléfono del cliente para llamarle; los emails salen **del dominio del salón si lo
+  tiene**, si no del de la app, con el nombre del salón como remitente y respuestas al
+  email del salón. Falta confirmar con el cliente si tiene dominio.
+- 2026-11-04 · **004 · Límite en las rutas de baja:** como el resto de rutas con token,
+  superar el límite por IP se responde con el `404` neutro, nunca `429` (FR-038 de la
+  001). Corrige una errata de `contracts/http-api-changes.md`, que decía `429`.
 
 - 2026-11-04 · **002 · Detalles del paso 2b, confirmados en la prueba del paso 4:** la
   dueña los deja como están. Un teléfono a medias en la búsqueda pide el número entero

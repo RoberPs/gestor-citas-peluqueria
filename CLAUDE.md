@@ -22,16 +22,24 @@ y cancela su cita desde el móvil, sin cuenta de usuario.
 - **La disponibilidad es UNA sola consulta** del horizonte de 60 días; rango de 14
   días, huecos del día y siguiente día libre se derivan en memoria. Nunca N+1.
 - **El enlace de gestión es la credencial**: 32 bytes aleatorios; la BD guarda sólo
-  su hash SHA-256. Sin sesiones ni cookies.
+  su hash SHA-256, y además el token cifrado (AES-256-GCM, `NOTIFICATION_SEAL_KEY`)
+  mientras su email de confirmación está pendiente, como mucho 1 hora (004, D-002).
+  Sin sesiones ni cookies.
 - **Una cita lleva uno o varios servicios** en `appointment_service`, cada uno con su
   snapshot (nombre, duración y precio al reservar). Dura la suma y se lee en una sola
   consulta. Un precio puede ser `NULL` («Precio a consultar en el salón»), nunca 0.
-- **El contrato HTTP vivo** es el 2.0.0 de
-  `specs/001-client-appointment-booking/contracts/http-api.yaml`, el que comprueba
-  `npm run test:contract`.
+- **El contrato HTTP vivo** es el 2.2.0 de
+  `specs/001-client-appointment-booking/contracts/http-api.yaml` (y el 1.3.0 de
+  `specs/002-salon-management/contracts/owner-api.yaml` para la dueña), los que
+  comprueba `npm run test:contract`.
 - **Tiempo**: siempre el reloj del servidor y `Europe/Madrid` (`SALON_TIMEZONE`),
   nunca el del dispositivo. El dominio recibe un puerto `Clock` inyectado.
-- **v1 no envía SMS ni email**, ni siquiera la confirmación.
+- **El único mensaje que envía la app es el email de confirmación de una reserva
+  online**, si el cliente marca la casilla (004). Sin SMS. Sale por un puerto
+  `Notifier` (Brevo por HTTP; Resend de reserva con `EMAIL_PROVIDER=resend`) desde
+  una bandeja de salida en la BD (`notification`): primer intento con `after()` y reintentos durante 1 hora con
+  `npm run notifications:dispatch` por cron. Con `NOTIFICATIONS_EMAIL=off` la app se
+  comporta como antes de la 004.
 
 ## Arranque local
 
@@ -55,6 +63,8 @@ npm run test:e2e         # Playwright + axe
 npm run test:all         # todo, en ese orden
 npm run lint             # ESLint + tsc --noEmit
 npm run check:layers     # frontera del dominio — bloquea el merge si se cruza
+npm run notifications:dispatch  # reintentos de los emails pendientes (cron, cada minuto)
+npm run email:fake       # proveedor de email falso en :4010 para probar a mano
 ```
 
 ## Convenciones

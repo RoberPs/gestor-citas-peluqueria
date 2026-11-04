@@ -1,6 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createLogger } from '@/infrastructure/logging/logger';
+import { useFakeEmailProvider } from '../helpers/fake-email';
 import type * as LoggerModule from '@/infrastructure/logging/logger';
+import type * as NextServer from 'next/server';
 import { closeTestDb, testPool, truncateAppointments } from '../helpers/test-db';
 import { CONTRACT_NOW, CORTE, seedContractDatabase } from '../../contract/helpers/seed-contract-db';
 
@@ -21,6 +23,18 @@ const EMAIL = 'zztestzz@example.com';
 /** Hoisted with the mock factory, which vitest lifts above every declaration. */
 const captured = vi.hoisted(() => ({ lines: [] as string[] }));
 const lines = captured.lines;
+
+/**
+ * 004: what the routes hand to `after()`, run by the test once the answer is
+ * out, as Next would. Outside a request Next refuses `after()` altogether.
+ */
+const afterResponse = vi.hoisted(() => ({ tasks: [] as Array<() => unknown> }));
+vi.mock('next/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof NextServer>()),
+  after: (task: () => unknown) => {
+    afterResponse.tasks.push(task);
+  },
+}));
 
 vi.mock('@/infrastructure/time/system-clock', () => ({
   systemClock: { now: () => CONTRACT_NOW },
@@ -222,5 +236,50 @@ describe("the owner's password never reaches the log (002, FR-010)", () => {
     );
 
     expect(own.join('')).not.toContain('ZZPASSWORDZZ');
+  });
+});
+
+describe('a booking with the confirmation by email (004, FR-022)', () => {
+  let provider: Awaited<ReturnType<typeof useFakeEmailProvider>>;
+
+  beforeAll(async () => {
+    provider = await useFakeEmailProvider();
+  });
+
+  afterAll(async () => {
+    await provider.restore();
+  });
+
+  async function bookAndSend(): Promise<string> {
+    afterResponse.tasks.length = 0;
+    const response = await POST(bookingRequest(validBody({ emailConsent: true })));
+    expect(response.status).toBe(303);
+    for (const task of afterResponse.tasks) await task();
+    return (response.headers.get('Location') ?? '').replace('/cita/', '').replace('?nueva=1', '');
+  }
+
+  it('logs the attempt by its ids, and nothing of the person, the email or the links', async () => {
+    const token = await bookAndSend();
+
+    expect(provider.messages()).toHaveLength(1);
+    expect(output()).toContain('confirmation email attempted');
+    expectNoPersonalData();
+    expect(output()).not.toContain(token);
+    expect(output()).not.toContain('Tu cita en');
+    expect(output()).not.toContain('/baja/');
+  });
+
+  it('logs nothing of a provider error that repeats the address (D-006)', async () => {
+    provider.setMode('echo');
+    try {
+      await bookAndSend();
+    } finally {
+      provider.setMode('ok');
+    }
+
+    const { rows } = await testPool().query<{ status: string }>('SELECT status FROM notification');
+    expect(rows[0]?.status).toBe('FAILED');
+    expect(output()).toContain('"status":"FAILED"');
+    expectNoPersonalData();
   });
 });

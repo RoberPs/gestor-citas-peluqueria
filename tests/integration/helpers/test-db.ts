@@ -1,3 +1,4 @@
+import { randomBytes, randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
 import { migrate } from '../../../scripts/migrate';
 
@@ -51,7 +52,10 @@ export async function closeTestDb(): Promise<void> {
  * holidays are loaded once and read from then on (FR-007).
  */
 export async function truncateAppointments(): Promise<void> {
-  await testPool().query('TRUNCATE appointment, appointment_service RESTART IDENTITY');
+  // 004: consents and notifications hang off the appointment and go with it.
+  await testPool().query(
+    'TRUNCATE appointment, appointment_service, channel_consent, notification RESTART IDENTITY',
+  );
 }
 
 /** The service an appointment written by hand is booked with, as its snapshot. */
@@ -95,4 +99,38 @@ export async function insertAppointmentRow(
       service.priceCents,
     ],
   );
+}
+
+/**
+ * 004: gives an appointment a live email consent and a pending confirmation,
+ * straight in the tables, as a booking with the checkbox leaves them. The
+ * sealed tokens are opaque here; tests that need to open them book through the
+ * use case instead.
+ */
+export async function insertEmailConfirmation(
+  appointmentId: string,
+  options: { readonly unsubscribeTokenHash: Uint8Array; readonly status?: 'PENDING' | 'SENT' | 'FAILED' },
+): Promise<string> {
+  const notificationId = randomUUID();
+  const status = options.status ?? 'PENDING';
+  const pending = status === 'PENDING';
+  await testPool().query(
+    `WITH consent AS (
+       INSERT INTO channel_consent (appointment_id, channel, granted_at, unsubscribe_token_hash)
+       VALUES ($1, 'EMAIL', now(), $2)
+     )
+     INSERT INTO notification (id, appointment_id, channel, kind, status, attempts, created_at,
+                               next_attempt_at, updated_at, sealed_tokens)
+     VALUES ($3, $1, 'EMAIL', 'BOOKING_CONFIRMATION', $4, $5, now(), $6, now(), $7)`,
+    [
+      appointmentId,
+      Buffer.from(options.unsubscribeTokenHash),
+      notificationId,
+      status,
+      pending ? 0 : 1,
+      pending ? new Date() : null,
+      pending ? randomBytes(60) : null,
+    ],
+  );
+  return notificationId;
 }

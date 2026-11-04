@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { COLOR, CONTRACT_NOW, CORTE, seedContractDatabase } from './helpers/seed-contract-db';
 import { testPool } from '../integration/helpers/test-db';
-import { expectMatchesContract, responseSchema } from './helpers/openapi';
+import { expectMatchesContract, requestSchema, responseSchema, version, violations } from './helpers/openapi';
 import { closeTestDb, truncateAppointments } from '../integration/helpers/test-db';
 
 vi.mock('@/infrastructure/time/system-clock', () => ({
@@ -288,5 +288,51 @@ describe('429 — the per-IP confirmation limit (FR-039)', () => {
 
     const retry = await POST(bookingRequest(validBody()));
     expect(retry.status).toBe(303);
+  });
+});
+
+describe('emailConsent (004, 2.2.0)', () => {
+  const bookingSchema = requestSchema('/appointments', 'post');
+
+  it('is the 2.2.0 contract that is checked', () => {
+    expect(version()).toBe('2.2.0');
+  });
+
+  it('declares emailConsent as an optional boolean, false by default', () => {
+    const properties = bookingSchema['properties'] as Record<string, Record<string, unknown>>;
+    expect(properties['emailConsent']).toMatchObject({ type: 'boolean', default: false });
+    expect(bookingSchema['required']).not.toContain('emailConsent');
+  });
+
+  it.each([[true], [false]])('accepts emailConsent: %s', async (emailConsent) => {
+    const body = validBody({ emailConsent });
+    expect(violations(bookingSchema, body)).toEqual([]);
+
+    const response = await POST(bookingRequest(body));
+    expect(response.status).toBe(303);
+  });
+
+  it('accepts a booking without it, as every client before 2.2.0 sends', async () => {
+    const response = await POST(bookingRequest(validBody()));
+    expect(response.status).toBe(303);
+  });
+
+  it('refuses a value that is not a boolean, with 400', async () => {
+    const body = validBody({ emailConsent: 'yes' });
+    expect(violations(bookingSchema, body)).not.toEqual([]);
+
+    const response = await POST(bookingRequest(body));
+    expect(response.status).toBe(400);
+    expectMatchesContract(validationSchema, await response.json());
+  });
+
+  it('is accepted and ignored with the channel off: no consent, no notification (D-005)', async () => {
+    await POST(bookingRequest(validBody({ emailConsent: true })));
+
+    const { rows } = await testPool().query<{ consents: string; notifications: string }>(
+      `SELECT (SELECT count(*) FROM channel_consent) AS consents,
+              (SELECT count(*) FROM notification) AS notifications`,
+    );
+    expect(rows[0]).toEqual({ consents: '0', notifications: '0' });
   });
 });

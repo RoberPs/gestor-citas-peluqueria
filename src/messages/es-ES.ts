@@ -39,6 +39,8 @@ export const messages = {
       'noviembre',
       'diciembre',
     ],
+    /** 004: the subject of the confirmation email, `vie 13 nov`. */
+    monthShort: ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'],
     minutesSuffix: 'min',
     hoursSuffix: 'h',
     /** FR-019: a service with no price yet. Never "0,00 €", which reads as free. */
@@ -135,6 +137,10 @@ export const messages = {
     phoneHint: 'Un teléfono español de 9 cifras, por ejemplo 600 11 22 33.',
     emailLabel: 'Email',
     emailHint: 'Por si necesitamos avisarte de algo.',
+    /** 004, FR-001: unticked, and only while the email channel is on. */
+    emailConsentLabel: 'Enviadme la confirmación de esta cita por email',
+    emailConsentHint:
+      'Sólo te enviaremos la confirmación de esta cita, sin publicidad. Podrás darte de baja desde el propio email.',
     submit: 'Confirmar la cita',
     errorSummaryTitle: 'Revisa estos datos antes de confirmar:',
     dataUse:
@@ -153,6 +159,10 @@ export const messages = {
     saveLinkWarning:
       'Es la única forma de volver a tu cita para consultarla, cambiarla o cancelarla. No te lo vamos a enviar por SMS ni por email, así que guárdalo ahora: añádelo a favoritos o hazle una captura.',
     linkLabel: 'Enlace de tu cita',
+    /** 004, FR-013: with consent, the address goes in bold between the two. */
+    emailSentLead: 'Te enviamos la confirmación a',
+    emailSentRest:
+      'Puede tardar unos minutos; si no la ves, mira en la carpeta de spam. Por si acaso, guarda también este enlace: es la forma de volver a tu cita para consultarla, cambiarla o cancelarla.',
   },
 
   appointment: {
@@ -185,6 +195,53 @@ export const messages = {
       ALREADY_CANCELLED: `Esta cita ya está cancelada, así que no hay nada más que cambiar. Reserva una nueva o llama al salón al ${SALON_PHONE_PLACEHOLDER}.`,
       ALREADY_COMPLETED: `Esta cita ya ha pasado y no se puede modificar. Reserva una nueva o llama al salón al ${SALON_PHONE_PLACEHOLDER}.`,
     },
+
+    /** 004, FR-017: only while the consent is live. */
+    emailNotifications: {
+      active: 'Recibes la confirmación de esta cita por email.',
+      stop: 'Dejar de recibir emails',
+      stopped: 'Ya no te enviaremos emails sobre esta cita. Tu cita no cambia.',
+    },
+  },
+
+  /** 004, D-009: the page an email links to. It shows nothing of the appointment (FR-024). */
+  unsubscribe: {
+    initial: {
+      title: 'Dejar de recibir emails',
+      /** The salon's name goes in bold between the two. */
+      bodyLead: 'Dejarás de recibir emails de',
+      bodyRest: 'sobre tu cita. Tu cita no cambia.',
+      submit: 'Darme de baja',
+    },
+    done: {
+      title: 'Te has dado de baja',
+      body: 'Ya no te enviaremos emails sobre esta cita. Tu cita no cambia.',
+      icon: '✓',
+    },
+    already: {
+      title: 'Ya te habías dado de baja',
+      body: 'No te enviaremos emails sobre esta cita.',
+    },
+  },
+
+  /** 004, contracts/ui-and-email.md: the confirmation email, in its order (FR-006). */
+  email: {
+    subject: (salon: string, day: string, time: string) => `Tu cita en ${salon}: ${day}, ${time}`,
+    greeting: (name: string) => `Hola, ${name}:`,
+    confirmed: (salon: string) => `Tu cita en ${salon} está confirmada.`,
+    whenTitle: 'Cuándo',
+    /** FR-025: `viernes 13 de noviembre, de 11:30 a 12:30`. */
+    when: (date: string, start: string, end: string) => `${date}, de ${start} a ${end}`,
+    servicesTitle: 'Servicios',
+    totalLabel: 'Total',
+    whereTitle: 'Dónde',
+    salonPhoneLabel: 'Teléfono',
+    appointmentTitle: 'Tu cita',
+    manageLink: 'Ver, cambiar o cancelar tu cita',
+    deadline: (hours: number) =>
+      `Puedes cambiarla o cancelarla hasta ${hours} horas antes. Lo que veas en este enlace es siempre lo vigente, aunque cambie después de este email.`,
+    footer: 'Recibes este email porque lo pediste al reservar.',
+    unsubscribeLink: 'Darme de baja',
   },
 
   cancellation: {
@@ -316,6 +373,13 @@ export const messages = {
       /** FR-005: what to do, with no operational detail. */
       forgotten:
         'Si has olvidado la contraseña, no se puede recuperar desde aquí: pide que te den una nueva.',
+    },
+
+    /** 004, FR-020a: the one state of a confirmation the owner sees, and what to do. */
+    confirmationEmailFailed: {
+      icon: '⚠',
+      label: 'Confirmación por email no enviada',
+      hint: 'Llámale para darle su enlace.',
     },
 
     agenda: {

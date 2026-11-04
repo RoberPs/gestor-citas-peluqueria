@@ -21,3 +21,7 @@ process.env['SALON_TIMEZONE'] ??= 'Europe/Madrid';
 process.env['RATE_LIMIT_SECRET'] ??= 'test-rate-limit-secret';
 process.env['TRUSTED_PROXY_IPS'] ??= '';
 process.env['PUBLIC_BASE_URL'] ??= 'http://localhost:3000';
+// 004, D-013: the channel is off unless a file starts the fake provider, so the
+// suites written before 004 run exactly as they did.
+process.env['NOTIFICATIONS_EMAIL'] = 'off';
+process.env['NOTIFICATIONS_SMS'] = 'off';

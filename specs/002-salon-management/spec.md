@@ -20,7 +20,7 @@ Esta feature le da un acceso privado y las pantallas para llevar el salón día 
 
 **Lo que cambia respecto a la situación actual**: la configuración deja de ser un dato de arranque estático y pasa a ser algo que la dueña edita. El flujo de reserva de la feature `001-client-appointment-booking` sigue leyendo exactamente los mismos conceptos, pero ahora reflejan lo que la dueña acaba de guardar, no lo que se cargó al desplegar.
 
-**Lo que no cambia**: la agenda sigue siendo **una única línea temporal** de un solo sillón, el cliente sigue sin tener cuenta, y v1 sigue sin enviar SMS ni email a nadie.
+**Lo que no cambia**: la agenda sigue siendo **una única línea temporal** de un solo sillón, el cliente sigue sin tener cuenta, y v1 sigue sin enviar SMS ni email a nadie por nada de lo que hace la dueña. *Desde la `004-notifications` la reserva online puede enviar al cliente su confirmación por email; la agenda y el listado marcan, con el teléfono para llamar, las citas cuya confirmación falló (FR-020a de la 004).*
 
 ### Usuarios
 

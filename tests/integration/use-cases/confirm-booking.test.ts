@@ -7,6 +7,9 @@ import { createAppointmentRepository } from '@/infrastructure/db/appointment-rep
 import { createSalonConfigRepository } from '@/infrastructure/db/salon-config-repository';
 import { createUnavailablePeriodRepository } from '@/infrastructure/db/unavailable-period-repository';
 import { tokenGenerator } from '@/infrastructure/security/token';
+import { createTokenSealer } from '@/infrastructure/security/token-sealer';
+import type { ChannelSettings } from '@/application/ports';
+import { TEST_SEAL_KEY } from '../helpers/fake-email';
 import { closeTestDb, ensureSchema, testPool, truncateAppointments } from '../helpers/test-db';
 import {
   seedContractDatabase,
@@ -49,6 +52,27 @@ function buildUseCase() {
 }
 
 let confirmBooking: ReturnType<typeof buildUseCase>;
+
+const sealer = createTokenSealer(TEST_SEAL_KEY);
+const emailOn: ChannelSettings = { enabledChannels: () => new Set(['EMAIL']) };
+const emailOff: ChannelSettings = { enabledChannels: () => new Set() };
+
+/** 004: the same use case with the notification ports, the email channel on or off. */
+function buildWithNotifications(channels: ChannelSettings) {
+  return createConfirmBooking({
+    config: createSalonConfigRepository(() => testPool()),
+    appointments: createAppointmentRepository(() => testPool()),
+    periods: createUnavailablePeriodRepository(() => testPool()),
+    tokens: tokenGenerator,
+    clock,
+    notifications: { channels, sealer },
+  });
+}
+
+async function countRows(table: 'channel_consent' | 'notification'): Promise<number> {
+  const { rows } = await testPool().query<{ count: string }>(`SELECT count(*) AS count FROM ${table}`);
+  return Number(rows[0]?.count ?? 0);
+}
 
 beforeAll(async () => {
   await ensureSchema();
@@ -407,5 +431,110 @@ describe('several services in one appointment (005, Historia 1)', () => {
       contact: contactOf(),
     });
     expect(fourth).toEqual({ ok: false, error: { kind: 'CONTACT_LIMIT_REACHED', limit: 3 } });
+  });
+});
+
+describe('the confirmation by email (004, D-001)', () => {
+  it('writes the consent and a pending notification with the appointment, in one call', async () => {
+    const result = await buildWithNotifications(emailOn)({
+      serviceIds: [CORTE],
+      startsAt: FRIDAY_1130,
+      contact: contactOf(),
+      emailConsent: true,
+    });
+    if (!result.ok) throw new Error('unreachable');
+
+    const consents = await testPool().query<{
+      appointment_id: string;
+      channel: string;
+      granted_at: Date;
+      ended_at: Date | null;
+      unsubscribe_token_hash: Buffer;
+    }>('SELECT * FROM channel_consent');
+    expect(consents.rows).toHaveLength(1);
+    expect(consents.rows[0]?.appointment_id).toBe(result.value.appointment.id);
+    expect(consents.rows[0]?.channel).toBe('EMAIL');
+    expect(consents.rows[0]?.granted_at.getTime()).toBe(NOW.epochMilliseconds);
+    expect(consents.rows[0]?.ended_at).toBeNull();
+    expect(consents.rows[0]?.unsubscribe_token_hash).toHaveLength(32);
+
+    const notifications = await testPool().query<{
+      id: string;
+      status: string;
+      attempts: number;
+      created_at: Date;
+      next_attempt_at: Date;
+      sealed_tokens: Buffer;
+    }>('SELECT * FROM notification');
+    expect(notifications.rows).toHaveLength(1);
+    const row = notifications.rows[0];
+    expect(row?.id).toBe(result.value.notificationId);
+    expect(row?.status).toBe('PENDING');
+    expect(row?.attempts).toBe(0);
+    expect(row?.created_at.getTime()).toBe(NOW.epochMilliseconds);
+    expect(row?.next_attempt_at.getTime()).toBe(NOW.epochMilliseconds);
+
+    // Sealed, not in clear, and opening to the token the client was handed.
+    expect(row?.sealed_tokens.toString('utf8')).not.toContain(result.value.token);
+    const opened = sealer.open(row?.sealed_tokens ?? new Uint8Array());
+    expect(opened?.management).toBe(result.value.token);
+    const unsubscribeHash = Buffer.from(tokenGenerator.hash(opened?.unsubscribe ?? ''));
+    expect(unsubscribeHash.equals(consents.rows[0]?.unsubscribe_token_hash ?? Buffer.alloc(0))).toBe(true);
+  });
+
+  it('leaves neither consent nor notification when the exclusion constraint refuses the hour', async () => {
+    const book = buildWithNotifications(emailOn);
+    const [first, second] = await Promise.all([
+      book({ serviceIds: [CORTE], startsAt: FRIDAY_1130, contact: contactOf(), emailConsent: true }),
+      book({
+        serviceIds: [CORTE],
+        startsAt: FRIDAY_1130,
+        contact: contactOf('700112233', 'otro@example.com'),
+        emailConsent: true,
+      }),
+    ]);
+
+    expect([first, second].filter((result) => result.ok)).toHaveLength(1);
+    expect(await countRows('channel_consent')).toBe(1);
+    expect(await countRows('notification')).toBe(1);
+  });
+
+  it('writes nothing of the kind without the checkbox', async () => {
+    const result = await buildWithNotifications(emailOn)({
+      serviceIds: [CORTE],
+      startsAt: FRIDAY_1130,
+      contact: contactOf(),
+      emailConsent: false,
+    });
+
+    expect(result.ok && result.value.notificationId).toBeNull();
+    expect(await countRows('channel_consent')).toBe(0);
+    expect(await countRows('notification')).toBe(0);
+  });
+
+  it('accepts and ignores the checkbox while the channel is off (D-005)', async () => {
+    const result = await buildWithNotifications(emailOff)({
+      serviceIds: [CORTE],
+      startsAt: FRIDAY_1130,
+      contact: contactOf(),
+      emailConsent: true,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.value.notificationId).toBeNull();
+    expect(await countRows('channel_consent')).toBe(0);
+    expect(await countRows('notification')).toBe(0);
+  });
+
+  it('writes nothing of the kind without the notification ports, as before 004', async () => {
+    const result = await confirmBooking({
+      serviceIds: [CORTE],
+      startsAt: FRIDAY_1130,
+      contact: contactOf(),
+      emailConsent: true,
+    });
+
+    expect(result.ok && result.value.notificationId).toBeNull();
+    expect(await countRows('notification')).toBe(0);
   });
 });

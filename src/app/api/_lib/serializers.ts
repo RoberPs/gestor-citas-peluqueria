@@ -147,6 +147,8 @@ export function appointmentDetailResponse(detail: AppointmentDetail) {
     unavailableReason: unavailableReason(detail),
     cancellationPolicyHours: detail.policy.cancellationDeadlineHours,
     salon: salonInfo(salon),
+    // 2.2.0: whether this appointment receives emails (004, FR-017).
+    emailNotifications: detail.emailNotifications,
   };
 }
 

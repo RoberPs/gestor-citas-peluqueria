@@ -138,7 +138,7 @@ test('escenario 5 — another client can book the freed hour with no fuss', asyn
   await other.getByRole('button', { name: new RegExp(`^${localTime}`) }).click();
   await other.getByLabel('Nombre').fill('Otro Cliente');
   await other.getByLabel('Teléfono').fill('700112233');
-  await other.getByLabel('Email').fill('otro@example.com');
+  await other.getByLabel('Email', { exact: true }).fill('otro@example.com');
   await other.getByRole('button', { name: 'Confirmar la cita' }).click();
 
   await other.waitForURL(/\/cita\/[A-Za-z0-9_-]{43}\?nueva=1/);

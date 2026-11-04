@@ -1,6 +1,7 @@
 import { Temporal } from '@js-temporal/polyfill';
 import { openingOf } from '@/domain/availability/compute-range';
 import type { Salon } from '@/domain/catalog/salon';
+import { needsConfirmationCall } from '@/domain/notifications/owner-marker';
 import { buildAgendaDay, type AgendaDay } from '@/domain/owner/agenda';
 import type { Clock } from '@/domain/shared/clock';
 import { err, ok, type Result } from '@/domain/shared/result';
@@ -25,6 +26,8 @@ export type AgendaView = {
   /** Today in the salon's calendar, for the "today" shortcut (FR-012). */
   readonly today: Temporal.PlainDate;
   readonly salon: Salon;
+  /** 004, FR-020a: the appointments whose confirmation failed and whose client to call. */
+  readonly confirmationCalls: ReadonlySet<string>;
 };
 
 function startOfDay(date: Temporal.PlainDate, timezone: string): Temporal.Instant {
@@ -70,6 +73,12 @@ export function createGetAgendaDay(deps: {
       timezone,
     });
 
-    return ok({ day, today, salon: configuration.salon });
+    const confirmationCalls = new Set(
+      appointments
+        .filter((appointment) => needsConfirmationCall(appointment, appointment.confirmationDelivery, now))
+        .map((appointment) => appointment.id),
+    );
+
+    return ok({ day, today, salon: configuration.salon, confirmationCalls });
   };
 }

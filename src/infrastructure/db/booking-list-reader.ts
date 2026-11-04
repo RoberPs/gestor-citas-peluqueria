@@ -3,8 +3,8 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import type { Pool } from 'pg';
 import type { BookingListReader } from '@/application/ports';
 import type { BookingListQuery } from '@/domain/owner/booking-list';
-import { toDomain, withServices } from './appointment-repository';
-import { appointment, schema } from './schema';
+import { confirmationOfAppointment, toDomainWithDelivery, withServicesAndDelivery } from './appointment-repository';
+import { appointment, notification, schema } from './schema';
 
 /**
  * A page of the owner's bookings list in ONE query (002, FR-066, D-033): the
@@ -66,13 +66,15 @@ export function createBookingListReader(getPool: () => Pool): BookingListReader 
           : [desc(appointment.createdAt), desc(appointment.id)];
 
       const rows = await drizzle(getPool(), { schema })
-        .select(withServices)
+        .select(withServicesAndDelivery)
         .from(appointment)
+        // 004, D-011: the confirmation of each row, in this same query.
+        .leftJoin(notification, confirmationOfAppointment)
         .where(and(...conditionsOf(query)))
         .orderBy(...ordering)
         .limit(query.pageSize + 1);
 
-      const page = rows.slice(0, query.pageSize).map(toDomain);
+      const page = rows.slice(0, query.pageSize).map(toDomainWithDelivery);
       const last = page.at(-1);
 
       return {

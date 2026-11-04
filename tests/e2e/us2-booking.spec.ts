@@ -38,10 +38,11 @@ test('escenario 1 — exactly three fields are asked for, and no fourth', async 
 
   await expect(page.getByLabel('Nombre')).toBeVisible();
   await expect(page.getByLabel('Teléfono')).toBeVisible();
-  await expect(page.getByLabel('Email')).toBeVisible();
+  await expect(page.getByLabel('Email', { exact: true })).toBeVisible();
 
-  // FR-008: three inputs the client fills in, and nothing else.
-  const visible = page.locator('form input:not([type="hidden"])');
+  // FR-008: three inputs the client fills in, and nothing else. The checkbox
+  // of the confirmation by email (004, FR-001) asks for no data of its own.
+  const visible = page.locator('form input:not([type="hidden"]):not([type="checkbox"])');
   await expect(visible).toHaveCount(3);
 });
 
@@ -66,7 +67,7 @@ test('escenario 3 — confirming books the slot and takes it off the board', asy
 
   await page.getByLabel('Nombre').fill('Ana López');
   await page.getByLabel('Teléfono').fill('600 11 22 33');
-  await page.getByLabel('Email').fill('ana@example.com');
+  await page.getByLabel('Email', { exact: true }).fill('ana@example.com');
   await page.getByRole('button', { name: 'Confirmar la cita' }).click();
 
   await page.waitForURL(/\/cita\/[A-Za-z0-9_-]{43}\?nueva=1/);
@@ -97,7 +98,7 @@ test('escenario 4 — an invalid phone is named, and nothing else typed is lost'
 
   await page.getByLabel('Nombre').fill('Ana López');
   await page.getByLabel('Teléfono').fill('12345');
-  await page.getByLabel('Email').fill('ana@example.com');
+  await page.getByLabel('Email', { exact: true }).fill('ana@example.com');
   await page.getByRole('button', { name: 'Confirmar la cita' }).click();
 
   // Still on the form, with the field named and told how to fix it.
@@ -108,7 +109,7 @@ test('escenario 4 — an invalid phone is named, and nothing else typed is lost'
 
   // The two fields that were right keep what was typed in them.
   await expect(page.getByLabel('Nombre')).toHaveValue('Ana López');
-  await expect(page.getByLabel('Email')).toHaveValue('ana@example.com');
+  await expect(page.getByLabel('Email', { exact: true })).toHaveValue('ana@example.com');
   await expect(page.getByLabel('Teléfono')).toHaveValue('12345');
 });
 
@@ -117,7 +118,7 @@ test('escenario 4 — the error is tied to its field for a screen reader', async
 
   await page.getByLabel('Nombre').fill('Ana López');
   await page.getByLabel('Teléfono').fill('12345');
-  await page.getByLabel('Email').fill('ana@example.com');
+  await page.getByLabel('Email', { exact: true }).fill('ana@example.com');
   await page.getByRole('button', { name: 'Confirmar la cita' }).click();
 
   const phone = page.getByLabel('Teléfono');
@@ -140,14 +141,14 @@ test('escenario 5 — a slot taken meanwhile is explained, with what is left off
   await other.goto(`/reservar?serviceIds=00000000-0000-4000-8000-000000000011&startsAt=${startsAt}`);
   await other.getByLabel('Nombre').fill('Otro');
   await other.getByLabel('Teléfono').fill('700112233');
-  await other.getByLabel('Email').fill('otro@example.com');
+  await other.getByLabel('Email', { exact: true }).fill('otro@example.com');
   await other.getByRole('button', { name: 'Confirmar la cita' }).click();
   await other.waitForURL(/\/cita\//);
   await context.close();
 
   await page.getByLabel('Nombre').fill('Ana López');
   await page.getByLabel('Teléfono').fill('600112233');
-  await page.getByLabel('Email').fill('ana@example.com');
+  await page.getByLabel('Email', { exact: true }).fill('ana@example.com');
   await page.getByRole('button', { name: 'Confirmar la cita' }).click();
 
   await expect(page.getByText('Esa hora acaba de ocuparla otra persona.')).toBeVisible();
@@ -169,7 +170,7 @@ test('escenario 6 — a fourth future appointment is refused with the limit expl
     await page.locator(`${SLOT_LIST} button`).nth(booking).click();
     await page.getByLabel('Nombre').fill(customer.name);
     await page.getByLabel('Teléfono').fill(customer.phone);
-    await page.getByLabel('Email').fill(customer.email);
+    await page.getByLabel('Email', { exact: true }).fill(customer.email);
     await page.getByRole('button', { name: 'Confirmar la cita' }).click();
     await page.waitForURL(/\/cita\//);
   }
@@ -180,7 +181,7 @@ test('escenario 6 — a fourth future appointment is refused with the limit expl
   await page.locator(`${SLOT_LIST} button`).nth(3).click();
   await page.getByLabel('Nombre').fill(customer.name);
   await page.getByLabel('Teléfono').fill(customer.phone);
-  await page.getByLabel('Email').fill(customer.email);
+  await page.getByLabel('Email', { exact: true }).fill(customer.email);
   await page.getByRole('button', { name: 'Confirmar la cita' }).click();
 
   await expect(
@@ -201,7 +202,7 @@ test('SC-010 y SC-011 — no WCAG AA violations and no sideways scroll at 360 px
   // The form carrying its errors is a different rendering, and gets checked too.
   await page.getByLabel('Nombre').fill('Ana');
   await page.getByLabel('Teléfono').fill('12345');
-  await page.getByLabel('Email').fill('nope');
+  await page.getByLabel('Email', { exact: true }).fill('nope');
   await page.getByRole('button', { name: 'Confirmar la cita' }).click();
   await expect(page.getByText('Revisa estos datos antes de confirmar:')).toBeVisible();
 

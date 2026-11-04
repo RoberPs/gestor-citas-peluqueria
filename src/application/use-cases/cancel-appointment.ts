@@ -3,8 +3,8 @@ import { deriveView } from '@/domain/booking/derive-view';
 import type { ModificationBlock } from '@/domain/booking/modification-rules';
 import type { Clock } from '@/domain/shared/clock';
 import { err, ok, type Result } from '@/domain/shared/result';
-import type { AppointmentRepository, SalonConfigRepository, TokenGenerator } from '../ports';
-import type { AppointmentDetail } from './view-appointment';
+import type { AppointmentRepository, ConsentRepository, SalonConfigRepository, TokenGenerator } from '../ports';
+import { emailNotificationsOf, type AppointmentDetail } from './view-appointment';
 
 /**
  * Cancelling from the management link (Historia 5).
@@ -23,6 +23,8 @@ export function createCancelAppointment(deps: {
   readonly appointments: AppointmentRepository;
   readonly tokens: TokenGenerator;
   readonly clock: Clock;
+  /** 004: cancelling leaves the email consent as it was (FR-003). */
+  readonly consents?: ConsentRepository;
 }) {
   return async function cancelAppointment(
     token: string,
@@ -51,6 +53,7 @@ export function createCancelAppointment(deps: {
       canCancel: false,
       canReschedule: false,
       block: { kind: 'ALREADY_CANCELLED' },
+      emailNotifications: await emailNotificationsOf(deps.consents, persisted.value),
     });
   };
 }
