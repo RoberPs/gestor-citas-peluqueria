@@ -169,6 +169,20 @@ verde, y es un punto donde se puede parar.
     en `http://127.0.0.1:4010/` para poder leerlos.
   - Pendiente antes de enviar a clientes reales: el alta en Resend (dominio, región UE)
     y la tabla del contrato de encargado en `specs/004-notifications/quickstart.md`.
+- [ ] **7b · Producción de prueba** en `niza.automatizacionro.work`, en el VPS y el
+  Cloudflare del chatbot multicliente. Va antes de los pasos 8 y 9. Ver las decisiones
+  del 2026-11-04 sobre producción.
+  - [ ] Fusionar la 002 y la 004 en `main` con la CI en verde, una PR por feature.
+  - [ ] Adaptador de Brevo detrás del puerto `Notifier`, con TDD; actualizar D-004, la
+    spec, el quickstart y `.env.example` de la 004.
+  - [ ] Imagen para el VPS compartido: HSTS y CSP en `next.config.ts`, `/health` y
+    `HEALTHCHECK`, imagen base fijada por digest, versión en la etiqueta, contenedor
+    endurecido y publicada en GHCR.
+  - [ ] `deploy/`: compose propio con su PostgreSQL sin puertos y en la red
+    `chatbot_proxy`, bloque para el Caddyfile del chatbot, copias diarias cifradas que
+    baje `descargar-copias.ps1`, crons y script con los datos del salón.
+  - [ ] Puesta en marcha en el VPS: DNS, entornos `0600`, alta de la dueña y pruebas de
+    punta a punta.
 - [ ] **8 · 002, US7 + US8 + US9:** editar horario, catálogo y parámetros desde la app.
 - [ ] **9 · Pulido final:** accesibilidad, rendimiento, revisión de datos personales en
   logs, quickstart y corrección de los defectos menores listados en `README.md`.
@@ -221,6 +235,30 @@ un proveedor de pago cuando se decida el presupuesto.
 Ninguna por ahora.
 
 ## Decisiones tomadas
+
+- 2026-11-04 · **Producción · Alcance:** se despliega ya el MVP completo con la 004;
+  los pasos 8 y 9 van después. Mientras no exista la US7–US9, el horario y los
+  servicios se cargan con un script de datos del salón.
+- 2026-11-04 · **Producción · Prueba antes de abrirla:** el primer despliegue es de
+  prueba, con los datos de la demo y sin anunciarlo a clientes. Copias y registro de
+  envíos listos antes de abrirlo al público.
+- 2026-11-04 · **Producción · Dominio:** `niza.automatizacionro.work`, en la zona de
+  Cloudflare del chatbot. Si el cliente lo acepta, después se migra a su dominio, o a
+  uno nuevo que se le gestione en Cloudflare. El dominio es sólo configuración
+  (`PUBLIC_BASE_URL` y el bloque de Caddy); al migrar, el subdominio de prueba redirige
+  al nuevo conservando la ruta, para que los enlaces de los emails ya enviados sigan
+  valiendo. El dominio nuevo tiene que estar en Cloudflare, porque el cortafuegos del
+  VPS sólo admite el 443 desde sus rangos.
+- 2026-11-04 · **004 · Proveedor: Brevo en lugar de Resend.** Reutiliza la cuenta, el
+  dominio verificado y el DPA del chatbot; 300 emails al día compartidos bastan. Se
+  usa su API HTTP con una clave propia del proyecto. Se acepta que, sin clave de
+  idempotencia, un corte entre el envío y su anotación pueda duplicar una confirmación.
+  Sustituye la decisión D-004 de la 004.
+- 2026-11-04 · **Producción · Infraestructura compartida:** el Caddy del chatbot
+  sigue siendo el único en los puertos 80 y 443, y este proyecto se le suma con un
+  bloque propio y la red `chatbot_proxy`. PostgreSQL propio, porque `btree_gist` pide
+  superusuario. La imagen se construye en el PC y se publica en GHCR, como la del
+  chatbot.
 
 - 2026-11-04 · **004 · Clarificación:** la baja afecta **sólo a esa cita**, sin lista
   de direcciones dadas de baja; la dueña ve **sólo las confirmaciones fallidas**, con
