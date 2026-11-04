@@ -9,15 +9,31 @@ import pino, { type DestinationStream, type Logger } from 'pino';
  * `appointmentId`, which is internal and appears in no client URL.
  */
 
-/** The three personal fields plus the management token, which is a credential. */
-const SENSITIVE = ['name', 'phone', 'email', 'token'] as const;
+/**
+ * The three personal fields, the management token, which is a credential, and
+ * the owner's password under every name it travels by (002, FR-010).
+ */
+const SENSITIVE = [
+  'name',
+  'phone',
+  'email',
+  'token',
+  'password',
+  'currentPassword',
+  'newPassword',
+] as const;
 
 /**
  * Pino matches one level per `*`, so the depths that can actually occur are
  * listed. Three levels covers a field at the top, under `customer` or `err`,
  * and inside a request payload.
  */
-const REDACT_PATHS = SENSITIVE.flatMap((key) => [key, `*.${key}`, `*.*.${key}`]);
+const REDACT_PATHS = [
+  ...SENSITIVE.flatMap((key) => [key, `*.${key}`, `*.*.${key}`]),
+  // 002, FR-057: a conflict names each appointment in the way by its customer,
+  // inside a list, at the top of a body or under one key.
+  ...['customerName', '*.customerName', 'conflicts[*].customerName', '*.conflicts[*].customerName'],
+];
 
 /**
  * Errors are re-serialised rather than dumped.

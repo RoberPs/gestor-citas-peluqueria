@@ -11,28 +11,38 @@ import {
   type Weekday,
   type WeeklySchedule,
 } from '@/domain/catalog/salon';
-import { closure, openingInterval, salon, schema, service } from './schema';
+import { openingInterval, salon, schema, service } from './schema';
 
 /**
- * Reads the preloaded configuration (FR-007). This feature never writes it.
+ * Reads the salon's configuration on every load (002, D-021).
  *
- * The result is cached in memory: it changes when the owner reloads it, not per
- * request, and the availability query is meant to be one query — paying for four
- * more to re-read a schedule that has not moved would defeat the point (D-003).
+ * Nothing is cached: the owner edits this configuration, and whatever she saves
+ * must rule in the client's very next query, with no restart (FR-056). A cache
+ * without invalidation would break that by construction, and one with it would
+ * fail silently the day some write forgot to invalidate. The cost is three small
+ * reads in parallel over tables of tens of rows, and `config-propagation.test.ts`
+ * counts them so that it stays that.
  */
 export function createSalonConfigRepository(getPool: () => Pool): SalonConfigRepository {
-  let cached: SalonConfiguration | undefined;
-
   return {
-    async load(): Promise<SalonConfiguration> {
-      if (cached !== undefined) return cached;
+    async loadCatalogue() {
+      const rows = await drizzle(getPool(), { schema }).select().from(service).orderBy(asc(service.displayOrder));
+      return rows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        durationMinutes: row.durationMinutes,
+        priceCents: row.priceCents,
+        isActive: row.isActive,
+        displayOrder: row.displayOrder,
+      }));
+    },
 
+    async load(): Promise<SalonConfiguration> {
       const database = drizzle(getPool(), { schema });
 
-      const [salonRows, intervalRows, closureRows, serviceRows] = await Promise.all([
+      const [salonRows, intervalRows, serviceRows] = await Promise.all([
         database.select().from(salon).limit(1),
         database.select().from(openingInterval).orderBy(asc(openingInterval.startsAt)),
-        database.select().from(closure),
         database
           .select()
           .from(service)
@@ -57,7 +67,7 @@ export function createSalonConfigRepository(getPool: () => Pool): SalonConfigRep
         schedule.set(row.weekday, stretches);
       }
 
-      cached = {
+      return {
         salon: {
           name: salonRow.name,
           address: salonRow.address,
@@ -65,9 +75,6 @@ export function createSalonConfigRepository(getPool: () => Pool): SalonConfigRep
           timezone: salonRow.timezone,
         },
         schedule: schedule as WeeklySchedule,
-        // The reason a day is closed stays in the database: the client sees
-        // "closed", never whether it is a holiday or an absence.
-        closures: new Set(closureRows.map((row) => row.date)),
         services: serviceRows.map((row) => ({
           id: row.id,
           name: row.name,
@@ -76,10 +83,14 @@ export function createSalonConfigRepository(getPool: () => Pool): SalonConfigRep
           isActive: row.isActive,
           displayOrder: row.displayOrder,
         })),
-        policy: DEFAULT_BOOKING_POLICY,
+        // The two parameters the owner edits come from the salon row; the rest
+        // of the policy is the system's and stays in code (D-022).
+        policy: {
+          ...DEFAULT_BOOKING_POLICY,
+          minimumLeadTimeMinutes: salonRow.minimumLeadTimeMinutes,
+          cancellationDeadlineHours: salonRow.cancellationDeadlineHours,
+        },
       };
-
-      return cached;
     },
   };
 }

@@ -14,6 +14,7 @@
     "db:seed": "tsx db/seed/seed.ts",
     "db:seed:demo": "tsx db/seed/demo.ts",
     "db:seed:history": "tsx db/seed/history.ts",
+    "owner:provision": "tsx scripts/provision-owner.ts",
     "test": "vitest run --config vitest.config.ts",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:contract": "vitest run --config vitest.contract.config.ts",
@@ -26,7 +27,7 @@
   "dependencies": {
     "@js-temporal/polyfill": "^0.4.4",
     "drizzle-orm": "^0.38.3",
-    "next": "^15.1.3",
+    "next": "^15.2.3",
     "pg": "^8.13.1",
     "pino": "^9.6.0",
     "react": "^19.0.0",

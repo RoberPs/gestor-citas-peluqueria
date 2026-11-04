@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { findNextAvailableDate } from '@/domain/availability/next-available';
 import type { BusyInterval } from '@/domain/booking/appointment';
 import type { WeeklySchedule } from '@/domain/catalog/salon';
-import { busy, MADRID, NOW, POLICY, standardSchedule } from './_fixtures';
+import { busy, MADRID, NOW, POLICY, standardSchedule, wholeDay } from './_fixtures';
 
 /**
  * FR-006: the jump to the next day with availability, **even when it falls in a
@@ -15,7 +15,7 @@ type Options = {
   fromDate?: string;
   horizonEnd?: string;
   schedule?: WeeklySchedule;
-  closures?: readonly string[];
+  unavailable?: readonly BusyInterval[];
   durationMinutes?: number;
   confirmed?: readonly BusyInterval[];
 };
@@ -25,7 +25,7 @@ function next(options: Options = {}): string | null {
     fromDate: Temporal.PlainDate.from(options.fromDate ?? '2026-09-15'),
     horizonEnd: Temporal.PlainDate.from(options.horizonEnd ?? '2026-11-14'),
     salonSchedule: options.schedule ?? standardSchedule(),
-    closures: new Set(options.closures ?? []),
+    unavailablePeriods: options.unavailable ?? [],
     serviceDurationMinutes: options.durationMinutes ?? 30,
     confirmedAppointments: options.confirmed ?? [],
     now: NOW,
@@ -48,9 +48,9 @@ describe('findNextAvailableDate', () => {
 
   it('skips over closed days', () => {
     // Friday 18th closed by a holiday, Saturday 19th too, Sunday 20th shut.
-    expect(next({ fromDate: '2026-09-17', closures: ['2026-09-18', '2026-09-19'] })).toBe(
-      '2026-09-21',
-    );
+    expect(
+      next({ fromDate: '2026-09-17', unavailable: [wholeDay('2026-09-18'), wholeDay('2026-09-19')] }),
+    ).toBe('2026-09-21');
   });
 
   it('skips over full days', () => {

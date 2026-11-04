@@ -5,6 +5,7 @@ import { createConfirmBooking } from '@/application/use-cases/confirm-booking';
 import type { Clock } from '@/domain/shared/clock';
 import { createAppointmentRepository } from '@/infrastructure/db/appointment-repository';
 import { createSalonConfigRepository } from '@/infrastructure/db/salon-config-repository';
+import { createUnavailablePeriodRepository } from '@/infrastructure/db/unavailable-period-repository';
 import { tokenGenerator } from '@/infrastructure/security/token';
 import { closeTestDb, ensureSchema, testPool, truncateAppointments } from '../helpers/test-db';
 import {
@@ -41,6 +42,7 @@ function buildUseCase() {
   return createConfirmBooking({
     config: createSalonConfigRepository(() => testPool()),
     appointments: createAppointmentRepository(() => testPool()),
+    periods: createUnavailablePeriodRepository(() => testPool()),
     tokens: tokenGenerator,
     clock,
   });
@@ -252,7 +254,7 @@ describe('three confirmed future appointments per contact (BR-014, FR-013)', () 
            id, status, starts_at, ends_at,
            customer_name, customer_phone, customer_email,
            customer_phone_normalized, customer_email_normalized, token_hash,
-           created_at, cancelled_at
+           created_at, cancelled_at, cancelled_by
          )
          SELECT gen_random_uuid(), 'CANCELLED',
                 timestamptz '2026-09-25 10:00+02' + (n * interval '2 hours'),
@@ -260,7 +262,7 @@ describe('three confirmed future appointments per contact (BR-014, FR-013)', () 
                 'Ana', '600112233', 'ana@example.com',
                 '+34600112233', 'ana@example.com',
                 decode(md5(n::text), 'hex') || decode(md5(n::text), 'hex'),
-                now(), now()
+                now(), now(), 'CUSTOMER'
            FROM generate_series(1, 5) AS n
          RETURNING id
        )

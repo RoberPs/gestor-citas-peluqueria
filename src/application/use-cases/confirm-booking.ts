@@ -8,7 +8,12 @@ import type { Clock } from '@/domain/shared/clock';
 import type { RawContact } from '@/domain/contact/contact';
 import { err, ok, type Result } from '@/domain/shared/result';
 import { localDateOf } from '@/domain/shared/time';
-import type { AppointmentRepository, SalonConfigRepository, TokenGenerator } from '../ports';
+import type {
+  AppointmentRepository,
+  SalonConfigRepository,
+  TokenGenerator,
+  UnavailablePeriodRepository,
+} from '../ports';
 
 /**
  * Confirming a booking (Historia 2).
@@ -63,6 +68,7 @@ function parseInstant(value: string): Temporal.Instant | null {
 export function createConfirmBooking(deps: {
   readonly config: SalonConfigRepository;
   readonly appointments: AppointmentRepository;
+  readonly periods: UnavailablePeriodRepository;
   readonly tokens: TokenGenerator;
   readonly clock: Clock;
 }) {
@@ -93,7 +99,7 @@ export function createConfirmBooking(deps: {
 
     // The date is derived from the instant, never taken from the request.
     const date = localDateOf(requestedStart, timezone);
-    const opening = openingOf(date, configuration.schedule, configuration.closures);
+    const opening = openingOf(date, configuration.schedule);
 
     const dayStart = date
       .toPlainDateTime(new Temporal.PlainTime(0, 0))
@@ -105,7 +111,10 @@ export function createConfirmBooking(deps: {
       .toZonedDateTime(timezone, { disambiguation: 'compatible' })
       .toInstant();
 
-    const busy = await deps.appointments.findConfirmedInWindow(dayStart, dayEnd);
+    const [busy, unavailablePeriods] = await Promise.all([
+      deps.appointments.findConfirmedInWindow(dayStart, dayEnd),
+      deps.periods.findOverlapping(dayStart, dayEnd),
+    ]);
 
     const validated = validateBookingRequest({
       requestedStart,
@@ -113,7 +122,7 @@ export function createConfirmBooking(deps: {
       services: selection.value.services,
       contact: input.contact,
       openingIntervals: opening.openingIntervals,
-      isClosed: opening.isClosed,
+      unavailablePeriods,
       confirmedAppointments: busy,
       now,
       policy,

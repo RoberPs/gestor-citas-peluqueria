@@ -36,7 +36,7 @@ export async function ensureSchema(): Promise<void> {
  */
 export async function truncateAll(): Promise<void> {
   await testPool().query(
-    'TRUNCATE appointment, service, closure, opening_interval, salon RESTART IDENTITY CASCADE',
+    'TRUNCATE appointment, service, unavailable_period, opening_interval, salon RESTART IDENTITY CASCADE',
   );
 }
 
@@ -48,7 +48,7 @@ export async function closeTestDb(): Promise<void> {
 /**
  * Empties only the table this feature writes, keeping the preloaded
  * configuration. That is how production behaves: services, opening hours and
- * closures are loaded once and read from then on (FR-007).
+ * holidays are loaded once and read from then on (FR-007).
  */
 export async function truncateAppointments(): Promise<void> {
   await testPool().query('TRUNCATE appointment, appointment_service RESTART IDENTITY');

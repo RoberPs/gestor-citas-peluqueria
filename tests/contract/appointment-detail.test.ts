@@ -220,3 +220,33 @@ describe('an appointment without a price (005, FR-019, FR-020)', () => {
     });
   });
 });
+
+describe('GET /appointments/{token}: who cancelled it (2.1.0, 002 D-037)', () => {
+  beforeAll(async () => {
+    await seedContractDatabase();
+  });
+
+  beforeEach(async () => {
+    clock.current = CONTRACT_NOW;
+    await truncateAppointments();
+  });
+
+  it.each([
+    ['nobody, while it is confirmed', null, null],
+    ['the client', 'CUSTOMER', 'CUSTOMER'],
+    ['the salon', 'OWNER', 'OWNER'],
+  ] as const)('says %s', async (_name, by, expected) => {
+    const token = await book();
+    if (by !== null) {
+      await testPool().query(
+        "UPDATE appointment SET status = 'CANCELLED', cancelled_at = now(), cancelled_by = $1",
+        [by],
+      );
+    }
+
+    const body = await (await lookup(token)).json();
+
+    expectMatchesContract(detailSchema, body);
+    expect(body.cancelledBy).toBe(expected);
+  });
+});

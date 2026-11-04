@@ -36,7 +36,7 @@ acordarlos con el cliente:
   «0,00 €».
 - No hay cierres por festivo.
 
-La configuración se cachea al arrancar: tras `npm run db:seed:demo`, reinicia la app.
+La configuración se lee en cada consulta: lo que carga `npm run db:seed:demo` se ve al recargar, sin reiniciar la app.
 
 Los servicios de prueba quedan desactivados, no borrados, porque puede haber citas que
 los referencian. Para volver a los datos de prueba, `npm run db:seed`. Los tests usan
@@ -44,30 +44,36 @@ siempre `db-test` con su propio seed, así que cambiar la demo nunca los rompe.
 
 ## Estado del producto
 
-Última revisión: **2026-11-03**.
+Última revisión: **2026-11-04**.
 
 ### Resumen
 
 La parte del **cliente** está construida y funciona: reserva, consulta, reprogramación y
-cancelación sin cuenta. La parte de la **dueña** no existe todavía: no hay acceso
-privado, agenda ni listado. Hoy una reserva entra en la base de datos y nadie en el
-salón la ve sin consultarla a mano.
+cancelación sin cuenta. De la parte de la **dueña** está el **MVP mínimo** (paso 4 del
+[roadmap](docs/roadmap.md)): entra con su contraseña y ve la agenda del día y el listado
+de reservas, y nadie más puede verlos. Desde el paso 5 también bloquea ratos (comida,
+vacaciones, festivos) desde la agenda. Con el paso 6 está el **MVP completo**: apunta,
+mueve, edita y cancela citas desde la agenda, y lo que estorba se resuelve a la vista sin
+romper la garantía de no-superposición. Falta probarlo a mano con la dueña del producto.
 
 ### Features
 
 | Feature | Estado | Tareas | Rama | En `main` |
 |---|---|---|---|---|
 | [001 · Reserva del cliente](specs/001-client-appointment-booking/spec.md) | Implementada | 118 / 118 | `001-client-appointment-booking` | Sí (PR #1) |
-| [002 · Gestión del salón](specs/002-salon-management/spec.md) | Spec, plan y tareas; sin código | 0 / 164 | `002-salon-management` | Sólo la documentación (PR #4) |
+| [002 · Gestión del salón](specs/002-salon-management/spec.md) | En curso: MVP completo (US1 a US6, US10 y US11), hecho el 2026-11-04; faltan US7, US8, US9 y el pulido | 164 / 212 (T139 y T140 las cubrió la 005) | `002-salon-management` | Sólo la documentación de antes de la revisión (PR #4) |
 | [003 · Versión responsive para tablet y ordenador](specs/003-responsive-desktop/spec.md) | Implementada | 35 / 35 | `003-responsive-desktop` | Sí (PR #3) |
 | 004 · Avisos por email y SMS | Planificada, sin spec | — | — | — |
 | [005 · Varios servicios por cita y precio opcional](specs/005-multiple-services/spec.md) | Implementada | 55 / 55 | `005-multiple-services` | Sí (PR #6) |
 
 `main` contiene la 001, la 003 y la 005 completas, la enmienda 1.1.0 de la constitución
-y la documentación de la 002 (spec, plan y tareas), con la 003 ya incorporada a su rama
-para que sus pantallas nazcan responsive; la 005 se incorpora en el paso 2. El código de cada feature se fusiona a `main` al cerrarla,
-con la CI en verde. La 002 se implementa en su rama `002-salon-management` a partir del
-paso 2 del [roadmap](docs/roadmap.md).
+y la primera documentación de la 002 (spec, plan y tareas). La rama
+`002-salon-management` ya tiene la 003 y la 005 incorporadas y su documentación
+revisada con ellas, con la US10 «Listado de reservas» y con las decisiones de la dueña
+del producto del 2026-11-03: la US11 «Editar una cita», la búsqueda por nombre o
+teléfono en el listado y el texto que ve el cliente según quién canceló. El código de cada feature se
+fusiona a `main` al cerrarla, con la CI en verde. La 002 se implementa en su rama a
+partir del paso 3 del [roadmap](docs/roadmap.md).
 
 ### Qué puede hacer hoy la app (001, 003 y 005)
 
@@ -104,19 +110,83 @@ Con la 003, todo lo anterior se adapta a tres tamaños:
   sigue cabiendo; si no, vuelve a las horas de ese día con un aviso, sin perder lo
   escrito.
 
+### Qué puede hacer hoy la dueña (002, MVP mínimo)
+
+Probado a mano con la dueña del producto el 2026-11-04.
+
+- **Acceso** en `/gestion/acceso` con usuario y contraseña. La cuenta se crea fuera de
+  la app con `npm run owner:provision`, que lee `OWNER_USERNAME` y
+  `OWNER_INITIAL_PASSWORD` (12 caracteres como mínimo) del `.env`; esa contraseña se
+  borra del `.env` después. Cinco fallos en quince minutos bloquean el acceso, y el
+  mensaje de error es el mismo sea cual sea el motivo. La sesión caduca tras 12 h sin
+  uso; se puede cambiar la contraseña y cerrar la sesión desde *Cuenta*.
+- Ninguna pantalla ni ruta de `/gestion` o `/api/gestion` devuelve nada sin sesión.
+- **Agenda** de cualquier día, con atajo a hoy: las citas en orden con todos sus
+  servicios, el origen (online o a mano) con texto e icono, los periodos no
+  disponibles con su motivo, y la diferencia entre «sin citas» y «cerrado». Un día
+  pasado es de sólo lectura y las canceladas se ocultan salvo que se pidan.
+- **Listado de reservas**: *Próximas citas* o *Últimas reservas recibidas*; filtros
+  por estado, origen y fechas del día de la cita; búsqueda por una parte del nombre
+  (sin mayúsculas ni acentos) o por el teléfono entero. Un teléfono a medias pide el
+  número completo en vez de dar un listado vacío. 20 citas por página y quién canceló
+  cada cancelada.
+
+Con la US3 (paso 5), probada a mano con la dueña del producto el 2026-11-04:
+
+- **Bloquear un rato** desde la agenda de un día que no ha pasado: unas horas de un día
+  o varios días enteros, de 15 en 15 minutos, con un motivo opcional que sólo ve la
+  dueña. Los clientes dejan de ver esas horas en la consulta siguiente, y un día entero
+  bloqueado les sale *cerrado*, sin el motivo.
+- Si el rato pisa citas confirmadas, la agenda las nombra (cliente, servicios y hora) y
+  pregunta antes de guardar: «Bloquear igualmente, sin cancelar ninguna cita» o «No
+  bloquear». Ninguna cita se cancela sola.
+- **Liberar un rato** desde la propia línea temporal; las horas vuelven a ofrecerse al
+  momento.
+- La API también permite acortar un rato (`PATCH /api/gestion/periodos/{id}`); la
+  pantalla todavía no lo ofrece.
+
+Con las US4, US5, US6 y US11 (paso 6), todavía sin probar a mano con la dueña del producto:
+
+- **Apuntar una cita a mano** desde cualquier tramo libre de la agenda: uno o varios
+  servicios con la duración total a la vista, la hora de 15 en 15 minutos, nombre y
+  teléfono obligatorios y email opcional. Se crea aunque falten menos de 2 h o quede más
+  allá de los 60 días; fuera del horario avisa y pide confirmarlo. El límite de 3 citas
+  futuras por teléfono o email se aplica igual que online. La cita queda «Apuntada por
+  ti» y sin enlace de cliente.
+- **Mover** una cita, online o a mano, a otro día u hora: conserva servicios, duración,
+  datos y enlace.
+- **Editar** una cita: añadir, quitar o cambiar servicios, con la nueva hora de fin a la
+  vista, y corregir nombre, teléfono o email. La hora no cambia. Un servicio que ya
+  tenía conserva su precio y su duración aunque el catálogo haya cambiado o se haya
+  retirado; uno nuevo tiene que estar en el catálogo y entra con el precio de hoy.
+- **Cancelar** cualquier cita confirmada que no haya terminado, sin plazo, tras una
+  pregunta que la nombra. Es definitiva. El cliente lee en su enlace «El salón ha
+  cancelado esta cita» con el teléfono del salón; si la canceló él, «Has cancelado esta
+  cita».
+- Tras mover, editar o cancelar una cita online, la agenda recuerda que el cliente no
+  recibe ningún aviso y enseña su teléfono para llamarle.
+- **Conflictos**: si la cita pisa otra o un rato bloqueado, un diálogo los nombra
+  (cliente, servicios y hora; o el rato y su motivo) antes de tocar nada. Las salidas son
+  cancelar la cita que estorba, eliminar el rato o recortarlo para dejar sitio, o volver
+  sin cambiar nada. No existe «mantener las dos». Lo elegido y el cambio se aplican a la
+  vez o no se aplica nada, y si otra pantalla cambió algo mientras tanto se vuelve a
+  preguntar sobre lo que hay ahora.
+- Al bloquear un rato, la API también permite cancelar en la misma operación las citas
+  que pisa; la pantalla sigue ofreciendo sólo bloquear sin cancelar ninguna.
+
 ### Estado de los checks
 
-En la rama `005-multiple-services`, el 2026-11-03. Playwright tiene tres proyectos, uno
-por tamaño (ver `playwright.config.ts`).
+En la rama `002-salon-management`, el 2026-11-04, con el paso 6 (US4, US5, US6 y US11) de la 002. Playwright
+tiene tres proyectos, uno por tamaño (ver `playwright.config.ts`).
 
 | Check | Resultado |
 |---|---|
-| `npm test` (unitarios) | 303 / 303 ✅ |
-| `npm run test:integration` | 135 / 135 ✅ |
-| `npm run test:contract` | 94 / 94 ✅ |
-| `npm run test:e2e` | 210 / 210 ✅ |
-| · proyecto `mobile-360` (la suite de la 001 y la 005) | 85 / 85 ✅ |
-| · proyecto `desktop-1280` (lo mismo sin rendimiento, más `responsive.spec.ts`) | 115 / 115 ✅ |
+| `npm test` (unitarios) | 565 / 565 ✅ |
+| `npm run test:integration` | 306 / 306 ✅ |
+| `npm run test:contract` | 173 / 173 ✅ |
+| `npm run test:e2e` | 326 / 326 ✅ |
+| · proyecto `mobile-360` (la suite de la 001, la 005 y la 002) | 143 / 143 ✅ |
+| · proyecto `desktop-1280` (lo mismo sin rendimiento, más `responsive.spec.ts`) | 173 / 173 ✅ |
 | · proyecto `tablet-768` (accesibilidad) | 10 / 10 ✅ |
 | `npm run lint` | ✅ |
 | `npm run check:layers` | ✅ |
@@ -136,6 +206,14 @@ horaria de la máquina**, no defectos de la app:
 `performance.spec.ts` (SC-004) va justo en el límite: con `TZ=UTC` midió una vez 2017 ms
 frente a 2000 ms y pasó al repetirlo. Si falla de forma intermitente en la CI, es esto.
 Con cuatro servicios elegidos (005) ningún paso pasa de 1 s en local, igual que con uno.
+El 2026-11-04, en una ejecución completa con la máquina cargada, los dos tests SC-004
+del cliente midieron 2392 ms y 2311 ms; aislados, y en la repetición completa, pasaron.
+
+El 2026-11-04, en una ejecución completa de `npm run test:integration`, falló una vez
+«loses the race rather than double-booking when two moves target one slot»
+(`reschedule-appointment.test.ts`, de la 001): dos reprogramaciones del cliente a la vez
+hacia la misma hora. Pasó aislado y en las dos ejecuciones completas siguientes. Es una
+carrera del propio test, no un solape guardado; si se repite en la CI, es esto.
 
 El 2026-11-03 el helper de axe pasó a esperar al `<title>` antes de analizar: justo
 después de una server action que redirige, React cambia el `<head>` y por un instante
@@ -153,7 +231,5 @@ no hay título, y `us5-cancel` fallaba de forma intermitente por eso.
 
 ### Restricciones a tener en cuenta
 
-- La configuración del salón se cachea en memoria al primer acceso (D-003 de la 001).
-  Cambiarla con el seed exige reiniciar la app; la 002 lo sustituye por lectura en vivo.
 - v1 no envía SMS ni email. La 004 cambiará esa decisión y activará el Principio IV
   de la constitución.

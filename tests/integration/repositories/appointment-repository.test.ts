@@ -22,7 +22,7 @@ const PEINADO_SNAPSHOT = {
 const NOW = Temporal.Instant.from('2026-09-15T08:00:00Z');
 
 function contact(phone = '600112233', email = 'ana@example.com') {
-  const validated = validateContact({ name: 'Ana', phone, email });
+  const validated = validateContact({ name: 'Ana', phone, email }, { email: 'REQUIRED' });
   if (!validated.ok) throw new Error('fixture contact is invalid');
   return validated.value;
 }
@@ -290,7 +290,7 @@ describe('findConfirmedInWindow', () => {
     );
     if (!created.ok) throw new Error('unreachable');
 
-    await repo.cancel(created.value.id, NOW);
+    await repo.cancel(created.value.id, NOW, 'CUSTOMER');
 
     const busy = await repo.findConfirmedInWindow(
       Temporal.Instant.from('2026-09-15T00:00:00Z'),
@@ -298,6 +298,70 @@ describe('findConfirmedInWindow', () => {
     );
 
     expect(busy).toHaveLength(0);
+  });
+});
+
+describe('findInWindow — the appointments of a window, whole (002, FR-014, D-027)', () => {
+  const FRIDAY = Temporal.Instant.from('2026-09-17T22:00:00Z');
+  const SATURDAY = Temporal.Instant.from('2026-09-18T22:00:00Z');
+
+  async function insertAt(iso: string, overrides: Partial<NewAppointment> = {}) {
+    const startsAt = Temporal.Instant.from(iso);
+    const created = await repo.insert(
+      newAppointment({ startsAt, endsAt: startsAt.add({ minutes: 75 }), ...overrides }),
+    );
+    if (!created.ok) throw new Error('unreachable');
+    return created.value;
+  }
+
+  it('returns each appointment with every service, in catalogue order, and its origin', async () => {
+    await addPeinado();
+    await insertAt('2026-09-18T08:00:00Z', { services: [CORTE_SNAPSHOT, PEINADO_SNAPSHOT] });
+
+    const [found] = await repo.findInWindow(FRIDAY, SATURDAY, { includeCancelled: false });
+
+    expect(found?.services.map((service) => service.name)).toEqual(['Corte', 'Peinado']);
+    expect(found?.origin).toBe('ONLINE');
+    expect(found?.cancelledBy).toBeNull();
+  });
+
+  it('leaves out the cancelled ones unless asked for them (FR-015)', async () => {
+    const kept = await insertAt('2026-09-18T08:00:00Z');
+    const dropped = await insertAt('2026-09-18T10:00:00Z');
+    await repo.cancel(dropped.id, NOW, 'CUSTOMER');
+
+    const confirmed = await repo.findInWindow(FRIDAY, SATURDAY, { includeCancelled: false });
+    const all = await repo.findInWindow(FRIDAY, SATURDAY, { includeCancelled: true });
+
+    expect(confirmed.map((appointment) => appointment.id)).toEqual([kept.id]);
+    expect(all.map((appointment) => appointment.id)).toEqual([kept.id, dropped.id]);
+    expect(all[1]?.cancelledBy).toBe('CUSTOMER');
+  });
+
+  it('includes one still under way at the start of the window, and nothing of another day', async () => {
+    const lateNight = await insertAt('2026-09-17T21:30:00Z');
+    await insertAt('2026-09-19T08:00:00Z');
+
+    const found = await repo.findInWindow(FRIDAY, SATURDAY, { includeCancelled: false });
+
+    expect(found.map((appointment) => appointment.id)).toEqual([lateNight.id]);
+  });
+
+  it('reads them all, services included, in one query however many there are', async () => {
+    await addPeinado();
+    for (const hour of ['08', '10', '12', '14']) {
+      await insertAt(`2026-09-18T${hour}:00:00Z`, { services: [CORTE_SNAPSHOT, PEINADO_SNAPSHOT] });
+    }
+    const spy = spyingPool(testPool());
+
+    const found = await createAppointmentRepository(() => spy.pool).findInWindow(
+      FRIDAY,
+      SATURDAY,
+      { includeCancelled: true },
+    );
+
+    expect(found).toHaveLength(4);
+    expect(spy.statements).toHaveLength(1);
   });
 });
 
@@ -366,7 +430,7 @@ describe('countFutureByContact (BR-014)', () => {
       newAppointment({ startsAt: future, endsAt: future.add({ minutes: 30 }) }),
     );
     if (!cancelled.ok) throw new Error('unreachable');
-    await repo.cancel(cancelled.value.id, NOW);
+    await repo.cancel(cancelled.value.id, NOW, 'CUSTOMER');
 
     const counts = await repo.countFutureByContact(
       contact().normalizedPhone,
@@ -432,7 +496,7 @@ describe('cancel', () => {
     const created = await repo.insert(newAppointment());
     if (!created.ok) throw new Error('unreachable');
 
-    const cancelled = await repo.cancel(created.value.id, NOW);
+    const cancelled = await repo.cancel(created.value.id, NOW, 'CUSTOMER');
 
     expect(cancelled.ok).toBe(true);
     if (!cancelled.ok) throw new Error('unreachable');
@@ -440,12 +504,25 @@ describe('cancel', () => {
     expect(cancelled.value.cancelledAt?.equals(NOW)).toBe(true);
   });
 
+  it.each([['CUSTOMER'], ['OWNER']] as const)(
+    'records who cancelled, %s, in the same UPDATE (002, FR-040a)',
+    async (by) => {
+      const created = await repo.insert(newAppointment());
+      if (!created.ok) throw new Error('unreachable');
+
+      const cancelled = await repo.cancel(created.value.id, NOW, by);
+
+      if (!cancelled.ok) throw new Error('unreachable');
+      expect(cancelled.value.cancelledBy).toBe(by);
+    },
+  );
+
   it('rejects a second cancellation: cancelled is terminal (BR-007)', async () => {
     const created = await repo.insert(newAppointment());
     if (!created.ok) throw new Error('unreachable');
-    await repo.cancel(created.value.id, NOW);
+    await repo.cancel(created.value.id, NOW, 'CUSTOMER');
 
-    const again = await repo.cancel(created.value.id, NOW);
+    const again = await repo.cancel(created.value.id, NOW, 'CUSTOMER');
 
     expect(again.ok).toBe(false);
     if (again.ok) throw new Error('unreachable');
@@ -454,15 +531,11 @@ describe('cancel', () => {
 });
 
 describe('SalonConfigRepository', () => {
-  it('loads salon, schedule, closures and the active catalogue', async () => {
+  it('loads salon, schedule and the active catalogue', async () => {
     await testPool().query(
       `INSERT INTO opening_interval (id, weekday, starts_at, ends_at)
        VALUES ($1, 6, '10:00', '14:00'), ($2, 6, '16:00', '20:00'), ($3, 1, '10:00', '20:00')`,
       [randomUUID(), randomUUID(), randomUUID()],
-    );
-    await testPool().query(
-      `INSERT INTO closure (id, date, reason) VALUES ($1, '2026-09-22', 'Festivo')`,
-      [randomUUID()],
     );
     await testPool().query(
       `INSERT INTO service (id, name, duration_minutes, price_cents, is_active, display_order)
@@ -476,17 +549,29 @@ describe('SalonConfigRepository', () => {
     expect(config.salon.phone).toBe('911234567');
     expect(config.schedule.get(6)).toHaveLength(2);
     expect(config.schedule.get(7)).toBeUndefined();
-    expect(config.closures.has('2026-09-22')).toBe(true);
     // A retired service stops being offered; appointments referencing it stay whole.
     expect(config.services.map((s) => s.name)).toEqual(['Corte']);
   });
 
-  it('caches the configuration in memory rather than re-reading it per request', async () => {
+  it('reads the configuration afresh on every load: a change rules at once (002, FR-056, D-021)', async () => {
     const repository = createSalonConfigRepository(() => testPool());
     await repository.load();
 
     await testPool().query(`UPDATE salon SET name = 'Cambiado'`);
 
-    expect((await repository.load()).salon.name).toBe('Peluqueria Aurora');
+    expect((await repository.load()).salon.name).toBe('Cambiado');
+  });
+
+  it('reads the two editable parameters from the salon row, the rest from the code (D-022)', async () => {
+    await testPool().query(
+      'UPDATE salon SET minimum_lead_time_minutes = 240, cancellation_deadline_hours = 12',
+    );
+
+    const { policy } = await createSalonConfigRepository(() => testPool()).load();
+
+    expect(policy.minimumLeadTimeMinutes).toBe(240);
+    expect(policy.cancellationDeadlineHours).toBe(12);
+    expect(policy.horizonDays).toBe(60);
+    expect(policy.maxFutureAppointmentsPerContact).toBe(3);
   });
 });

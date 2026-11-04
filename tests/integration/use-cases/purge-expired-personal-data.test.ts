@@ -150,6 +150,18 @@ describe('the nightly sweep (FR-035)', () => {
     expect(row?.token_hash).toBeNull();
   });
 
+  it('leaves nothing of the name to search by, either (002, D-036)', async () => {
+    const old = await insertAppointment('2025-01-10T10:00:00Z');
+
+    await useCases.purge();
+    const { rows } = await testPool().query<{ customer_name_search: string | null }>(
+      'SELECT customer_name_search FROM appointment WHERE id = $1',
+      [old.id],
+    );
+
+    expect(rows[0]?.customer_name_search).toBeNull();
+  });
+
   it('keeps the slot, the status and the service snapshot (FR-035a)', async () => {
     const old = await insertAppointment('2025-01-10T10:00:00Z');
     const before = await rowOf(old.id);

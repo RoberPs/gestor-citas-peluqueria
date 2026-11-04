@@ -12,12 +12,15 @@ import { err, ok, type Result } from '../shared/result';
 declare const phoneBrand: unique symbol;
 declare const emailBrand: unique symbol;
 declare const nameBrand: unique symbol;
+declare const searchableNameBrand: unique symbol;
 
 /** E.164, e.g. `+34600112233`. The canonical form the BR-014 count works on. */
 export type NormalizedPhone = string & { readonly [phoneBrand]: true };
 /** Lowercase and trimmed. */
 export type NormalizedEmail = string & { readonly [emailBrand]: true };
 export type CustomerName = string & { readonly [nameBrand]: true };
+/** A name as the bookings list compares it (002, D-036). */
+export type SearchableName = string & { readonly [searchableNameBrand]: true };
 
 export type ContactField = 'customer.name' | 'customer.phone' | 'customer.email';
 
@@ -26,24 +29,43 @@ export type ContactFieldError = {
   readonly code: 'INVALID_NAME' | 'INVALID_PHONE' | 'INVALID_EMAIL';
 };
 
-/** What arrives from the client, before any of it is trusted. */
+/**
+ * What arrives from the client or the owner, before any of it is trusted. An
+ * email that is `null`, empty or blank is no email at all.
+ */
 export type RawContact = {
   readonly name: string;
   readonly phone: string;
-  readonly email: string;
+  readonly email: string | null;
 };
+
+/**
+ * Whether the email is compulsory. It is for an online booking, as in 001
+ * (FR-008): the client's link is the only thing the salon gives them. It is not
+ * for an appointment the owner writes by hand or edits (002, FR-024, FR-075):
+ * the phone is what the salon calls. Who asks decides; the format rules are the
+ * same either way (FR-031).
+ */
+export type ContactRules = { readonly email: 'REQUIRED' | 'OPTIONAL' };
 
 /** What the domain hands back once every field has been checked. */
 export type ValidatedContact = {
   readonly name: CustomerName;
+  /** What `customer_name_search` holds for this name: the same function (D-036). */
+  readonly searchName: SearchableName;
   readonly phone: string;
   readonly normalizedPhone: NormalizedPhone;
-  readonly email: string;
-  readonly normalizedEmail: NormalizedEmail;
+  /** `null` only when the rules made it optional and none was given. */
+  readonly email: string | null;
+  readonly normalizedEmail: NormalizedEmail | null;
 };
 
 export const MAX_NAME_LENGTH = 100;
 const MAX_EMAIL_LENGTH = 254;
+
+/** The combining marks an NFD decomposition leaves behind: the accents and the like. */
+const COMBINING_MARKS = /[\u0300-\u036f]/g;
+const WHITESPACE_RUNS = /\s+/g;
 
 /** Spanish mobile or landline: nine digits starting with 6, 7, 8 or 9 (asunción 8). */
 const PHONE_PATTERN = /^(?:\+34|0034)?([6-9]\d{8})$/;
@@ -83,16 +105,37 @@ export function validateName(raw: string): Result<CustomerName, 'INVALID_NAME'> 
 }
 
 /**
+ * The one definition of how a name is compared (002, FR-069, D-036): Unicode
+ * NFD without its combining marks, in lower case, with single spaces and
+ * nothing around it. «José  NÚÑEZ» becomes «jose nunez».
+ *
+ * Migration 0006 writes the same algorithm in SQL for `customer_name_search`,
+ * because a migration cannot call the domain; a test holds the two together.
+ */
+export function searchableName(raw: string): SearchableName {
+  return raw
+    .normalize('NFD')
+    .replace(COMBINING_MARKS, '')
+    .toLowerCase()
+    .replace(WHITESPACE_RUNS, ' ')
+    .trim() as SearchableName;
+}
+
+/**
  * Validates the three fields together, reporting **every** offending field at
- * once so the client corrects the form in one pass instead of one field per
- * round trip.
+ * once so the form is corrected in one pass instead of one field per round
+ * trip.
  */
 export function validateContact(
   raw: RawContact,
+  rules: ContactRules,
 ): Result<ValidatedContact, readonly ContactFieldError[]> {
   const name = validateName(raw.name);
   const phone = normalizePhone(raw.phone);
-  const email = normalizeEmail(raw.email);
+
+  const typedEmail = raw.email?.trim() ?? '';
+  const email =
+    typedEmail === '' && rules.email === 'OPTIONAL' ? ok(null) : normalizeEmail(typedEmail);
 
   const errors: ContactFieldError[] = [];
   if (!name.ok) errors.push({ field: 'customer.name', code: name.error });
@@ -103,9 +146,10 @@ export function validateContact(
 
   return ok({
     name: name.value,
+    searchName: searchableName(name.value),
     phone: raw.phone.trim(),
     normalizedPhone: phone.value,
-    email: raw.email.trim(),
+    email: email.value === null ? null : typedEmail,
     normalizedEmail: email.value,
   });
 }

@@ -15,12 +15,14 @@ function appointment(overrides: Partial<Appointment> = {}): Appointment {
   return {
     id: 'b2e9c0de',
     status: 'CONFIRMED',
+    origin: 'ONLINE',
     startsAt: at('2026-09-18', '11:30'),
     endsAt: at('2026-09-18', '12:00'),
     services: [{ serviceId: 's1', name: 'Corte', durationMinutes: 30, priceCents: 1800 }],
     customer: { name: 'Ana', phone: '600112233', email: 'ana@example.com' },
     createdAt: at('2026-09-15', '10:00'),
     cancelledAt: null,
+    cancelledBy: null,
     anonymizedAt: null,
     ...overrides,
   };

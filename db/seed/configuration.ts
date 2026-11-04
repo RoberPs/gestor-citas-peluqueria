@@ -2,15 +2,15 @@ import { Client } from 'pg';
 
 /**
  * Writes a whole salon configuration: the salon, its weekly opening stretches,
- * its closures and its catalogue. Shared by the fixture the tests rely on
+ * its holidays and its catalogue. Shared by the fixture the tests rely on
  * (`seed.ts`) and the data shown in demos (`demo.ts`), so switching a database
  * from one to the other is a matter of running the other script.
  *
  * Re-running is safe. Services are upserted by fixed id and never deleted:
  * appointments keep referencing the service they were booked with. Services
  * that are not in the new catalogue are deactivated instead, so they stop
- * being offered. Opening stretches and closures are replaced wholesale, since
- * nothing references them.
+ * being offered. Opening stretches and unavailable periods are replaced
+ * wholesale, since nothing references them.
  */
 
 export type SalonConfiguration = {
@@ -29,7 +29,12 @@ export type SalonConfiguration = {
     readonly cents: number | null;
     readonly order: number;
   }[];
-  readonly closures: readonly { readonly id: string; readonly date: string; readonly reason: string }[];
+  /**
+   * Whole days off. Each is written as an unavailable period from 00:00 to
+   * 00:00 of the next day in the salon's zone, as `0005` converted the old
+   * closures (002, D-019).
+   */
+  readonly holidays: readonly { readonly id: string; readonly date: string; readonly reason: string }[];
 };
 
 export async function writeConfiguration(
@@ -84,13 +89,16 @@ export async function writeConfiguration(
       configuration.services.map((service) => service.id),
     ]);
 
-    await client.query('DELETE FROM closure');
-    for (const closure of configuration.closures) {
-      await client.query('INSERT INTO closure (id, date, reason) VALUES ($1, $2, $3)', [
-        closure.id,
-        closure.date,
-        closure.reason,
-      ]);
+    await client.query('DELETE FROM unavailable_period');
+    for (const holiday of configuration.holidays) {
+      await client.query(
+        `INSERT INTO unavailable_period (id, starts_at, ends_at, reason)
+         VALUES ($1,
+                 $2::date::timestamp AT TIME ZONE $4,
+                 ($2::date + 1)::timestamp AT TIME ZONE $4,
+                 $3)`,
+        [holiday.id, holiday.date, holiday.reason, timezone],
+      );
     }
 
     await client.query('COMMIT');

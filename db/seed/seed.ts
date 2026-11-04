@@ -4,7 +4,7 @@ import { writeConfiguration } from './configuration';
 
 /**
  * Preloaded configuration (FR-007): the salon, its weekly opening stretches,
- * its closures and its catalogue. Not optional — without it the booking screen
+ * its holidays and its catalogue. Not optional — without it the booking screen
  * has nothing to offer.
  *
  * The values are chosen so the acceptance scenarios of the spec can be walked
@@ -45,17 +45,17 @@ const OPENING = [
   { weekday: 6, from: '16:00', to: '20:00' },
 ] as const;
 
-const CLOSURE_ID = '00000000-0000-4000-8000-000000000031';
+const HOLIDAY_ID = '00000000-0000-4000-8000-000000000031';
 
 /**
  * A holiday inside the first 14 day range, so the grid always shows a CLOSED
  * day that is not a Sunday — the two states must be visibly the same to the
  * client and distinct from FULL.
  */
-export function closureDate(timezone: string): string {
+export function holidayDate(timezone: string): string {
   const today = Temporal.Now.zonedDateTimeISO(timezone).toPlainDate();
   const candidate = today.add({ days: 7 });
-  // Sunday is closed anyway; a closure there would prove nothing.
+  // Sunday is closed anyway; a holiday there would prove nothing.
   return (candidate.dayOfWeek === 7 ? candidate.add({ days: 1 }) : candidate).toString();
 }
 
@@ -69,7 +69,7 @@ export async function seed(connectionString: string, timezone: string): Promise<
     },
     opening: OPENING,
     services: SERVICES,
-    closures: [{ id: CLOSURE_ID, date: closureDate(timezone), reason: 'Festivo local' }],
+    holidays: [{ id: HOLIDAY_ID, date: holidayDate(timezone), reason: 'Festivo local' }],
   });
 }
 
@@ -79,7 +79,7 @@ export const SEED_IDS = {
   color: SERVICES[1].id,
   peinado: SERVICES[2].id,
   lavado: SERVICES[3].id,
-  closure: CLOSURE_ID,
+  holiday: HOLIDAY_ID,
 } as const;
 
 if (process.argv[1]?.endsWith('seed.ts') === true) {
@@ -90,5 +90,5 @@ if (process.argv[1]?.endsWith('seed.ts') === true) {
   }
 
   await seed(connectionString, process.env['SALON_TIMEZONE'] ?? 'Europe/Madrid');
-  console.log('Seeded: salon, opening hours, four services and one closure.');
+  console.log('Seeded: salon, opening hours, four services and one holiday.');
 }

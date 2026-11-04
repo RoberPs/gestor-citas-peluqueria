@@ -1,7 +1,9 @@
 import 'dotenv/config';
 import { Pool } from 'pg';
 import { createPurgeExpiredPersonalData } from '../src/application/use-cases/purge-expired-personal-data';
+import { SESSION_IDLE_TIMEOUT_HOURS } from '../src/domain/owner/session';
 import { createPersonalDataPurge } from '../src/infrastructure/db/appointment-repository';
+import { createOwnerSessionRepository } from '../src/infrastructure/db/owner-session-repository';
 import { createSalonConfigRepository } from '../src/infrastructure/db/salon-config-repository';
 import { systemClock } from '../src/infrastructure/time/system-clock';
 
@@ -64,6 +66,14 @@ try {
   const verb = outcome.dryRun ? 'would anonymise' : 'anonymised';
 
   console.log(`${verb} ${outcome.affected} appointment(s) ${scope}.`);
+
+  // Tidying, not correctness: an idle session is already refused on read
+  // (002, data-model.md, "Limpieza"). Only the nightly sweep does it.
+  if (!dryRun && appointmentId === undefined) {
+    const cutoff = systemClock.now().subtract({ hours: SESSION_IDLE_TIMEOUT_HOURS });
+    const removed = await createOwnerSessionRepository(() => pool).deleteIdleSince(cutoff);
+    console.log(`deleted ${removed} idle owner session(s).`);
+  }
 } finally {
   await pool.end();
 }

@@ -16,16 +16,21 @@ import {
 import type { Clock } from '@/domain/shared/clock';
 import { err, ok, type Result } from '@/domain/shared/result';
 import { localDateOf } from '@/domain/shared/time';
-import type { AppointmentRepository, SalonConfigRepository } from '../ports';
+import type {
+  AppointmentRepository,
+  SalonConfigRepository,
+  UnavailablePeriodRepository,
+} from '../ports';
 
 /**
  * Everything the booking screen needs, in one response fed by **one query**
  * (FR-005b, SC-005).
  *
- * The horizon's confirmed appointments are loaded once; the state of the 14
- * days, the slots of the selected day and the jump to the next free day are all
- * derived from that array in memory. No loop over days touches the database, so
- * the N+1 the Principio VIII forbids cannot appear here.
+ * The horizon's confirmed appointments are loaded once, and the unavailable
+ * periods that touch it alongside, in parallel (002, D-019); the state of the
+ * 14 days, the slots of the selected day and the jump to the next free day are
+ * all derived from those arrays in memory. No loop over days touches the
+ * database, so the N+1 the Principio VIII forbids cannot appear here.
  */
 
 export type AvailabilityView = {
@@ -116,6 +121,7 @@ function startOfDay(date: Temporal.PlainDate, timezone: string): Temporal.Instan
 export function createGetAvailability(deps: {
   readonly config: SalonConfigRepository;
   readonly appointments: AppointmentRepository;
+  readonly periods: UnavailablePeriodRepository;
   readonly clock: Clock;
 }) {
   return async function getAvailability(
@@ -148,16 +154,19 @@ export function createGetAvailability(deps: {
     }
 
     // THE query. From local midnight, so an appointment already under way still
-    // counts as busy, through to the end of the horizon.
-    const busy = await deps.appointments.findConfirmedInWindow(
-      startOfDay(today, timezone),
-      startOfDay(horizonEnd.add({ days: 1 }), timezone),
-    );
+    // counts as busy, through to the end of the horizon. The periods of the same
+    // window come in parallel: closed time is read once too.
+    const windowStart = startOfDay(today, timezone);
+    const windowEnd = startOfDay(horizonEnd.add({ days: 1 }), timezone);
+    const [busy, unavailablePeriods] = await Promise.all([
+      deps.appointments.findConfirmedInWindow(windowStart, windowEnd),
+      deps.periods.findOverlapping(windowStart, windowEnd),
+    ]);
 
     const currentStart = input.currentAppointment?.startsAt;
     const shared = {
       salonSchedule: configuration.schedule,
-      closures: configuration.closures,
+      unavailablePeriods,
       serviceDurationMinutes: selection.durationMinutes,
       confirmedAppointments: busy,
       now,
@@ -194,11 +203,10 @@ export function createGetAvailability(deps: {
         days.find((day) => day.status === 'AVAILABLE')?.date ?? rangeStart.toString(),
       );
 
-    const opening = openingOf(selectedDate, configuration.schedule, configuration.closures);
+    const opening = openingOf(selectedDate, configuration.schedule);
     const slots = computeDaySlots({
       date: selectedDate,
       openingIntervals: opening.openingIntervals,
-      isClosed: opening.isClosed,
       ...shared,
     });
 

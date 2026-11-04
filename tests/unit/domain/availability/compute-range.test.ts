@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { computeRangeDays } from '@/domain/availability/compute-range';
 import type { BusyInterval } from '@/domain/booking/appointment';
 import type { WeeklySchedule } from '@/domain/catalog/salon';
-import { busy, MADRID, NOW, POLICY, standardSchedule } from './_fixtures';
+import { at, busy, MADRID, NOW, POLICY, standardSchedule, wholeDay } from './_fixtures';
 
 /**
  * FR-005: each of the 14 days is CLOSED, FULL or AVAILABLE **for the chosen
@@ -14,7 +14,7 @@ import { busy, MADRID, NOW, POLICY, standardSchedule } from './_fixtures';
 type Options = {
   rangeStart?: string;
   schedule?: WeeklySchedule;
-  closures?: readonly string[];
+  unavailable?: readonly BusyInterval[];
   durationMinutes?: number;
   confirmed?: readonly BusyInterval[];
   now?: Temporal.Instant;
@@ -25,7 +25,7 @@ function range(options: Options = {}) {
     rangeStart: Temporal.PlainDate.from(options.rangeStart ?? '2026-09-15'),
     rangeLengthDays: POLICY.rangeLengthDays,
     salonSchedule: options.schedule ?? standardSchedule(),
-    closures: new Set(options.closures ?? []),
+    unavailablePeriods: options.unavailable ?? [],
     serviceDurationMinutes: options.durationMinutes ?? 30,
     confirmedAppointments: options.confirmed ?? [],
     now: options.now ?? NOW,
@@ -68,8 +68,8 @@ describe('CLOSED is never reported as FULL', () => {
     expect(statusOn(days, '2026-09-27')).toBe('CLOSED');
   });
 
-  it('marks a closure as CLOSED, not FULL, even though it has stretches', () => {
-    const days = range({ closures: ['2026-09-18'] });
+  it('marks a holiday as CLOSED, not FULL, even though it has stretches', () => {
+    const days = range({ unavailable: [wholeDay('2026-09-18')] });
 
     expect(statusOn(days, '2026-09-18')).toBe('CLOSED');
   });
@@ -81,7 +81,7 @@ describe('CLOSED is never reported as FULL', () => {
   });
 
   it('reports zero slots for both CLOSED and FULL, and a count for AVAILABLE', () => {
-    const days = range({ closures: ['2026-09-17'], confirmed: fullDay('2026-09-18') });
+    const days = range({ unavailable: [wholeDay('2026-09-17')], confirmed: fullDay('2026-09-18') });
 
     expect(days.find((d) => d.date === '2026-09-17')?.slotCount).toBe(0);
     expect(days.find((d) => d.date === '2026-09-18')?.slotCount).toBe(0);
@@ -151,5 +151,40 @@ describe('the seasonal time change inside the horizon', () => {
     const days = range({ rangeStart: '2026-10-19', durationMinutes: 90 });
 
     expect(days.find((d) => d.date === '2026-10-26')?.slotCount).toBe(18);
+  });
+});
+
+describe('CLOSED and FULL with unavailable periods (002, D-020)', () => {
+  it('marks a day CLOSED when periods cover all its opening, not only midnight to midnight', () => {
+    const days = range({ unavailable: [busy('2026-09-18', '09:00', '21:00')] });
+
+    expect(statusOn(days, '2026-09-18')).toBe('CLOSED');
+  });
+
+  it('marks a day CLOSED when several periods cover its opening between them', () => {
+    const days = range({
+      unavailable: [busy('2026-09-18', '10:00', '15:00'), busy('2026-09-18', '14:00', '20:00')],
+    });
+
+    expect(statusOn(days, '2026-09-18')).toBe('CLOSED');
+  });
+
+  it('marks a day FULL, not CLOSED, when opening is left but no start fits', () => {
+    const days = range({
+      unavailable: [busy('2026-09-18', '13:00', '14:00')],
+      confirmed: [busy('2026-09-18', '10:00', '13:00'), busy('2026-09-18', '14:00', '20:00')],
+    });
+
+    expect(statusOn(days, '2026-09-18')).toBe('FULL');
+  });
+
+  it('shows a week of holidays as CLOSED every day, never as FULL (Historia 3, escenario 3)', () => {
+    const holidays = { startsAt: at('2026-09-21', '00:00'), endsAt: at('2026-09-26', '00:00') };
+    const days = range({ unavailable: [holidays] });
+
+    for (const date of ['2026-09-21', '2026-09-22', '2026-09-23', '2026-09-24', '2026-09-25']) {
+      expect(statusOn(days, date)).toBe('CLOSED');
+    }
+    expect(statusOn(days, '2026-09-26')).toBe('AVAILABLE');
   });
 });

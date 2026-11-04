@@ -26,12 +26,14 @@ function appointment(overrides: Partial<Appointment> = {}): Appointment {
   return {
     id: 'b2e9c0de',
     status: 'CONFIRMED',
+    origin: 'ONLINE',
     startsAt: at('2026-09-18', '11:30'),
     endsAt: at('2026-09-18', '13:00'),
     services: [COLOR_SNAPSHOT],
     customer: { name: 'Ana', phone: '600112233', email: 'ana@example.com' },
     createdAt: at('2026-09-15', '10:00'),
     cancelledAt: null,
+    cancelledBy: null,
     anonymizedAt: null,
     ...overrides,
   };
@@ -41,7 +43,7 @@ type Options = {
   appointment?: Appointment;
   newStart?: Temporal.Instant;
   openingIntervals?: OpeningInterval[];
-  isClosed?: boolean;
+  unavailable?: BusyInterval[];
   confirmed?: BusyInterval[];
   now?: Temporal.Instant;
 };
@@ -55,7 +57,7 @@ function reschedule(options: Options = {}) {
     newStart,
     date: localDateOf(newStart, MADRID),
     openingIntervals: options.openingIntervals ?? [interval(5, '10:00', '20:00')],
-    isClosed: options.isClosed ?? false,
+    unavailablePeriods: options.unavailable ?? [],
     confirmedAppointments: options.confirmed ?? [
       { startsAt: target.startsAt, endsAt: target.endsAt },
     ],

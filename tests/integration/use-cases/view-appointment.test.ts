@@ -5,6 +5,7 @@ import { createViewAppointment } from '@/application/use-cases/view-appointment'
 import type { Clock } from '@/domain/shared/clock';
 import { createAppointmentRepository } from '@/infrastructure/db/appointment-repository';
 import { createSalonConfigRepository } from '@/infrastructure/db/salon-config-repository';
+import { createUnavailablePeriodRepository } from '@/infrastructure/db/unavailable-period-repository';
 import { tokenGenerator } from '@/infrastructure/security/token';
 import { closeTestDb, ensureSchema, testPool, truncateAppointments } from '../helpers/test-db';
 import { COLOR, CORTE, seedContractDatabase } from '../../contract/helpers/seed-contract-db';
@@ -24,9 +25,10 @@ const FRIDAY_1130 = '2026-09-18T09:30:00Z';
 function build() {
   const config = createSalonConfigRepository(() => testPool());
   const appointments = createAppointmentRepository(() => testPool());
+  const periods = createUnavailablePeriodRepository(() => testPool());
 
   return {
-    confirmBooking: createConfirmBooking({ config, appointments, tokens: tokenGenerator, clock }),
+    confirmBooking: createConfirmBooking({ config, appointments, periods, tokens: tokenGenerator, clock }),
     viewAppointment: createViewAppointment({ config, appointments, tokens: tokenGenerator, clock }),
   };
 }

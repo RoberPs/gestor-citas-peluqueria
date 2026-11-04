@@ -171,7 +171,11 @@ export const messages = {
     rescheduleAction: 'Cambiar de hora',
     bookAnother: 'Reservar una cita nueva',
     completedNote: 'Esta cita ya ha pasado. Puedes consultarla, pero no cambiarla.',
-    cancelledNote: 'Esta cita está cancelada. Si quieres venir, reserva una nueva.',
+    /** 002, FR-040b, D-037: who cancelled it, and from the salon, whom to call. */
+    cancelledBy: {
+      CUSTOMER: 'Has cancelado esta cita. Si quieres venir, reserva una nueva.',
+      OWNER: `El salón ha cancelado esta cita. Si quieres saber por qué o buscar otra hora, llama al ${SALON_PHONE_PLACEHOLDER}.`,
+    },
 
     /**
      * FR-028: the reason comes from the domain block; only the wording is here.
@@ -287,10 +291,327 @@ export const messages = {
       nextAction: `Vuelve a intentarlo dentro de un rato o llama al salón al ${SALON_PHONE_PLACEHOLDER} y te damos la cita por teléfono.`,
     },
   },
+
+  /**
+   * The owner's side (002). She is spoken to as «tú», like the client, and
+   * every error says what to do next (FR-059).
+   */
+  owner: {
+    title: 'Gestión del salón',
+    nav: {
+      label: 'Gestión del salón',
+      agenda: 'Agenda',
+      bookings: 'Reservas',
+      account: 'Tu cuenta',
+      signOut: 'Cerrar sesión',
+    },
+    busy: 'Un momento…',
+
+    signIn: {
+      title: 'Entrar en la gestión del salón',
+      username: 'Usuario',
+      password: 'Contraseña',
+      submit: 'Entrar',
+      submitting: 'Entrando…',
+      /** FR-005: what to do, with no operational detail. */
+      forgotten:
+        'Si has olvidado la contraseña, no se puede recuperar desde aquí: pide que te den una nueva.',
+    },
+
+    agenda: {
+      title: 'Agenda',
+      dayPicker: 'Elegir el día',
+      dateLabel: 'Día',
+      go: 'Ver ese día',
+      previous: 'Día anterior',
+      next: 'Día siguiente',
+      today: 'Hoy',
+      showCancelled: 'Mostrar también las canceladas',
+      hideCancelled: 'Ocultar las canceladas',
+      /** FR-017: closed and empty are different things, and say so. */
+      closed: 'El salón está cerrado este día.',
+      noAppointments: 'No hay ninguna cita este día.',
+      readOnly: 'Este día ya ha pasado: puedes consultarlo, pero no cambiar nada.',
+      free: 'Libre',
+      unavailable: 'No disponible',
+      past: 'Ya ha terminado',
+      phone: 'Teléfono',
+      email: 'Email',
+      anonymized: 'Datos del cliente borrados por antigüedad',
+    },
+
+    bookings: {
+      title: 'Reservas',
+      filters: 'Filtrar las reservas',
+      search: 'Buscar por nombre o teléfono',
+      searchHint: 'El teléfono, entero. Del nombre basta con una parte, con o sin tildes.',
+      order: 'Orden',
+      orders: { proximas: 'Próximas citas', recientes: 'Últimas reservas recibidas' },
+      status: 'Estado',
+      statuses: { confirmadas: 'Confirmadas', canceladas: 'Canceladas', todas: 'Todas' },
+      origin: 'Origen',
+      origins: { todos: 'Todas', online: 'Online', mano: 'A mano' },
+      from: 'Desde el día',
+      to: 'Hasta el día',
+      apply: 'Ver las reservas',
+      reset: 'Volver a los filtros por defecto',
+      /** FR-068: an empty result says so, and offers the way back. */
+      empty: 'No hay ninguna reserva con estos filtros.',
+      next: 'Página siguiente',
+      first: 'Volver al principio',
+      bookedAt: 'Reservada el',
+      cancelledOn: 'el',
+      confirmed: 'Confirmada',
+      goToAgenda: 'Ver ese día en la agenda',
+      results: 'Reservas encontradas',
+    },
+
+    /** Historia 3: blocking and releasing time from the agenda. */
+    periods: {
+      title: 'Bloquear un rato',
+      hint: 'Los clientes dejan de ver esas horas en cuanto lo guardas. El motivo sólo lo ves tú.',
+      kind: 'Qué quieres bloquear',
+      kinds: { horas: 'Unas horas de un día', dias: 'Uno o varios días enteros' },
+      day: 'Día',
+      from: 'Desde',
+      to: 'Hasta',
+      firstDay: 'Primer día',
+      lastDay: 'Último día',
+      reason: 'Motivo (opcional)',
+      reasonHint: 'Por ejemplo, «Comida» o «Vacaciones». Nunca se enseña a los clientes.',
+      submit: 'Bloquear este rato',
+      saved: 'Rato bloqueado. Los clientes ya no ven esas horas.',
+      release: 'Liberar este rato',
+      released: 'Rato liberado. Los clientes vuelven a ver esas horas.',
+      /** FR-022: the appointments under the block, named. */
+      conflictList: 'Citas confirmadas en ese rato',
+      acknowledge: 'Bloquear igualmente, sin cancelar ninguna cita',
+      abandon: 'No bloquear',
+    },
+
+    /** Historias 4, 5, 6 y 11: the owner's appointments, from the agenda. */
+    appointments: {
+      newHere: 'Apuntar una cita aquí',
+      newTitle: 'Apuntar una cita',
+      newHint: 'Para quien entra sin cita o llama por teléfono. El email es opcional.',
+      day: 'Día',
+      time: 'Hora',
+      timeHint: 'De 15 en 15 minutos. Puedes apuntarla aunque falten menos de 2 horas.',
+      name: 'Nombre',
+      phone: 'Teléfono',
+      email: 'Email (opcional)',
+      create: 'Guardar la cita',
+      created: 'Cita apuntada.',
+      close: 'Cerrar',
+      move: 'Mover',
+      moveTitle: 'Mover la cita',
+      moveHint: 'Conserva sus servicios, su duración y sus datos. Si se reservó online, su enlace sigue funcionando.',
+      moveSubmit: 'Mover a esta hora',
+      moved: 'Cita movida.',
+      cancel: 'Cancelar',
+      cancelTitle: 'Cancelar esta cita',
+      /** FR-040: the confirmation names the appointment. */
+      cancelQuestion: '¿Cancelas la cita de {name} del {date} a las {time}?',
+      cancelWarning: 'Una cancelación no se deshace. La hora vuelve a ofrecerse a los clientes en cuanto la confirmas.',
+      cancelYes: 'Sí, cancelar la cita',
+      cancelNo: 'No, dejarla como está',
+      cancelled: 'Cita cancelada.',
+      /** FR-043: v1 sends nothing, so the owner has to call. */
+      callCustomer: 'El cliente no recibe ningún aviso: llámale para decírselo.',
+      edit: 'Editar',
+      editTitle: 'Editar la cita',
+      editHint: 'Cambia sus servicios o los datos del cliente. La hora no cambia: para eso está «Mover».',
+      editSubmit: 'Guardar los cambios',
+      edited: 'Cita editada.',
+      endsAt: 'Terminaría a las',
+      /** For the screen reader, after each action button: which appointment it acts on. */
+      of: 'la cita de las',
+    },
+
+    /** FR-033, FR-034: the conflict dialog. Names on screen, never in the log (FR-057). */
+    conflict: {
+      title: 'Antes de guardar',
+      appointmentsTitle: 'Citas en esa hora',
+      periodsTitle: 'Ratos bloqueados en esa hora',
+      warningsTitle: 'Avisos',
+      cancelAppointment: 'Cancelar esta cita para dejar sitio',
+      noKeepBoth: 'Dos citas no pueden coincidir: para guardar la nueva hay que cancelar la que estorba.',
+      deletePeriod: 'Eliminar el rato bloqueado',
+      shortenTo: 'Dejarlo de {from} a {to}',
+      confirm: 'Aplicar y guardar',
+      abandon: 'Volver sin cambiar nada',
+      atomic: 'Se hace todo a la vez o no se hace nada.',
+    },
+
+    /** FR-013: the origin with text and an icon, never colour alone. */
+    origin: {
+      ONLINE: { label: 'Reservada online', icon: '@' },
+      OWNER: { label: 'Apuntada por ti', icon: '✎' },
+    },
+
+    /** FR-063, D-037: who cancelled, as the owner reads it. */
+    cancelledBy: {
+      CUSTOMER: 'Cancelada por el cliente',
+      OWNER: 'Cancelada por ti',
+    },
+
+    account: {
+      title: 'Tu cuenta',
+      changePassword: 'Cambiar la contraseña',
+      current: 'Contraseña actual',
+      next: 'Contraseña nueva',
+      /** `{min}` comes from the domain's MIN_PASSWORD_LENGTH (D-016). */
+      nextHint: 'Al menos {min} caracteres. No hace falta que lleve números ni símbolos.',
+      submit: 'Guardar la contraseña nueva',
+      saved: 'Contraseña cambiada. Si tenías la gestión abierta en otro aparato, allí tendrás que volver a entrar.',
+      signOutHint: 'Cierra la sesión si dejas este aparato al alcance de otras personas.',
+    },
+
+    errors: {
+      /** FR-008, FR-009: one answer for an unknown user, a wrong password and a lock. */
+      signInRejected: {
+        message: 'El usuario o la contraseña no son correctos.',
+        nextAction: 'Revisa los dos datos y vuelve a intentarlo.',
+      },
+      /** FR-002, FR-007: no session, or an idle one. Nothing else is said. */
+      unauthenticated: {
+        message: 'Tienes que entrar en la gestión del salón.',
+        nextAction: 'Vuelve a entrar con tu usuario y tu contraseña.',
+      },
+      badRequest: {
+        message: 'No hemos entendido la petición.',
+        nextAction: 'Vuelve a la pantalla anterior y repite la operación.',
+      },
+      /** The bookings list, D-033 and D-036. */
+      invalidFilter: {
+        message: 'Esos filtros no se pueden aplicar.',
+        nextAction: 'Vuelve a los filtros por defecto y elige de nuevo.',
+      },
+      rangeReversed: {
+        message: 'La fecha «hasta» es anterior a la fecha «desde».',
+        nextAction: 'Elige una fecha final igual o posterior a la inicial.',
+      },
+      incompletePhone: {
+        message: 'Ese teléfono está incompleto.',
+        nextAction: 'Escribe el teléfono entero, con sus 9 cifras, o busca por el nombre.',
+      },
+      /** Historia 3: why a period is not saved, keyed by the domain's rejection. */
+      period: {
+        END_NOT_AFTER_START: {
+          message: 'El final del rato tiene que ser posterior a su inicio.',
+          nextAction: 'Elige un final más tarde que el inicio.',
+        },
+        INVALID_GRANULARITY: {
+          message: 'Las horas de un rato bloqueado van de 15 en 15 minutos.',
+          nextAction: 'Elige, por ejemplo, 13:00, 13:15, 13:30 o 13:45.',
+        },
+        ALREADY_OVER: {
+          message: 'Ese rato ya ha pasado.',
+          nextAction: 'Elige un rato que no haya terminado todavía.',
+        },
+        NOT_CONTAINED: {
+          message: 'Al acortar un rato, el nuevo tiene que quedar dentro del que había.',
+          nextAction: 'Elige un inicio y un final dentro del rato que había. Para bloquear más tiempo, añade otro rato.',
+        },
+      },
+      periodNotFound: {
+        message: 'Ese rato bloqueado ya no existe.',
+        nextAction: 'Vuelve a la agenda: puede que ya se haya liberado.',
+      },
+      /** FR-022: a block cancels nobody, and the warning says so. */
+      periodConflict: {
+        message: 'En ese rato hay citas confirmadas.',
+        nextAction:
+          'Si lo bloqueas igualmente, las citas siguen en pie: no se cancela ninguna. Si no, elige otro rato.',
+      },
+      /** Historias 4, 5 y 11: why an appointment is not saved, keyed by the domain's reason. */
+      appointment: {
+        IN_THE_PAST: {
+          message: 'Esa hora ya ha pasado.',
+          nextAction: 'Elige una hora que no haya terminado todavía.',
+        },
+        CONTACT_LIMIT_REACHED: {
+          message: 'Este cliente ya tiene 3 citas por delante, que es el máximo.',
+          nextAction: 'Cancela o mueve una de sus citas antes de apuntarle otra.',
+        },
+        INVALID_START_GRANULARITY: {
+          message: 'Las citas empiezan de 15 en 15 minutos.',
+          nextAction: 'Elige, por ejemplo, 16:00, 16:15, 16:30 o 16:45.',
+        },
+        ALREADY_CANCELLED: {
+          message: 'Esta cita está cancelada, y una cancelación no se deshace.',
+          nextAction: 'Si el cliente quiere venir, elige una hora libre y apúntale una cita nueva.',
+        },
+        EMPTY: {
+          message: 'Una cita tiene al menos un servicio.',
+          nextAction: 'Elige uno o varios servicios.',
+        },
+        DUPLICATE: {
+          message: 'Has elegido el mismo servicio dos veces.',
+          nextAction: 'Revisa los servicios y deja cada uno una sola vez.',
+        },
+        UNKNOWN_SERVICE: {
+          message: 'Uno de los servicios elegidos ya no se ofrece.',
+          nextAction: 'Elige servicios del catálogo actual.',
+        },
+        UNKNOWN_TARGET: {
+          message: 'Lo que has elegido resolver ya no está en conflicto con esta cita.',
+          nextAction: 'Vuelve a la agenda y repite la operación.',
+        },
+        SHORTENING_DOES_NOT_FIT: {
+          message: 'Recortado así, el rato bloqueado sigue pisando la cita.',
+          nextAction: 'Elige un recorte que deje sitio, o elimina el rato.',
+        },
+        STATE_CHANGED: {
+          message: 'La agenda ha cambiado mientras decidías.',
+          nextAction: 'Vuelve a la agenda y repite la operación sobre lo que hay ahora.',
+        },
+      },
+      /** FR-031: which fields, said in words, since the owner's errors carry no field list. */
+      invalidContact: {
+        message: 'Revisa {fields}.',
+        nextAction: 'Corrígelo y vuelve a guardar.',
+      },
+      contactFieldNames: {
+        'customer.name': 'el nombre',
+        'customer.phone': 'el teléfono',
+        'customer.email': 'el email',
+      },
+      appointmentNotFound: {
+        message: 'Esa cita no existe.',
+        nextAction: 'Vuelve a la agenda y elige la cita de nuevo.',
+      },
+      /** FR-032, FR-033: named, and nothing has been touched yet. */
+      appointmentConflict: {
+        message: 'Hay algo en esa hora.',
+        nextAction: 'Elige qué hacer con lo que estorba, o vuelve sin cambiar nada.',
+      },
+      /** FR-028: a warning prevents nothing; it asks to be confirmed. */
+      appointmentWarning: {
+        message: 'Esa hora queda fuera del horario del salón.',
+        nextAction: 'Confírmalo si quieres guardarla igualmente, o elige otra hora.',
+      },
+      warnings: {
+        OUTSIDE_OPENING_HOURS: 'Queda fuera del horario del salón.',
+      },
+      wrongCurrentPassword: {
+        message: 'La contraseña actual no es correcta.',
+        nextAction: 'Escribe la contraseña con la que has entrado hoy.',
+      },
+      passwordTooShort: {
+        message: 'La contraseña nueva es demasiado corta.',
+        nextAction: 'Escribe una de al menos {min} caracteres.',
+      },
+      unexpected: {
+        message: 'No hemos podido completar la operación.',
+        nextAction: 'Vuelve a intentarlo en unos segundos.',
+      },
+    },
+  },
 } as const;
 
 /** `Corte`, `Corte y Lavado`, `Corte, Color y Lavado`: how a list is said in Spanish. */
-function listOf(items: readonly string[]): string {
+export function listOf(items: readonly string[]): string {
   const last = items.at(-1) ?? '';
   return items.length < 2 ? last : `${items.slice(0, -1).join(', ')} y ${last}`;
 }
@@ -298,6 +619,11 @@ function listOf(items: readonly string[]): string {
 /** Fills the salon phone into a message that offers it as the way out (FR-028). */
 export function withPhone(text: string, phone: string): string {
   return text.replaceAll(SALON_PHONE_PLACEHOLDER, phone);
+}
+
+/** Fills a minimum the domain owns into its message, so the copy never restates it. */
+export function withMin(text: string, min: number): string {
+  return text.replaceAll('{min}', String(min));
 }
 
 export type Messages = typeof messages;

@@ -7,6 +7,7 @@ import { createViewAppointment } from '@/application/use-cases/view-appointment'
 import type { Clock } from '@/domain/shared/clock';
 import { createAppointmentRepository } from '@/infrastructure/db/appointment-repository';
 import { createSalonConfigRepository } from '@/infrastructure/db/salon-config-repository';
+import { createUnavailablePeriodRepository } from '@/infrastructure/db/unavailable-period-repository';
 import { tokenGenerator } from '@/infrastructure/security/token';
 import { closeTestDb, ensureSchema, testPool, truncateAppointments } from '../helpers/test-db';
 import {
@@ -32,14 +33,16 @@ const FRIDAY_1600 = '2026-09-18T14:00:00Z';
 function build() {
   const config = createSalonConfigRepository(() => testPool());
   const appointments = createAppointmentRepository(() => testPool());
+  const periods = createUnavailablePeriodRepository(() => testPool());
 
   return {
-    confirmBooking: createConfirmBooking({ config, appointments, tokens: tokenGenerator, clock }),
+    confirmBooking: createConfirmBooking({ config, appointments, periods, tokens: tokenGenerator, clock }),
     viewAppointment: createViewAppointment({ config, appointments, tokens: tokenGenerator, clock }),
-    getAvailability: createGetAvailability({ config, appointments, clock }),
+    getAvailability: createGetAvailability({ config, appointments, periods, clock }),
     rescheduleAppointment: createRescheduleAppointment({
       config,
       appointments,
+      periods,
       tokens: tokenGenerator,
       clock,
     }),

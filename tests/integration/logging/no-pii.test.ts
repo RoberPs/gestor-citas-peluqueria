@@ -47,6 +47,8 @@ vi.mock('@/infrastructure/logging/logger', async (importOriginal) => {
 });
 
 const { POST } = await import('@/app/api/appointments/route');
+const { POST: signIn } = await import('@/app/api/gestion/sesion/route');
+const { provisionOwner, signInRequest } = await import('../../contract/owner/helpers');
 
 function bookingRequest(body: unknown): Request {
   return new Request('http://localhost/api/appointments', {
@@ -189,5 +191,36 @@ describe('the logger refuses them even when handed them directly', () => {
     expect(logged).not.toContain(PHONE);
     expect(logged).not.toContain(EMAIL);
     expect(logged).not.toContain('kJ8x2mQ');
+  });
+});
+
+describe("the owner's password never reaches the log (002, FR-010)", () => {
+  const PASSWORD = 'ZZPASSWORDZZ larga';
+
+  beforeAll(async () => {
+    await provisionOwner();
+  });
+
+  afterAll(async () => {
+    await testPool().query('TRUNCATE owner_account CASCADE');
+  });
+
+  it('logs nothing of it on a rejected sign-in, nor on a malformed one', async () => {
+    lines.length = 0;
+
+    await signIn(signInRequest({ username: 'duena', password: PASSWORD }));
+    await signIn(signInRequest({ username: 'duena', password: PASSWORD, extra: true }));
+
+    expect(output()).not.toContain('ZZPASSWORDZZ');
+  });
+
+  it('redacts a password field even if something did log it', () => {
+    const own: string[] = [];
+    createLogger({ write: (chunk: string) => own.push(chunk) }).info(
+      { body: { password: PASSWORD, newPassword: PASSWORD, currentPassword: PASSWORD } },
+      'sign-in',
+    );
+
+    expect(own.join('')).not.toContain('ZZPASSWORDZZ');
   });
 });

@@ -10,7 +10,7 @@ export const WEEKDAYS: readonly Weekday[] = [1, 2, 3, 4, 5, 6, 7];
  * One opening stretch of one weekday, expressed as **wall time** (FR-007a).
  *
  * A day may have one stretch, several — a midday close — or none, and none is
- * a closed day, indistinguishable from a closure as far as availability goes.
+ * a closed day, indistinguishable from a holiday as far as availability goes.
  */
 export type OpeningInterval = {
   readonly weekday: Weekday;
@@ -18,14 +18,21 @@ export type OpeningInterval = {
   readonly endsAt: Temporal.PlainTime;
 };
 
+export type UnavailablePeriodId = string;
+
 /**
- * A whole day closed by a holiday or an absence.
+ * A stretch of time in which the salon is not available, with arbitrary start
+ * and end instants (002, FR-018). One concept for a lunch hour, a holiday and
+ * three weeks away; it replaces the whole-day closure of 001 (D-019).
  *
- * The reason is internal and never leaves the database: the client sees
- * "closed", never why.
+ * To the client it is closed time and nothing more (BR-002).
  */
-export type Closure = {
-  readonly date: Temporal.PlainDate;
+export type UnavailablePeriod = {
+  readonly id: UnavailablePeriodId;
+  readonly startsAt: Temporal.Instant;
+  readonly endsAt: Temporal.Instant;
+  /** Internal. It never crosses to the client (FR-021). */
+  readonly reason: string | null;
 };
 
 /** Opening stretches grouped by weekday. A missing weekday is a closed day. */
@@ -73,12 +80,10 @@ export const DEFAULT_BOOKING_POLICY: BookingPolicy = {
   retentionMonths: 12,
 };
 
-/** Everything the availability calculation needs about the salon, loaded once. */
+/** Everything the availability calculation needs about the salon, as it is at that moment. */
 export type SalonConfiguration = {
   readonly salon: Salon;
   readonly schedule: WeeklySchedule;
-  /** ISO dates (`2026-09-18`) of the closed days. */
-  readonly closures: ReadonlySet<string>;
   readonly services: readonly Service[];
   readonly policy: BookingPolicy;
 };

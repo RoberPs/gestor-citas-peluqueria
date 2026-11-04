@@ -1,4 +1,5 @@
 import { Temporal } from '@js-temporal/polyfill';
+import { overlaps } from '../availability/interval-math';
 import { generateCandidateStarts } from '../availability/slot-grid';
 import type { BookingPolicy, OpeningInterval } from '../catalog/salon';
 import { durationOfServices, type NonEmptyServiceList } from '../catalog/selection';
@@ -56,7 +57,8 @@ export type SlotRequest = {
   readonly date: Temporal.PlainDate;
   readonly durationMinutes: number;
   readonly openingIntervals: readonly OpeningInterval[];
-  readonly isClosed: boolean;
+  /** Closed time to the client (002, BR-002): a start overlapping one is refused. */
+  readonly unavailablePeriods: readonly BusyInterval[];
   readonly confirmedAppointments: readonly BusyInterval[];
   readonly now: Temporal.Instant;
   readonly policy: BookingPolicy;
@@ -74,17 +76,6 @@ export type BookingRequest = Omit<SlotRequest, 'durationMinutes' | 'currentAppoi
   readonly contact: RawContact;
 };
 
-function overlaps(
-  startsAt: Temporal.Instant,
-  endsAt: Temporal.Instant,
-  busy: BusyInterval,
-): boolean {
-  return (
-    Temporal.Instant.compare(busy.startsAt, endsAt) < 0 &&
-    Temporal.Instant.compare(startsAt, busy.endsAt) < 0
-  );
-}
-
 /**
  * The four conditions of FR-003 against a requested start.
  *
@@ -100,9 +91,7 @@ export function validateSlot(input: SlotRequest): Result<ValidatedSlot, BookingR
     return err({ kind: 'BEYOND_HORIZON', horizonEnd });
   }
 
-  const candidates = input.isClosed
-    ? []
-    : generateCandidateStarts(input.openingIntervals, policy.slotGridMinutes);
+  const candidates = generateCandidateStarts(input.openingIntervals, policy.slotGridMinutes);
 
   const candidate = candidates.find((option) =>
     instantFromWallTime(input.date, option.start, timezone).equals(requestedStart),
@@ -120,6 +109,13 @@ export function validateSlot(input: SlotRequest): Result<ValidatedSlot, BookingR
     return err({ kind: 'OUTSIDE_OPENING_HOURS' });
   }
 
+  // A period is closed time, so it is answered as closed time, exactly as a
+  // closed day was before periods existed (D-019).
+  const slot = { startsAt: requestedStart, endsAt };
+  if (input.unavailablePeriods.some((period) => overlaps(slot, period))) {
+    return err({ kind: 'OUTSIDE_OPENING_HOURS' });
+  }
+
   const earliestStart = addMinutes(now, policy.minimumLeadTimeMinutes);
   if (Temporal.Instant.compare(requestedStart, earliestStart) < 0) {
     return err({ kind: 'TOO_LATE_TO_BOOK', earliestStart });
@@ -129,7 +125,7 @@ export function validateSlot(input: SlotRequest): Result<ValidatedSlot, BookingR
   const blocking = input.confirmedAppointments.filter(
     (busy) => ownStart === undefined || !busy.startsAt.equals(ownStart),
   );
-  if (blocking.some((busy) => overlaps(requestedStart, endsAt, busy))) {
+  if (blocking.some((busy) => overlaps(slot, busy))) {
     return err({ kind: 'SLOT_TAKEN' });
   }
 
@@ -149,7 +145,8 @@ export function validateBookingRequest(
   const slot = validateSlot({ ...input, durationMinutes: durationOfServices(input.services) });
   if (!slot.ok) return slot;
 
-  const contact = validateContact(input.contact);
+  // Online, the email is what 001 asks for along with the rest (FR-008).
+  const contact = validateContact(input.contact, { email: 'REQUIRED' });
   if (!contact.ok) return err({ kind: 'INVALID_CONTACT', fields: contact.error });
 
   return ok({ ...slot.value, services: input.services, contact: contact.value });

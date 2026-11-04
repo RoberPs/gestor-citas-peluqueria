@@ -1,6 +1,6 @@
 # Quickstart — Gestión del salón (cara a la dueña) v1
 
-**Feature**: `002-salon-management` | **Date**: 2026-09-16
+**Feature**: `002-salon-management` | **Date**: 2026-09-16 | **Revised**: 2026-11-03 (005 y Historia 10)
 
 Guía para arrancar esta feature en local y **comprobar que hace lo que promete**. Da por hecho que la 001 ya está arrancada según [`../001-client-appointment-booking/quickstart.md`](../001-client-appointment-booking/quickstart.md); aquí sólo aparece lo que cambia o se añade.
 
@@ -26,8 +26,9 @@ Los mismos de la 001, más uno:
 npm install
 docker compose up -d db db-test
 
-# 6. Las migraciones nuevas: cuenta, sesión, periodos no disponibles,
-#    origen de la cita y configuración editable
+# 6. Las migraciones nuevas (0004 a 0007): cuenta, sesión, periodos no
+#    disponibles, origen de la cita, quién la canceló y nombre buscable, y
+#    configuración editable
 npm run db:migrate
 
 # 7. NUEVO: aprovisionar la credencial de la dueña, FUERA de la aplicación (FR-003)
@@ -68,7 +69,7 @@ La aplicación en marcha **no necesita ninguna variable nueva**. La sesión no l
 
 ---
 
-## Comprobación rápida (10 minutos)
+## Comprobación rápida (15 minutos)
 
 Con `npm run dev` levantado y la credencial aprovisionada:
 
@@ -81,17 +82,28 @@ Con `npm run dev` levantado y la credencial aprovisionada:
 | 5 | Navegar a ayer | Se consulta, pero no se puede crear, mover ni cancelar nada | FR-016, BR-009 |
 | 6 | Bloquear de 13:00 a 14:00 de un día futuro | En `/` (cara al cliente), **sin reiniciar nada**, desaparecen los inicios que pisan ese rato | FR-056, SC-003 |
 | 7 | Eliminar ese bloqueo y recargar `/` | Los huecos vuelven de inmediato | FR-019, SC-003 |
-| 8 | Apuntar una cita a mano en un hueco libre | Se crea sin ningún aviso; el hueco deja de ofrecerse en `/` | FR-024, US4-1 |
+| 8 | Apuntar una cita a mano con dos servicios en un hueco libre | Muestra la duración total antes de guardar; se crea sin ningún aviso, ocupa la suma y el hueco deja de ofrecerse en `/` | FR-024, FR-027, US4-1, US4-7 |
 | 9 | Apuntar otra media hora después de la hora de cierre | **Avisa** de que está fuera de horario; se confirma y se crea | FR-028, US4-4 |
-| 10 | Apuntar una tercera encima de una cita existente | Nombra la cita que estorba, con cliente, servicio y franja | FR-033, SC-005 |
+| 10 | Apuntar una tercera encima de una cita existente | Nombra la cita que estorba, con cliente, todos sus servicios y franja | FR-033, SC-005 |
 | 11 | Rechazar ese aviso y mirar la agenda | **Nada ha cambiado**: ni la cita existente ni el intento | FR-036, SC-006 |
 | 12 | Repetirlo y esta vez cancelar la que estorba | Ambas cosas ocurren juntas | FR-037 |
 | 13 | Cancelar una cita **reservada online** | La pantalla recuerda que el cliente no recibe nada y muestra su teléfono | FR-043 |
 | 14 | Cambiar el cierre del viernes de 20:00 a 18:00 con una cita a las 19:00 | Lista esa cita **antes** de guardar, y al guardar **sigue intacta** | FR-047, BR-004 |
-| 15 | Añadir un servicio "Mechas" de 90 min | Seleccionable en `/` de inmediato, con huecos de 90 minutos | FR-048, SC-007 |
+| 15 | Añadir un servicio "Mechas" de 90 min **sin precio** | Seleccionable en `/` de inmediato, con huecos de 90 minutos y «Precio a consultar en el salón»; un precio de 0 se rechaza | FR-048, FR-053, SC-007 |
 | 16 | Retirar todos los servicios menos uno, y luego ese | Lo impide, explicando que el salón se quedaría sin nada que reservar | FR-051, BR-010 |
 | 17 | Subir la antelación mínima a 4 h | En `/`, desaparecen los inicios a menos de 4 horas vista | FR-055, SC-009 |
-| 18 | Cerrar sesión y pulsar Atrás | No se ve ningún dato de gestión | FR-006 |
+| 18 | Abrir `/gestion/reservas` | *Próximas citas*: las confirmadas desde hoy, por día y hora, con todos sus servicios; ninguna cancelada | FR-060, FR-061 |
+| 19 | Elegir *Todas* | Aparecen la cancelada del paso 13 como «Cancelada por ti» y, si se canceló una desde un enlace, «Cancelada por el cliente», cada una con su fecha de cancelación | FR-062, FR-063, FR-040a |
+| 20 | Elegir *Últimas reservas recibidas* y pasar de página | Primero las apuntadas a mano en esta comprobación, la más reciente arriba; la página siguiente no repite ninguna fila | FR-061, FR-064 |
+| 21 | Activar una fila | Lleva a la agenda del día de esa cita | FR-065 |
+| 22 | Buscar una parte del nombre de un cliente del seed, sin tildes y en mayúsculas | Aparecen sus citas; con *Todas*, también las canceladas | FR-069, SC-016 |
+| 23 | Buscar su teléfono con espacios y `+34`, y después sólo sus cuatro primeras cifras | Lo primero encuentra las mismas citas; lo segundo pide escribir el teléfono completo | FR-069 |
+| 24 | En la agenda, añadir un servicio a una cita que tiene libre el rato siguiente | Muestra la duración total y la nueva hora de fin antes de guardar; la cita se alarga y ese rato deja de ofrecerse en `/` | FR-072, FR-073, US11-1 |
+| 25 | Añadir un servicio a una cita que tiene otra justo detrás | Nombra la cita que estorba, como al mover; rechazar el aviso no cambia nada | FR-074, US11-3 |
+| 26 | Abrir el enlace de la cita online cancelada en el paso 13 | «El salón ha cancelado esta cita», con el teléfono del salón | FR-040b |
+| 27 | Cerrar sesión y pulsar Atrás | No se ve ningún dato de gestión | FR-006 |
+
+Los pasos 18 a 23 se repiten con la ventana a 1280 px de ancho: búsqueda y filtros a un lado y filas al otro, sin barra de desplazamiento horizontal (D-034).
 
 Los pasos 6, 7, 15 y 17 son los que demuestran lo que esta feature viene a resolver: **la configuración se edita en vivo y el cliente lo nota en la siguiente consulta, sin despliegue ni reinicio**.
 
@@ -127,9 +139,9 @@ npm run test:integration -- concurrent-conflict
 
 ### Cobertura mínima antes de dar la feature por terminada
 
-- Una historia de usuario, un archivo e2e: nueve archivos, de `us1-access` a `us9-parameters`.
-- `@axe-core/playwright` sobre las seis pantallas de gestión, **incluido el diálogo de conflicto**, que es el elemento con más riesgo de trampa de foco de toda la feature.
-- Un test de regresión por cada garantía heredada que esta feature podría romper sin querer: que retirar un servicio no toca las citas (SC-008), que cambiar su duración no toca las ya confirmadas (FR-052), que reprogramar una cita online conserva su enlace vivo (FR-041) y que el origen sobrevive a la reprogramación (FR-025).
+- Una historia de usuario, un archivo e2e: once archivos, de `us1-access` a `us9-parameters`, `us10-bookings` y `us11-edit`, a 360 px y a 1280 px (proyectos `mobile-360` y `desktop-1280` de la 003), con la accesibilidad también a 768 px.
+- `@axe-core/playwright` sobre las siete pantallas de gestión, **incluido el diálogo de conflicto**, que es el elemento con más riesgo de trampa de foco de toda la feature.
+- Un test de regresión por cada garantía heredada que esta feature podría romper sin querer: que retirar un servicio no toca las citas (SC-008), que cambiar su duración no toca las ya confirmadas (FR-052), que reprogramar una cita online conserva su enlace vivo (FR-041), que el origen sobrevive a la reprogramación (FR-025), que mover una cita de varios servicios conserva todos y su duración total (FR-039), que el cliente, al cancelar desde su enlace, queda registrado como quien canceló (FR-040a), y que editar una cita no reescribe los snapshots de los servicios que conserva (BR-021).
 - Cero tests saltados. La constitución no admite excepciones tácitas.
 
 ---
@@ -142,15 +154,14 @@ La restricción `EXCLUDE` de la 001 no se toca, y ahora tiene que cubrir tambié
 
 ```bash
 docker compose exec db psql -U postgres -d salon -c "
-  INSERT INTO appointment (id, status, starts_at, ends_at, service_id, service_name,
-    service_duration_minutes, service_price_cents, origin, customer_name, customer_phone,
-    customer_phone_normalized)
-  SELECT gen_random_uuid(), 'CONFIRMED', starts_at, ends_at, service_id, service_name,
-    service_duration_minutes, service_price_cents, 'OWNER', 'Prueba', '600000000', '+34600000000'
+  INSERT INTO appointment (id, status, starts_at, ends_at, origin, customer_name,
+    customer_phone, customer_phone_normalized)
+  SELECT gen_random_uuid(), 'CONFIRMED', starts_at, ends_at, 'OWNER', 'Prueba',
+    '600000000', '+34600000000'
   FROM appointment WHERE status = 'CONFIRMED' LIMIT 1;"
 ```
 
-Debe fallar con `23P01 appointment_no_overlap`. Que la fila diga `origin = 'OWNER'` no la exime de nada: FR-035 no admite excepción ni por decisión explícita de la dueña.
+Debe fallar con `23P01 appointment_no_overlap`. Desde la 005 los servicios viven en `appointment_service`, pero la restricción mira sólo `appointment`: su `ends_at` ya es el inicio más la suma de los servicios. Que la fila diga `origin = 'OWNER'` no la exime de nada: FR-035 no admite excepción ni por decisión explícita de la dueña.
 
 ### La atomicidad de la resolución
 
@@ -168,6 +179,12 @@ npm run test:integration -- agenda-performance
 ```
 
 El test cuenta consultas y mide. Abrir un día debe costar **un número fijo de consultas**, el mismo con la base vacía que con diez mil citas dentro (SC-010, D-027). Si alguien introduce un bucle por franjas que toque la base, este test lo caza.
+
+El listado de reservas tiene su propio test con la misma regla: una página es **una consulta**, servicios incluidos, con la base vacía y con el histórico entero (SC-013, D-033).
+
+```bash
+npm run test:integration -- booking-list-performance
+```
 
 ### La configuración se lee de verdad en cada evaluación
 
@@ -210,6 +227,6 @@ La 001 ya lo exigía por el limitador por IP en memoria. Esta feature **no añad
 
 **«He cambiado el horario y el cliente sigue viendo los huecos viejos».** Si el cambio se guardó —se ve en `/gestion/horario`— y el cliente no lo nota, alguien ha reintroducido un caché de configuración. `config-propagation` debería estar en rojo; si está en verde y el síntoma persiste, el caché está en otro sitio, probablemente en la caché de datos de Next sobre la ruta pública: esas rutas se sirven con `no-store`.
 
-**«La migración 0006 falla».** Está imponiendo el `EXCLUDE` de `opening_interval` sobre datos ya cargados, y esa instancia tiene tramos solapados en algún día de la semana. Falla ahí a propósito, antes de tocar nada. Hay que arreglar los datos y volver a migrar.
+**«La migración 0007 falla».** Está imponiendo el `EXCLUDE` de `opening_interval` sobre datos ya cargados, y esa instancia tiene tramos solapados en algún día de la semana. Falla ahí a propósito, antes de tocar nada. Hay que arreglar los datos y volver a migrar.
 
 **«Me he quedado fuera 15 minutos».** Es el bloqueo por cuenta de FR-009, y **es por cuenta, no por origen**: cambiar de dispositivo o de red no lo evita. O se espera, o se reaprovisiona con `owner:provision`, que pone el contador a cero al reescribir la contraseña.

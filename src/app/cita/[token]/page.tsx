@@ -11,7 +11,7 @@ import { totalPriceOf } from '@/domain/catalog/selection';
 import { formatLocalTime, localDateOf } from '@/domain/shared/time';
 import { managementLink, resolveClientIp } from '@/infrastructure/config/env';
 import { rateLimiter } from '@/infrastructure/security/rate-limiter';
-import { messages } from '@/messages/es-ES';
+import { messages, withPhone } from '@/messages/es-ES';
 
 export const dynamic = 'force-dynamic';
 
@@ -133,7 +133,9 @@ export default async function AppointmentPage({
           <section aria-labelledby="actions-heading">
             <h2 id="actions-heading">{messages.appointment.title}</h2>
 
-            {view === 'CANCELLED' && <p>{messages.appointment.cancelledNote}</p>}
+            {view === 'CANCELLED' && detail.appointment.cancelledBy !== null && (
+              <p>{withPhone(messages.appointment.cancelledBy[detail.appointment.cancelledBy], detail.salon.phone)}</p>
+            )}
             {view === 'COMPLETED' && <p>{messages.appointment.completedNote}</p>}
 
             {reason !== null && (

@@ -142,6 +142,8 @@ export function appointmentDetailResponse(detail: AppointmentDetail) {
     startsAt: appointment.startsAt.toString(),
     canCancel: detail.canCancel,
     canReschedule: detail.canReschedule,
+    // 2.1.0: who cancelled it, so the client knows whether to call (002, D-037).
+    cancelledBy: appointment.cancelledBy,
     unavailableReason: unavailableReason(detail),
     cancellationPolicyHours: detail.policy.cancellationDeadlineHours,
     salon: salonInfo(salon),

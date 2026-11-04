@@ -1,8 +1,11 @@
 import 'dotenv/config';
 import { Client } from 'pg';
+import { provisionOwnerAccount } from '../../scripts/provision-owner';
+import { E2E_OWNER } from './helpers/owner';
 
 /**
- * Clears the appointments a previous run left behind.
+ * Clears the appointments a previous run left behind, and provisions the
+ * owner's account the way `owner:provision` does (002, FR-003).
  *
  * The schema and the preloaded configuration are **not** done here: the server
  * command does them before it starts, because Playwright's readiness probe is a
@@ -22,4 +25,7 @@ export default async function globalSetup(): Promise<void> {
   } finally {
     await client.end();
   }
+
+  const provisioned = await provisionOwnerAccount({ connectionString, ...E2E_OWNER });
+  if (!provisioned.ok) throw new Error(`the e2e owner could not be provisioned: ${provisioned.error}`);
 }

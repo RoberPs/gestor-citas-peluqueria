@@ -22,5 +22,7 @@ export function applyCancellation(
   const allowed = canCancel(appointment, now, policy);
   if (!allowed.ok) return allowed;
 
-  return ok({ ...appointment, status: 'CANCELLED', cancelledAt: now });
+  // The client's own cancellation, from their link (002, FR-040a). The owner's
+  // has a function of its own: she is exempt from the deadline (BR-007).
+  return ok({ ...appointment, status: 'CANCELLED', cancelledAt: now, cancelledBy: 'CUSTOMER' });
 }

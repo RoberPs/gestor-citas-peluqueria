@@ -1,7 +1,18 @@
 import { Temporal } from '@js-temporal/polyfill';
 import { describe, expect, it } from 'vitest';
 import { computeDaySlots } from '@/domain/availability/compute-day';
-import { at, busy, FRIDAY, interval, MADRID, NOW, POLICY, SATURDAY, times } from './_fixtures';
+import {
+  at,
+  busy,
+  FRIDAY,
+  interval,
+  MADRID,
+  NOW,
+  POLICY,
+  SATURDAY,
+  times,
+  wholeDay,
+} from './_fixtures';
 
 /**
  * The four conditions of FR-003, one at a time and then together.
@@ -13,7 +24,7 @@ import { at, busy, FRIDAY, interval, MADRID, NOW, POLICY, SATURDAY, times } from
 type Options = {
   date?: Temporal.PlainDate;
   openingIntervals?: ReturnType<typeof interval>[];
-  isClosed?: boolean;
+  unavailable?: ReturnType<typeof busy>[];
   durationMinutes?: number;
   confirmed?: ReturnType<typeof busy>[];
   now?: Temporal.Instant;
@@ -25,7 +36,7 @@ function slots(options: Options = {}) {
   return computeDaySlots({
     date,
     openingIntervals: options.openingIntervals ?? [interval(5, '10:00', '20:00')],
-    isClosed: options.isClosed ?? false,
+    unavailablePeriods: options.unavailable ?? [],
     serviceDurationMinutes: options.durationMinutes ?? 30,
     confirmedAppointments: options.confirmed ?? [],
     now: options.now ?? NOW,
@@ -167,8 +178,8 @@ describe('Historia 1, escenario 5 — the two hour lead time (BR-003)', () => {
 });
 
 describe('a closed day (FR-007a)', () => {
-  it('offers nothing when the day is marked closed', () => {
-    expect(slots({ isClosed: true })).toEqual([]);
+  it('offers nothing on a day an unavailable period covers whole', () => {
+    expect(slots({ unavailable: [wholeDay('2026-09-18')] })).toEqual([]);
   });
 
   it('offers nothing when the weekday has no stretches', () => {
@@ -254,5 +265,40 @@ describe('what a slot carries', () => {
     const list = slots();
 
     expect(list[0]?.startsAt.equals(at('2026-09-18', '10:00'))).toBe(true);
+  });
+});
+
+describe('unavailable periods count as busy (002, FR-020, BR-002)', () => {
+  it('offers no start that overlaps a blocked lunch hour (Historia 3, escenario 1)', () => {
+    const list = times(
+      slots({ durationMinutes: 45, unavailable: [busy('2026-09-18', '13:00', '14:00')] }),
+    );
+
+    expect(list).toContain('12:00');
+    expect(list).not.toContain('12:30');
+    expect(list).not.toContain('13:00');
+    expect(list).not.toContain('13:30');
+    expect(list).toContain('14:00');
+  });
+
+  it('lets a service start exactly when a period ends: the range is half-open (BR-013)', () => {
+    expect(times(slots({ unavailable: [busy('2026-09-18', '10:00', '11:00')] }))[0]).toBe('11:00');
+  });
+
+  it('blocks the day with a period that began days earlier', () => {
+    const holidays = { startsAt: at('2026-09-10', '00:00'), endsAt: at('2026-09-19', '00:00') };
+
+    expect(slots({ unavailable: [holidays] })).toEqual([]);
+  });
+
+  it('applies periods and appointments together, with one rule for both', () => {
+    const list = times(
+      slots({
+        confirmed: [busy('2026-09-18', '10:00', '12:00')],
+        unavailable: [busy('2026-09-18', '12:00', '19:30')],
+      }),
+    );
+
+    expect(list).toEqual(['19:30']);
   });
 });

@@ -2,9 +2,21 @@ openapi: 3.1.0
 
 info:
   title: API de gestión del salón — cara a la dueña
-  version: 1.0.0
+  version: 1.2.0
   description: |
     Interfaz HTTP de la feature `002-salon-management`.
+
+    **Versión 1.1.0** (2026-11-03, todavía sin implementar): una cita lleva uno o
+    varios servicios y un servicio puede no tener precio, con la misma forma que el
+    contrato 2.0.0 de cliente de la `005-multiple-services` (`services`,
+    `PriceTotal`, `priceLabel`); cada cancelación dice quién la hizo
+    (`cancelledBy`); y se añade `GET /gestion/reservas`, el listado de reservas de
+    la Historia 10.
+
+    **Versión 1.2.0** (2026-11-03, todavía sin implementar): `PATCH
+    /gestion/citas/{id}` edita los servicios y los datos del cliente de una cita
+    (Historia 11, D-035), y `GET /gestion/reservas` admite `buscar`, por nombre o
+    por teléfono (D-036).
 
     Notas transversales, válidas para toda la API:
 
@@ -34,6 +46,7 @@ servers:
 tags:
   - name: Acceso
   - name: Agenda
+  - name: Reservas
   - name: Citas
   - name: Periodos no disponibles
   - name: Horario
@@ -183,6 +196,80 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
+  /gestion/reservas:
+    get:
+      tags: [Reservas]
+      summary: El listado de reservas, paginado
+      description: |
+        Historia 10. Una página de 20 citas con sus servicios, resuelta con **una
+        sola consulta** (FR-066, D-033). Los parámetros ausentes toman su valor por
+        defecto en el dominio: *Próximas citas*, sólo confirmadas, de cualquier
+        origen y sin rango de fechas (FR-061, FR-062).
+
+        La paginación es por cursor: `next` es opaco y se devuelve tal cual en
+        `despues`. Cambiar de orden o de filtros vuelve a la primera página. Una
+        reserva que entra mientras tanto no repite ni salta ninguna fila (FR-064).
+      parameters:
+        - name: orden
+          in: query
+          required: false
+          schema: { type: string, enum: [proximas, recientes], default: proximas }
+          description: |
+            `proximas`: citas desde el inicio de hoy en la zona del salón, por su
+            inicio. `recientes`: todas, por su momento de creación, de la más nueva
+            a la más antigua.
+        - name: estado
+          in: query
+          required: false
+          schema: { type: string, enum: [confirmadas, canceladas, todas], default: confirmadas }
+        - name: origen
+          in: query
+          required: false
+          schema: { type: string, enum: [online, mano, todos], default: todos }
+        - name: desde
+          in: query
+          required: false
+          schema: { type: string, format: date }
+          description: Día del salón, inclusivo, sobre el día de la cita.
+        - name: hasta
+          in: query
+          required: false
+          schema: { type: string, format: date }
+          description: Día del salón, inclusivo. No puede ser anterior a `desde`.
+        - name: buscar
+          in: query
+          required: false
+          schema: { type: string, maxLength: 100 }
+          description: |
+            Nombre o teléfono del cliente (FR-069, D-036). Si sólo tiene cifras,
+            con o sin espacios, puntos, guiones y `+34` / `0034`, es un teléfono
+            y se compara entero; si no es un teléfono válido, `400` con
+            `code: INVALID_VALUE` y un `nextAction` que pide escribirlo completo.
+            Si no, es un nombre y se compara por cualquier parte, sin mayúsculas
+            ni acentos. Nunca encuentra una cita anonimizada (FR-070). Se
+            combina con los demás parámetros y se conserva al pasar de página.
+        - name: despues
+          in: query
+          required: false
+          schema: { type: string }
+          description: El `next` de la página anterior. Opaco.
+      responses:
+        '200':
+          description: Una página del listado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BookingListPage' }
+        '400':
+          description: |
+            Un parámetro con un valor no admitido, `hasta` anterior a `desde`, un
+            cursor de otro orden, o un `buscar` de sólo cifras que no es un
+            teléfono completo. `nextAction` dice qué corregir o invita a volver a
+            los filtros por defecto.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
   /gestion/citas:
     post:
       tags: [Citas]
@@ -200,8 +287,12 @@ paths:
         La dueña está exenta de la antelación mínima, del horizonte y del horario de
         apertura (BR-007). El horario fuera de apertura no bloquea: llega como
         `warnings` y se acusa con `acknowledgedWarnings`. Lo que **sí** bloquea es el
-        pasado (FR-030), el límite de 3 citas futuras por contacto (FR-029) y el
-        formato de los datos de cliente (FR-031).
+        pasado (FR-030), el límite de 3 citas futuras por contacto (FR-029), el
+        formato de los datos de cliente (FR-031) y una selección de servicios vacía,
+        repetida o con algún servicio retirado (FR-024).
+
+        La cita dura la suma de los servicios elegidos (FR-027), que se guardan con
+        su snapshot en el orden del catálogo.
       requestBody:
         required: true
         content:
@@ -218,14 +309,70 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
+  /gestion/citas/{id}:
+    patch:
+      tags: [Citas]
+      summary: Editar los servicios y los datos del cliente de una cita
+      description: |
+        Historia 11 (D-035). Sustituye a cancelar y apuntar otra. Sólo una cita
+        **confirmada** cuya hora de fin no ha pasado; una en curso se edita
+        (FR-071). La hora de inicio, el origen, el momento de la reserva y el
+        enlace de gestión no cambian (FR-073).
+
+        `serviceIds` es la lista **completa** de servicios que la cita tendrá.
+        Los que ya tenía conservan su snapshot aunque el catálogo haya cambiado
+        o el servicio se haya retirado; los nuevos tienen que estar activos y se
+        guardan con el nombre, la duración y el precio de este momento (FR-072,
+        BR-021). La duración es su suma y el fin se recalcula desde el inicio.
+
+        Mismo protocolo de dos pasos que crear y mover: si la cita se alarga y
+        pisa otra cita o un periodo, `409` nombrándolo; se repite con el
+        `stateToken` y una `resolution` (FR-074). Terminar fuera del horario de
+        apertura llega en `warnings` y se acusa con `acknowledgedWarnings`.
+        Cambiar sólo los datos del cliente nunca produce conflicto.
+
+        `customer` es completo: el email puede ir a `null` (FR-075). Si cambia el
+        teléfono o el email, se aplica el límite de 3 citas futuras al contacto
+        nuevo, sin contar esta cita.
+
+        La respuesta lleva `notifyCustomer` cuando la cita es online (FR-043).
+      parameters:
+        - $ref: '#/components/parameters/AppointmentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EditAppointmentRequest' }
+      responses:
+        '200':
+          description: Cita editada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OwnerAppointment' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422':
+          description: |
+            Bloqueado: la cita está cancelada (FR-042) o ya terminó (FR-071), un
+            dato de cliente está mal formado (FR-031), la selección está vacía,
+            repetida o añade un servicio retirado (FR-072), o el contacto nuevo
+            ya tiene 3 citas futuras (FR-075).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
   /gestion/citas/{id}/reprogramacion:
     post:
       tags: [Citas]
       summary: Mover una cita
       description: |
-        Mismo protocolo de dos pasos que la creación. Conserva servicio, datos de
-        cliente, origen y —si la cita se reservó online— **su enlace de gestión en
-        funcionamiento** (FR-039, FR-041, FR-025).
+        Mismo protocolo de dos pasos que la creación. Conserva los servicios, la
+        duración total —la suma de sus snapshots, no la del catálogo de hoy—, los
+        datos de cliente, el origen y —si la cita se reservó online— **su enlace de
+        gestión en funcionamiento** (FR-039, FR-041, FR-025). No cambia servicios:
+        para eso está `PATCH /gestion/citas/{id}`.
 
         La respuesta lleva `notifyCustomer` cuando la cita era online: la pantalla
         debe recordar que el cliente no recibe ningún aviso y mostrar su teléfono
@@ -252,6 +399,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '404': { $ref: '#/components/responses/NotFound' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
@@ -266,7 +414,8 @@ paths:
         confirmación, y por eso el cuerpo exige `confirmed: true` en vez de aceptar
         un cuerpo vacío.
 
-        Es terminal: no hay ruta para reactivar (FR-042, BR-008).
+        Es terminal: no hay ruta para reactivar (FR-042, BR-008). La cita queda con
+        `cancelledBy: OWNER` (FR-040a).
       parameters:
         - $ref: '#/components/parameters/AppointmentId'
       requestBody:
@@ -295,6 +444,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '404': { $ref: '#/components/responses/NotFound' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
@@ -525,7 +675,10 @@ paths:
               schema: { $ref: '#/components/schemas/OwnerService' }
           description: Servicio creado y activo.
         '422':
-          description: Duración no positiva o precio negativo (FR-053).
+          description: |
+            Duración no positiva, o precio de cero o negativo (FR-053). `code` es
+            `NON_POSITIVE_PRICE` en el segundo caso, y `nextAction` dice que se
+            deje el precio vacío si no se quiere poner.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -556,7 +709,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
-          description: Duración no positiva o precio negativo (FR-053).
+          description: Duración no positiva, o precio de cero o negativo (FR-053).
         '404': { $ref: '#/components/responses/NotFound' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
@@ -731,16 +884,28 @@ components:
         Algo estorba y hay que decidir antes de guardar (FR-032, FR-033).
 
         El cuerpo **nombra** cada elemento en conflicto: para una cita, el nombre del
-        cliente, el servicio y su franja; para un periodo, su franja y su motivo.
+        cliente, todos sus servicios y su franja; para un periodo, su franja y su
+        motivo.
         Nada se ha modificado: rechazar el aviso deja el sistema exactamente como
         estaba (FR-036, SC-006).
 
         Para continuar, se repite la petición con el `stateToken` de esta respuesta y
         una `resolution`. Si el estado cambió mientras tanto, la respuesta vuelve a
         ser `409` con el conflicto **recalculado** (FR-038).
+
+        Un aviso sin conflicto —una cita fuera del horario de apertura— llega con
+        la misma forma, `code: WARNING` y `conflicts` vacía: no impide nada, pero
+        hay que acusarlo con `acknowledgedWarnings` (D-025).
+
+        Si el estado vuelve a cambiar también al recalcular, la respuesta es un
+        `Error` con `code: STATE_CHANGED`: la dueña repite la operación sobre lo
+        que hay ahora.
       content:
         application/json:
-          schema: { $ref: '#/components/schemas/ConflictReport' }
+          schema:
+            oneOf:
+              - $ref: '#/components/schemas/ConflictReport'
+              - $ref: '#/components/schemas/Error'
 
   schemas:
 
@@ -785,9 +950,41 @@ components:
         phone: { type: string }
         email: { type: [string, 'null'] }
 
+    AppointmentService:
+      type: object
+      description: |
+        Un servicio de la cita, con el snapshot congelado al reservar, no el
+        catálogo de hoy (BR-003; 005, FR-014). Misma forma que `Service` del
+        contrato de cliente 2.0.0, sin `id` de catálogo.
+      required: [name, durationMinutes, priceCents, priceLabel]
+      additionalProperties: false
+      properties:
+        name: { type: string }
+        durationMinutes: { type: integer, minimum: 1 }
+        priceCents:
+          type: [integer, 'null']
+          minimum: 1
+          description: "`null` es un servicio sin precio (005, FR-018); nunca 0."
+        priceLabel:
+          type: string
+          description: Ya redactado, p. ej. `18,00 €` o `Precio a consultar en el salón`.
+
+    PriceTotal:
+      type: object
+      description: |
+        El precio total de la cita, decidido por el dominio (`totalPriceOf`) y ya
+        redactado. Misma forma que en el contrato de cliente 2.0.0 (005, FR-020).
+      required: [kind, knownCents, label]
+      additionalProperties: false
+      properties:
+        kind: { type: string, enum: [ALL_PRICED, NONE_PRICED, PARTIALLY_PRICED] }
+        knownCents: { type: [integer, 'null'] }
+        label: { type: string }
+
     OwnerAppointment:
       type: object
-      required: [id, status, origin, startsAt, endsAt, service, customer, isPast]
+      required: [id, status, origin, startsAt, endsAt, services, price, durationMinutes,
+                 customer, isPast, createdAt, cancelledAt, cancelledBy]
       additionalProperties: false
       properties:
         id: { type: string, format: uuid }
@@ -800,15 +997,29 @@ components:
             comunica con **texto e icono**, nunca sólo con color (FR-013, FR-058).
         startsAt: { $ref: '#/components/schemas/LocalTime' }
         endsAt: { $ref: '#/components/schemas/LocalTime' }
-        service:
-          type: object
-          description: El snapshot congelado al reservar, no el catálogo de hoy (BR-003).
-          required: [name, durationMinutes, priceCents]
-          additionalProperties: false
-          properties:
-            name: { type: string }
-            durationMinutes: { type: integer }
-            priceCents: { type: integer }
+        services:
+          type: array
+          minItems: 1
+          description: Todos los servicios de la cita, en el orden del catálogo (FR-014).
+          items: { $ref: '#/components/schemas/AppointmentService' }
+        price: { $ref: '#/components/schemas/PriceTotal' }
+        durationMinutes:
+          type: integer
+          description: La suma de los servicios (BR-020).
+        createdAt:
+          $ref: '#/components/schemas/LocalTime'
+          description: Cuándo se hizo la reserva. El listado lo muestra y ordena por él.
+        cancelledAt:
+          oneOf:
+            - $ref: '#/components/schemas/LocalTime'
+            - type: 'null'
+        cancelledBy:
+          type: [string, 'null']
+          enum: [CUSTOMER, OWNER, null]
+          description: |
+            Quién canceló la cita (FR-040a). `null` si y sólo si está confirmada.
+            La interfaz lo dice con texto: «Cancelada por el cliente» o «Cancelada
+            por ti».
         customer:
           oneOf:
             - $ref: '#/components/schemas/Customer'
@@ -891,16 +1102,54 @@ components:
           items: { $ref: '#/components/schemas/TimelineEntry' }
           description: Ordenadas cronológicamente y sin solapes entre sí.
 
+    BookingListPage:
+      type: object
+      required: [query, rows, next]
+      additionalProperties: false
+      properties:
+        query:
+          type: object
+          description: |
+            La consulta ya normalizada por el dominio, con los valores por defecto
+            puestos. La pantalla pinta los filtros a partir de esto, sin decidirlos.
+          required: [orden, estado, origen, desde, hasta, buscar]
+          additionalProperties: false
+          properties:
+            orden: { type: string, enum: [proximas, recientes] }
+            estado: { type: string, enum: [confirmadas, canceladas, todas] }
+            origen: { type: string, enum: [online, mano, todos] }
+            desde: { type: [string, 'null'], format: date }
+            hasta: { type: [string, 'null'], format: date }
+            buscar:
+              type: [string, 'null']
+              description: |
+                El término tal como lo escribió la dueña, recortado, para
+                volver a pintarlo en el campo. `null` sin búsqueda.
+        rows:
+          type: array
+          maxItems: 20
+          description: |
+            Una cita por fila, con todos sus servicios. Una anonimizada llega con
+            `customer: null` (FR-067).
+          items: { $ref: '#/components/schemas/OwnerAppointment' }
+        next:
+          type: [string, 'null']
+          description: Cursor opaco de la página siguiente. `null` si no hay más.
+
     Conflict:
       oneOf:
         - type: object
-          required: [kind, id, customerName, serviceName, startsAt, endsAt]
+          required: [kind, id, customerName, serviceNames, startsAt, endsAt]
           additionalProperties: false
           properties:
             kind: { const: APPOINTMENT }
             id: { type: string, format: uuid }
             customerName: { type: string }
-            serviceName: { type: string }
+            serviceNames:
+              type: array
+              minItems: 1
+              items: { type: string }
+              description: Todos los servicios de la cita que estorba (FR-033).
             startsAt: { $ref: '#/components/schemas/LocalTime' }
             endsAt: { $ref: '#/components/schemas/LocalTime' }
         - type: object
@@ -918,12 +1167,12 @@ components:
       required: [code, message, nextAction, conflicts, stateToken]
       additionalProperties: false
       properties:
-        code: { const: CONFLICT }
+        code: { type: string, enum: [CONFLICT, WARNING] }
         message: { type: string }
         nextAction: { type: string }
         conflicts:
           type: array
-          minItems: 1
+          description: Vacía sólo cuando `code` es `WARNING`.
           items: { $ref: '#/components/schemas/Conflict' }
         stateToken:
           type: string
@@ -981,19 +1230,23 @@ components:
 
     CreateAppointmentRequest:
       type: object
-      required: [serviceId, startsAt, customer]
+      required: [serviceIds, startsAt, customer]
       additionalProperties: false
       properties:
-        serviceId:
-          type: string
-          format: uuid
-          description: Del catálogo **activo** (FR-024).
+        serviceIds:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { type: string, format: uuid }
+          description: |
+            Uno o varios, del catálogo **activo**, sin repetidos (FR-024). El orden
+            no importa: la cita los guarda en el orden del catálogo.
         startsAt:
           type: string
           format: date-time
           description: |
-            Múltiplo de 15 minutos en la hora del salón (D-025). La duración se
-            deriva del servicio, nunca se envía (FR-027).
+            Múltiplo de 15 minutos en la hora del salón (D-025). La duración es la
+            suma de los servicios y nunca se envía (FR-027).
         customer:
           type: object
           required: [name, phone]
@@ -1004,6 +1257,36 @@ components:
             email:
               type: [string, 'null']
               description: Opcional. Una cita sin email es plenamente válida (FR-024).
+        stateToken: { type: string }
+        resolution: { $ref: '#/components/schemas/Resolution' }
+        acknowledgedWarnings:
+          type: array
+          items: { type: string }
+
+    EditAppointmentRequest:
+      type: object
+      required: [serviceIds, customer]
+      additionalProperties: false
+      properties:
+        serviceIds:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { type: string, format: uuid }
+          description: |
+            La lista completa de servicios que tendrá la cita (FR-072). Los que
+            ya tenía conservan su snapshot; los nuevos, del catálogo activo. El
+            orden no importa: se guardan en el del catálogo.
+        customer:
+          type: object
+          required: [name, phone]
+          additionalProperties: false
+          properties:
+            name: { type: string, minLength: 1 }
+            phone: { type: string, minLength: 1 }
+            email:
+              type: [string, 'null']
+              description: Opcional, también en una cita online (FR-075).
         stateToken: { type: string }
         resolution: { $ref: '#/components/schemas/Resolution' }
         acknowledgedWarnings:
@@ -1065,13 +1348,19 @@ components:
 
     OwnerService:
       type: object
-      required: [id, name, durationMinutes, priceCents, isActive, displayOrder]
+      required: [id, name, durationMinutes, priceCents, priceLabel, isActive, displayOrder]
       additionalProperties: false
       properties:
         id: { type: string, format: uuid }
         name: { type: string }
         durationMinutes: { type: integer, minimum: 1 }
-        priceCents: { type: integer, minimum: 0 }
+        priceCents:
+          type: [integer, 'null']
+          minimum: 1
+          description: "`null` es un servicio sin precio; nunca 0 (FR-048, FR-053)."
+        priceLabel:
+          type: string
+          description: Ya redactado, igual que en el contrato de cliente.
         isActive: { type: boolean }
         displayOrder: { type: integer }
 
@@ -1082,7 +1371,11 @@ components:
       properties:
         name: { type: string, minLength: 1, maxLength: 120 }
         durationMinutes: { type: integer, minimum: 1 }
-        priceCents: { type: integer, minimum: 0 }
+        priceCents:
+          type: [integer, 'null']
+          description: |
+            `null` para un servicio sin precio. Un 0 o un negativo no se rechaza
+            aquí sino en el dominio, para que el mensaje explique qué hacer (D-031).
         displayOrder:
           type: integer
           description: La dueña controla el orden; no hay ordenación automática.

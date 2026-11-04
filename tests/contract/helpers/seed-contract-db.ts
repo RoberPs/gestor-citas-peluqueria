@@ -5,7 +5,7 @@ import { ensureSchema, testPool, truncateAll } from '../../integration/helpers/t
 /**
  * The configuration the contract suites run against.
  *
- * It is loaded once, like the real thing: services, opening hours and closures
+ * It is loaded once, like the real thing: services, opening hours and holidays
  * are preloaded data this feature only ever reads (FR-007). Between tests only
  * `appointment` is emptied.
  */

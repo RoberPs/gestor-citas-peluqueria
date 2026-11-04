@@ -3,10 +3,19 @@ import type {
   Appointment,
   AppointmentId,
   BusyInterval,
+  CancellationActor,
 } from '@/domain/booking/appointment';
-import type { SalonConfiguration } from '@/domain/catalog/salon';
+import type {
+  SalonConfiguration,
+  UnavailablePeriod,
+  UnavailablePeriodId,
+} from '@/domain/catalog/salon';
 import type { NonEmptyServiceList } from '@/domain/catalog/selection';
+import type { Service } from '@/domain/catalog/service';
 import type { NormalizedEmail, NormalizedPhone, ValidatedContact } from '@/domain/contact/contact';
+import type { LockoutState } from '@/domain/owner/account';
+import type { ResolutionPlan } from '@/domain/owner/conflict';
+import type { BookingListCursor, BookingListQuery } from '@/domain/owner/booking-list';
 import type { Result } from '@/domain/shared/result';
 
 /**
@@ -30,6 +39,9 @@ export type NewAppointment = {
 export interface AppointmentRepository {
   findByTokenHash(hash: Uint8Array): Promise<Appointment | null>;
 
+  /** The owner's way in (002): by id, with all its services. */
+  findById(id: AppointmentId): Promise<Appointment | null>;
+
   /** D-003: ONE query for the whole horizon. Sustains SC-005 and FR-005b. */
   findConfirmedInWindow(
     from: Temporal.Instant,
@@ -45,9 +57,23 @@ export interface AppointmentRepository {
    */
   countFutureByContact(
     phone: NormalizedPhone,
-    email: NormalizedEmail,
+    /** `null` counts nothing: an appointment without email takes no email quota. */
+    email: NormalizedEmail | null,
     now: Temporal.Instant,
+    /** When editing: the appointment does not count against its own new contact (FR-075). */
+    excluding?: AppointmentId,
   ): Promise<{ readonly byPhone: number; readonly byEmail: number }>;
+
+  /**
+   * The appointments that touch `[from, to)`, each with all its services, in
+   * ONE query (002, FR-014, D-027): the owner's agenda reads a day through
+   * here. Cancelled ones only when asked for (FR-015).
+   */
+  findInWindow(
+    from: Temporal.Instant,
+    to: Temporal.Instant,
+    options: { readonly includeCancelled: boolean },
+  ): Promise<readonly Appointment[]>;
 
   /**
    * Inserts the appointment and its services in one transaction (005, D-011).
@@ -64,15 +90,161 @@ export interface AppointmentRepository {
     end: Temporal.Instant,
   ): Promise<Result<Appointment, 'SLOT_TAKEN'>>;
 
+  /** Writes who cancelled in the same UPDATE as the status (002, FR-040a). */
   cancel(
     id: AppointmentId,
     at: Temporal.Instant,
+    by: CancellationActor,
   ): Promise<Result<Appointment, 'ALREADY_CANCELLED'>>;
 }
 
 export interface SalonConfigRepository {
-  /** FR-007: preloaded configuration, read-only in v1. Cacheable in memory. */
+  /**
+   * The configuration as it is **now**: read on every call, never cached, so
+   * that what the owner saves rules at once (002, FR-056, D-021). Read-only:
+   * writing it is a separate port no client use case depends on.
+   */
   load(): Promise<SalonConfiguration>;
+
+  /**
+   * Every service, retired ones included, in display order (002, D-035): an
+   * edited appointment keeps a retired service in its catalogue place.
+   */
+  loadCatalogue(): Promise<readonly Service[]>;
+}
+
+/** The owner's blocked time (002, D-019). Never cached: a new period rules at once (FR-056). */
+export interface UnavailablePeriodRepository {
+  /**
+   * The periods that touch `[from, to)`, in order, found through the index on
+   * their range (D-027). One query for the whole window, never one per day.
+   */
+  findOverlapping(
+    from: Temporal.Instant,
+    to: Temporal.Instant,
+  ): Promise<readonly UnavailablePeriod[]>;
+
+  findById(id: UnavailablePeriodId): Promise<UnavailablePeriod | null>;
+
+  insert(period: UnavailablePeriod): Promise<UnavailablePeriod>;
+
+  /** `null` when there is no such period. The reason is kept (FR-019). */
+  shorten(
+    id: UnavailablePeriodId,
+    startsAt: Temporal.Instant,
+    endsAt: Temporal.Instant,
+  ): Promise<UnavailablePeriod | null>;
+
+  /** Whether there was one to delete. */
+  delete(id: UnavailablePeriodId): Promise<boolean>;
+}
+
+/** What `applyPlan` wrote: the appointment or the period the owner asked for. */
+export type AppliedPlan =
+  | { readonly kind: 'APPOINTMENT'; readonly appointment: Appointment }
+  | { readonly kind: 'PERIOD'; readonly period: UnavailablePeriod };
+
+/** The owner's changes, applied as plans (002, D-023). */
+export interface OwnerAppointmentWriter {
+  /**
+   * FR-037: the whole plan in ONE transaction, or nothing. It detects again,
+   * inside the transaction, what is in the way of the intent and compares its
+   * fingerprint with `expectedStateToken`; if what the owner saw is no longer
+   * what there is, nothing is applied (FR-038, D-024). A 23P01 of the EXCLUDE
+   * constraint means the same thing and is answered the same way. The plan's
+   * cancellations are written with `cancelled_by = OWNER` (FR-040a).
+   */
+  applyPlan(plan: ResolutionPlan, expectedStateToken: string): Promise<Result<AppliedPlan, 'STATE_CHANGED'>>;
+}
+
+/**
+ * The hash behind a conflict's `stateToken` (002, D-024). A port because the
+ * domain computes the token and `node:crypto` is out of its reach.
+ */
+export type StateHasher = (input: string) => string;
+
+/** The owner's password (002, D-016). Implemented with scrypt; nothing here logs. */
+export interface PasswordHasher {
+  /** `scrypt$N$r$p$salt$hash`: the parameters travel with the hash. */
+  hash(password: string): Promise<string>;
+  verify(password: string, encoded: string): Promise<boolean>;
+  /**
+   * A verification against a fixed decoy with the same parameters, for when
+   * there is no account or it is locked: the answer must not come back faster
+   * and give that away (D-017).
+   */
+  verifyDecoy(password: string): Promise<void>;
+}
+
+export type OwnerAccountRecord = {
+  readonly id: string;
+  readonly username: string;
+  readonly passwordHash: string;
+  readonly lockout: LockoutState;
+};
+
+/** The one staff account (002, FR-001). It holds nothing about any client. */
+export interface OwnerAccountRepository {
+  findByUsername(username: string): Promise<OwnerAccountRecord | null>;
+  findById(id: string): Promise<OwnerAccountRecord | null>;
+  saveLockout(id: string, state: LockoutState): Promise<void>;
+  updatePassword(id: string, encoded: string, at: Temporal.Instant): Promise<void>;
+  /**
+   * FR-003: provisioning, outside the application. Replaces whatever account
+   * there was — and with it, by cascade, every session — in one transaction.
+   * Returns whether there was one.
+   */
+  replace(account: {
+    readonly id: string;
+    readonly username: string;
+    readonly passwordHash: string;
+    readonly at: Temporal.Instant;
+  }): Promise<{ readonly replaced: boolean }>;
+}
+
+export type OwnerSession = {
+  readonly id: string;
+  readonly accountId: string;
+  readonly lastSeenAt: Temporal.Instant;
+};
+
+/**
+ * The owner's live sessions (002, D-015). Found by the SHA-256 of the cookie,
+ * never by the token itself. Whether one is still alive is the domain's call
+ * (`isSessionAlive`), not this port's.
+ */
+export interface OwnerSessionRepository {
+  create(session: {
+    readonly id: string;
+    readonly accountId: string;
+    readonly tokenHash: Uint8Array;
+    readonly at: Temporal.Instant;
+  }): Promise<void>;
+  findByTokenHash(hash: Uint8Array): Promise<OwnerSession | null>;
+  touch(id: string, at: Temporal.Instant): Promise<void>;
+  /** FR-006: signing out deletes the row; nothing marks it. Idempotent. */
+  deleteByTokenHash(hash: Uint8Array): Promise<void>;
+  deleteAllExcept(accountId: string, keepHash: Uint8Array): Promise<void>;
+  /** The retention sweep's tidying: rows idle since before `cutoff`. */
+  deleteIdleSince(cutoff: Temporal.Instant): Promise<number>;
+}
+
+export type BookingListPage = {
+  /** At most `pageSize`, each with all its services, origin and who cancelled. */
+  readonly rows: readonly Appointment[];
+  /** The cursor of the next page; `null` when there is none. */
+  readonly next: BookingListCursor | null;
+};
+
+/** The owner's bookings list (002, Historia 10). */
+export interface BookingListReader {
+  /**
+   * ONE query for a page, services included, with `LIMIT pageSize + 1` to know
+   * whether there is a next page without counting them all (FR-066, D-033).
+   * It turns a query the domain has already decided into SQL; it decides
+   * nothing itself.
+   */
+  readPage(query: BookingListQuery): Promise<BookingListPage>;
 }
 
 export interface TokenGenerator {

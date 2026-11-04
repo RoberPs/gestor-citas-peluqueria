@@ -6,6 +6,7 @@ import { createGetAvailability } from '@/application/use-cases/get-availability'
 import type { Clock } from '@/domain/shared/clock';
 import { createAppointmentRepository } from '@/infrastructure/db/appointment-repository';
 import { createSalonConfigRepository } from '@/infrastructure/db/salon-config-repository';
+import { createUnavailablePeriodRepository } from '@/infrastructure/db/unavailable-period-repository';
 import { tokenGenerator } from '@/infrastructure/security/token';
 import { closeTestDb, ensureSchema, testPool, truncateAppointments } from '../helpers/test-db';
 import { CORTE, seedContractDatabase } from '../../contract/helpers/seed-contract-db';
@@ -24,16 +25,17 @@ const FRIDAY_1130 = '2026-09-18T09:30:00Z';
 function build() {
   const config = createSalonConfigRepository(() => testPool());
   const appointments = createAppointmentRepository(() => testPool());
+  const periods = createUnavailablePeriodRepository(() => testPool());
 
   return {
-    confirmBooking: createConfirmBooking({ config, appointments, tokens: tokenGenerator, clock }),
+    confirmBooking: createConfirmBooking({ config, appointments, periods, tokens: tokenGenerator, clock }),
     cancelAppointment: createCancelAppointment({
       config,
       appointments,
       tokens: tokenGenerator,
       clock,
     }),
-    getAvailability: createGetAvailability({ config, appointments, clock }),
+    getAvailability: createGetAvailability({ config, appointments, periods, clock }),
   };
 }
 
@@ -83,6 +85,20 @@ describe('cancelling', () => {
     if (!result.ok) throw new Error('unreachable');
     expect(result.value.view).toBe('CANCELLED');
     expect(result.value.appointment.cancelledAt?.equals(NOW)).toBe(true);
+  });
+
+  it('records that the client cancelled it, in the same row (002, FR-040a, D-032)', async () => {
+    const token = await book();
+
+    const result = await useCases.cancelAppointment(token);
+    if (!result.ok) throw new Error('unreachable');
+
+    expect(result.value.appointment.cancelledBy).toBe('CUSTOMER');
+    const { rows } = await testPool().query<{ cancelled_by: string | null }>(
+      'SELECT cancelled_by FROM appointment WHERE id = $1',
+      [result.value.appointment.id],
+    );
+    expect(rows[0]?.cancelled_by).toBe('CUSTOMER');
   });
 
   it('frees the slot in the same commit (FR-023, BR-005)', async () => {

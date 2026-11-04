@@ -2,6 +2,7 @@ import { Temporal } from '@js-temporal/polyfill';
 import type { BusyInterval, Slot } from '../booking/appointment';
 import type { BookingPolicy, OpeningInterval } from '../catalog/salon';
 import { addMinutes, formatLocalTime, instantFromWallTime, localDateOf } from '../shared/time';
+import { overlaps } from './interval-math';
 import { generateCandidateStarts } from './slot-grid';
 
 /**
@@ -18,8 +19,11 @@ export type ComputeDaySlotsInput = {
   readonly date: Temporal.PlainDate;
   /** The opening stretches of **that** weekday. */
   readonly openingIntervals: readonly OpeningInterval[];
-  /** A holiday or an absence. */
-  readonly isClosed: boolean;
+  /**
+   * Unavailable periods touching the day (002, D-019). To the client they are
+   * closed time: no start overlapping one is offered (FR-020, BR-002).
+   */
+  readonly unavailablePeriods: readonly BusyInterval[];
   readonly serviceDurationMinutes: number;
   readonly confirmedAppointments: readonly BusyInterval[];
   readonly now: Temporal.Instant;
@@ -29,22 +33,10 @@ export type ComputeDaySlotsInput = {
   readonly currentAppointmentStart?: Temporal.Instant;
 };
 
-/** Half-open comparison: touching at an endpoint is not overlapping (BR-013). */
-function overlaps(
-  startsAt: Temporal.Instant,
-  endsAt: Temporal.Instant,
-  busy: BusyInterval,
-): boolean {
-  return (
-    Temporal.Instant.compare(busy.startsAt, endsAt) < 0 &&
-    Temporal.Instant.compare(startsAt, busy.endsAt) < 0
-  );
-}
-
 export function computeDaySlots(input: ComputeDaySlotsInput): readonly Slot[] {
-  // A closed day and a weekday with no stretches are indistinguishable as far
-  // as availability goes (FR-007a).
-  if (input.isClosed || input.openingIntervals.length === 0) return [];
+  // A weekday with no stretches is closed (FR-007a). A day an unavailable
+  // period covers whole falls out below, with no starts left.
+  if (input.openingIntervals.length === 0) return [];
 
   const today = localDateOf(input.now, input.timezone);
   const horizonEnd = today.add({ days: input.policy.horizonDays });
@@ -54,10 +46,13 @@ export function computeDaySlots(input: ComputeDaySlotsInput): readonly Slot[] {
 
   // The client's own slot does not count as busy while they reschedule (FR-027).
   const ownStart = input.currentAppointmentStart;
-  const busyIntervals =
+  const appointments =
     ownStart === undefined
       ? input.confirmedAppointments
       : input.confirmedAppointments.filter((busy) => !busy.startsAt.equals(ownStart));
+  // Appointments and periods go into one list before the one overlap check:
+  // one rule, one place (D-019).
+  const busyIntervals = [...appointments, ...input.unavailablePeriods];
 
   const slots: Slot[] = [];
 
@@ -74,8 +69,8 @@ export function computeDaySlots(input: ComputeDaySlotsInput): readonly Slot[] {
     if (Temporal.Instant.compare(endsAt, stretchEnd) > 0) continue;
     // (c) it respects the minimum lead time.
     if (Temporal.Instant.compare(startsAt, earliestStart) < 0) continue;
-    // (b) it overlaps no confirmed appointment.
-    if (busyIntervals.some((busy) => overlaps(startsAt, endsAt, busy))) continue;
+    // (b) it overlaps no confirmed appointment and no unavailable period.
+    if (busyIntervals.some((busy) => overlaps({ startsAt, endsAt }, busy))) continue;
 
     slots.push({
       startsAt,

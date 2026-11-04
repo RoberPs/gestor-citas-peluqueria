@@ -122,6 +122,169 @@ select {
   color: var(--accent-ink);
 }
 
+/* The owner's sections (002). The current one is underlined and bold, and
+ * says so with aria-current: never colour alone. */
+.owner-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin-top: 8px;
+}
+
+.owner-nav ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.owner-nav a {
+  display: inline-block;
+  min-height: 44px;
+  padding-block: 10px;
+}
+
+.owner-nav a[aria-current='page'] {
+  font-weight: 700;
+  text-decoration-thickness: 3px;
+}
+
+.owner-nav-signout {
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-ink);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* The owner's agenda (002). A list, read in order; states in words. */
+.h1-sub {
+  display: block;
+  font-size: 1rem;
+  font-weight: 400;
+}
+
+.timeline {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.timeline-time {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.timeline-free,
+.timeline-unavailable {
+  padding: 8px 12px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+}
+
+.timeline-unavailable {
+  border-style: solid;
+  background: var(--surface-sunken);
+}
+
+.timeline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 002, Historia 6: the conflict dialog. A native modal: the browser traps the focus. */
+.conflict-dialog {
+  width: min(560px, calc(100% - 32px));
+  max-height: calc(100% - 32px);
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.conflict-dialog::backdrop {
+  background: rgb(0 0 0 / 0.5);
+}
+
+.conflict-dialog fieldset {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  margin: 0 0 12px;
+  padding: 8px 12px;
+}
+
+.conflict-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.choice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--tap);
+}
+
+.timeline-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.timeline-customer {
+  margin-bottom: 8px;
+}
+
+.agenda-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.agenda-steps a {
+  display: inline-block;
+  min-height: 44px;
+  padding-block: 10px;
+}
+
+.booking-list {
+  display: grid;
+  gap: 12px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.touch-link {
+  display: inline-block;
+  min-height: 44px;
+  padding-block: 10px;
+}
+
+.agenda-steps a[aria-current='date'] {
+  font-weight: 700;
+}
+
 /* Layout --------------------------------------------------------------- */
 
 /*

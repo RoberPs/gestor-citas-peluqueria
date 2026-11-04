@@ -4,60 +4,82 @@ import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
 
 /**
- * Checks a response against `contracts/http-api.yaml` itself, not against a
- * hand-copied idea of it.
+ * Checks a response against a contract file itself, not against a hand-copied
+ * idea of it.
  *
  * Re-stating the contract inside the test would let the two drift, and a
  * contract test that agrees with a stale copy of the contract proves nothing.
+ *
+ * One helper serves every contract (002, D-028): `contractAt` loads the file
+ * under `specs/` it is given. The plain exports at the bottom are the client
+ * contract's, which is what the 001 and 005 suites check.
  */
 
-const SPEC_PATH = path.join(
-  path.dirname(fileURLToPath(import.meta.url)),
-  '..',
-  '..',
-  '..',
-  'specs',
-  '001-client-appointment-booking',
-  'contracts',
-  'http-api.yaml',
-);
+const SPECS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'specs');
 
 type Schema = Record<string, unknown>;
 
-const document = parse(readFileSync(SPEC_PATH, 'utf8')) as Schema;
+export type Contract = {
+  /** The response schema declared for one operation and status code. */
+  responseSchema(pathName: string, method: string, status: string): Schema;
+  operationHeaders(pathName: string, method: string, status: string): Schema;
+  /** Every way the payload fails the schema, so one run reports them all. */
+  violations(schemaNode: unknown, value: unknown): readonly string[];
+  /** Asserts the payload satisfies the contract, listing everything that fails. */
+  expectMatchesContract(schemaNode: unknown, value: unknown): void;
+};
 
-function resolve(node: unknown): Schema {
-  const schema = node as Schema;
-  const ref = schema['$ref'];
-  if (typeof ref !== 'string') return schema;
+/** `relativePath` is under `specs/`, e.g. `002-salon-management/contracts/owner-api.yaml`. */
+export function contractAt(relativePath: string): Contract {
+  const document = parse(readFileSync(path.join(SPECS_DIR, relativePath), 'utf8')) as Schema;
+  const fileName = path.basename(relativePath);
 
-  const resolved = ref
-    .replace(/^#\//, '')
-    .split('/')
-    .reduce<unknown>((current, segment) => (current as Schema)?.[segment], document);
+  function resolve(node: unknown): Schema {
+    const schema = node as Schema;
+    const ref = schema['$ref'];
+    if (typeof ref !== 'string') return schema;
 
-  // A $ref alongside sibling keys (description, and so on): the target wins.
-  return { ...schema, ...resolve(resolved) };
-}
+    const resolved = ref
+      .replace(/^#\//, '')
+      .split('/')
+      .reduce<unknown>((current, segment) => (current as Schema)?.[segment], document);
 
-/** The response schema declared for one operation and status code. */
-export function responseSchema(pathName: string, method: string, status: string): Schema {
-  const paths = document['paths'] as Schema;
-  const operation = (paths[pathName] as Schema)?.[method] as Schema;
-  if (operation === undefined) throw new Error(`No ${method} ${pathName} in the contract`);
+    // A $ref alongside sibling keys (description, and so on): the target wins.
+    return { ...schema, ...resolve(resolved) };
+  }
 
-  const response = resolve((operation['responses'] as Schema)[status]);
-  const content = response['content'] as Schema | undefined;
-  if (content === undefined) return {};
+  function responseOf(pathName: string, method: string, status: string): Schema {
+    const paths = document['paths'] as Schema;
+    const operation = (paths[pathName] as Schema)?.[method] as Schema | undefined;
+    if (operation === undefined) throw new Error(`No ${method} ${pathName} in ${fileName}`);
+    return resolve((operation['responses'] as Schema)[status]);
+  }
 
-  return resolve((content['application/json'] as Schema)['schema']);
-}
+  function violations(schemaNode: unknown, value: unknown): readonly string[] {
+    return violationsOf(resolve, schemaNode, value, '$');
+  }
 
-export function operationHeaders(pathName: string, method: string, status: string): Schema {
-  const paths = document['paths'] as Schema;
-  const operation = (paths[pathName] as Schema)?.[method] as Schema;
-  const response = resolve((operation['responses'] as Schema)[status]);
-  return (response['headers'] as Schema) ?? {};
+  return {
+    responseSchema(pathName, method, status) {
+      const content = responseOf(pathName, method, status)['content'] as Schema | undefined;
+      if (content === undefined) return {};
+
+      return resolve((content['application/json'] as Schema)['schema']);
+    },
+
+    operationHeaders(pathName, method, status) {
+      return (responseOf(pathName, method, status)['headers'] as Schema) ?? {};
+    },
+
+    violations,
+
+    expectMatchesContract(schemaNode, value) {
+      const problems = violations(schemaNode, value);
+      if (problems.length > 0) {
+        throw new Error(`Response does not match ${fileName}:\n  ${problems.join('\n  ')}`);
+      }
+    },
+  };
 }
 
 const FORMAT_PATTERNS: Record<string, RegExp> = {
@@ -87,8 +109,14 @@ function typeMatches(type: string, value: unknown): boolean {
   }
 }
 
-/** Every way the payload fails the schema, so one run reports them all. */
-export function violations(schemaNode: unknown, value: unknown, at = '$'): readonly string[] {
+function violationsOf(
+  resolve: (node: unknown) => Schema,
+  schemaNode: unknown,
+  value: unknown,
+  at: string,
+): readonly string[] {
+  const violations = (node: unknown, child: unknown, where: string) =>
+    violationsOf(resolve, node, child, where);
   const schema = resolve(schemaNode);
   const problems: string[] = [];
 
@@ -193,10 +221,6 @@ function describe(value: unknown): string {
   return typeof value;
 }
 
-/** Asserts the payload satisfies the contract, listing everything that fails. */
-export function expectMatchesContract(schemaNode: unknown, value: unknown): void {
-  const problems = violations(schemaNode, value);
-  if (problems.length > 0) {
-    throw new Error(`Response does not match contracts/http-api.yaml:\n  ${problems.join('\n  ')}`);
-  }
-}
+export const { responseSchema, operationHeaders, violations, expectMatchesContract } = contractAt(
+  '001-client-appointment-booking/contracts/http-api.yaml',
+);
