@@ -11,9 +11,10 @@ import { holidayDate } from '../../../db/seed/seed';
  * failure would look like a product bug instead of a suite that never cleaned
  * up after itself.
  *
- * Only `appointment` is touched. The configuration is preloaded before the
- * server starts and is cached in it (D-003); clearing it here would leave the
- * server serving a salon that no longer exists.
+ * Only `appointment` and what hangs off it — its services and, since 004, its
+ * email consent and notifications — is touched. The configuration is
+ * preloaded before the server starts and is cached in it (D-003); clearing it
+ * here would leave the server serving a salon that no longer exists.
  */
 
 let pool: Pool | undefined;
@@ -25,7 +26,22 @@ export async function resetAppointments(): Promise<void> {
   }
 
   pool ??= new Pool({ connectionString, max: 2 });
-  await pool.query('TRUNCATE appointment, appointment_service RESTART IDENTITY');
+  await pool.query(
+    'TRUNCATE appointment, appointment_service, channel_consent, notification RESTART IDENTITY',
+  );
+}
+
+/** The notification of the only appointment booked with that email, as the database holds it (004). */
+export async function notificationOf(email: string): Promise<{ status: string; attempts: number } | null> {
+  pool ??= new Pool({ connectionString: process.env['DATABASE_URL_TEST'] ?? '', max: 2 });
+
+  const { rows } = await pool.query<{ status: string; attempts: number }>(
+    `SELECT n.status, n.attempts FROM notification n
+       JOIN appointment a ON a.id = n.appointment_id
+      WHERE a.customer_email_normalized = $1`,
+    [email],
+  );
+  return rows[0] ?? null;
 }
 
 export async function closeAppointmentsPool(): Promise<void> {

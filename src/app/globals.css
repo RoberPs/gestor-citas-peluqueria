@@ -667,6 +667,32 @@ html[data-navigating] .slot-list {
   border-color: var(--danger);
 }
 
+/* 004: the checkbox of the confirmation by email, with its label beside it
+   and its help below the label. The box keeps the 24 px target of WCAG 2.2. */
+.field-check {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 10px;
+  align-items: center;
+}
+
+.field-check input {
+  width: 24px;
+  height: 24px;
+  margin: 0;
+}
+
+.field-check .muted {
+  grid-column: 2;
+}
+
+/* 004, FR-020a: the owner's mark of a failed confirmation, in words and an icon. */
+.confirmation-failed {
+  padding: 8px 10px;
+  border-left: 4px solid var(--full);
+  background: var(--full-soft);
+}
+
 /* The error is text with a symbol, never a red border on its own. */
 .field-error {
   margin: 6px 0 0;

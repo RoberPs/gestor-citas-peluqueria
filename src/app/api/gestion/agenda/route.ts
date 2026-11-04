@@ -31,5 +31,6 @@ export async function GET(request: Request): Promise<Response> {
     return jsonError(400, { code: 'INVALID_DATE', ...messages.owner.errors.badRequest });
   }
 
-  return jsonOk(agendaDayDto(result.value.day, container().clock.now(), result.value.salon.timezone));
+  const { day, salon, confirmationCalls } = result.value;
+  return jsonOk(agendaDayDto(day, container().clock.now(), salon.timezone, confirmationCalls));
 }

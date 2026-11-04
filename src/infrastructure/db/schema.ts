@@ -5,6 +5,7 @@ import {
   integer,
   pgEnum,
   pgTable,
+  primaryKey,
   smallint,
   text,
   time,
@@ -135,6 +136,52 @@ export const ownerSession = pgTable('owner_session', {
   lastSeenAt: timestamp('last_seen_at', { withTimezone: true, mode: 'date' }).notNull(),
 });
 
+export const notificationChannel = pgEnum('notification_channel', ['EMAIL', 'SMS']);
+export const notificationKind = pgEnum('notification_kind', ['BOOKING_CONFIRMATION']);
+export const notificationStatus = pgEnum('notification_status', ['PENDING', 'SENT', 'FAILED', 'NOT_SENT']);
+export const notificationSkipReason = pgEnum('notification_skip_reason', [
+  'CONSENT_ENDED',
+  'APPOINTMENT_CANCELLED',
+  'PERSONAL_DATA_DELETED',
+]);
+export const consentEndReason = pgEnum('consent_end_reason', ['UNSUBSCRIBED', 'EMAIL_CHANGED']);
+
+/** An appointment's consent for one channel (004, D-007). No personal data. */
+export const channelConsent = pgTable(
+  'channel_consent',
+  {
+    appointmentId: uuid('appointment_id')
+      .notNull()
+      .references(() => appointment.id, { onDelete: 'cascade' }),
+    channel: notificationChannel('channel').notNull(),
+    grantedAt: timestamp('granted_at', { withTimezone: true, mode: 'date' }).notNull(),
+    endedAt: timestamp('ended_at', { withTimezone: true, mode: 'date' }),
+    endReason: consentEndReason('end_reason'),
+    /** SHA-256 of the unsubscribe token; `NULL` once anonymised (FR-021). */
+    unsubscribeTokenHash: bytea('unsubscribe_token_hash'),
+  },
+  (table) => [primaryKey({ columns: [table.appointmentId, table.channel] })],
+);
+
+/** Each notification the app tries to send, and its record (004, FR-019). No content, no address. */
+export const notification = pgTable('notification', {
+  /** Also the provider's `Idempotency-Key` (D-004). */
+  id: uuid('id').primaryKey(),
+  appointmentId: uuid('appointment_id')
+    .notNull()
+    .references(() => appointment.id, { onDelete: 'cascade' }),
+  channel: notificationChannel('channel').notNull(),
+  kind: notificationKind('kind').notNull(),
+  status: notificationStatus('status').notNull(),
+  skipReason: notificationSkipReason('skip_reason'),
+  attempts: smallint('attempts').notNull().default(0),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull(),
+  nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true, mode: 'date' }),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull(),
+  /** AES-256-GCM of the two tokens, only while `PENDING` (D-002). */
+  sealedTokens: bytea('sealed_tokens'),
+});
+
 export const schema = {
   salon,
   openingInterval,
@@ -144,4 +191,6 @@ export const schema = {
   appointmentService,
   ownerAccount,
   ownerSession,
+  channelConsent,
+  notification,
 };

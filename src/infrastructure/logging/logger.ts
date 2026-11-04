@@ -11,7 +11,10 @@ import pino, { type DestinationStream, type Logger } from 'pino';
 
 /**
  * The three personal fields, the management token, which is a credential, and
- * the owner's password under every name it travels by (002, FR-010).
+ * the owner's password under every name it travels by (002, FR-010). Since
+ * 004, also an outgoing email — its recipient, subject and both bodies, which
+ * carry the name and the links — and the sealed tokens of a notification
+ * (D-006).
  */
 const SENSITIVE = [
   'name',
@@ -21,6 +24,11 @@ const SENSITIVE = [
   'password',
   'currentPassword',
   'newPassword',
+  'to',
+  'subject',
+  'html',
+  'text',
+  'sealedTokens',
 ] as const;
 
 /**

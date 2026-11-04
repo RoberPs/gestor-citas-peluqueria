@@ -56,7 +56,7 @@ async function slotTimes(page: Page): Promise<string[]> {
 async function fillContact(page: Page): Promise<void> {
   await page.getByLabel('Nombre').fill(ANA.name);
   await page.getByLabel('Teléfono').fill(ANA.phone);
-  await page.getByLabel('Email').fill(ANA.email);
+  await page.getByLabel('Email', { exact: true }).fill(ANA.email);
 }
 
 test.beforeEach(async ({ page }, testInfo) => {

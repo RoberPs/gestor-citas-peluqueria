@@ -5,6 +5,7 @@ import { container } from '@/app/_lib/container';
 import { longDateLabel } from '@/app/_lib/format';
 import { priceTotalDto, snapshotDto, unavailableReason } from '@/app/api/_lib/serializers';
 import { CancelDialog } from '@/components/cancel-dialog';
+import { EmailConsentSection } from '@/components/email-consent-section';
 import { ServiceSummary } from '@/components/service-summary';
 import { durationOf } from '@/domain/booking/appointment';
 import { totalPriceOf } from '@/domain/catalog/selection';
@@ -41,6 +42,7 @@ export default async function AppointmentPage({
   const query = await searchParams;
   const isFreshlyBooked = query['nueva'] === '1';
   const isConfirmingCancellation = query['cancelar'] === '1';
+  const emailsJustStopped = query['emails'] === 'baja';
 
   const clientIp = resolveClientIp({
     forwardedFor: (await headers()).get('x-forwarded-for'),
@@ -59,6 +61,8 @@ export default async function AppointmentPage({
   const date = localDateOf(appointment.startsAt, timezone).toString();
   const status = messages.appointment.status[view];
   const reason = unavailableReason(detail);
+  // 004, FR-013: with a live consent, the address the confirmation goes to.
+  const emailedTo = detail.emailNotifications.active ? (appointment.customer?.email ?? null) : null;
 
   return (
     <>
@@ -117,7 +121,14 @@ export default async function AppointmentPage({
           {isFreshlyBooked && (
             <section aria-labelledby="save-link-heading" className="notice-warning">
               <h2 id="save-link-heading">{messages.confirmation.saveLinkTitle}</h2>
-              <p>{messages.confirmation.saveLinkWarning}</p>
+              {emailedTo === null ? (
+                <p>{messages.confirmation.saveLinkWarning}</p>
+              ) : (
+                <p>
+                  {messages.confirmation.emailSentLead} <strong>{emailedTo}</strong>.{' '}
+                  {messages.confirmation.emailSentRest}
+                </p>
+              )}
               <p>
                 <strong>{messages.confirmation.linkLabel}:</strong>
                 <br />
@@ -184,6 +195,12 @@ export default async function AppointmentPage({
               </Link>
             </p>
           </section>
+
+          <EmailConsentSection
+            token={token}
+            active={detail.emailNotifications.active}
+            justStopped={emailsJustStopped}
+          />
 
           <section aria-labelledby="salon-heading" className="card">
             <h2 id="salon-heading">{messages.appointment.salonTitle}</h2>

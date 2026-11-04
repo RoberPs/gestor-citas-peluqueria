@@ -104,6 +104,20 @@ describe('logger redaction', () => {
     assertClean(sink.lines.join(''));
   });
 
+  it('redacts an outgoing email and the sealed links of its notification (004, D-006)', () => {
+    const sink = capture();
+    const log = createLogger(sink);
+    const email = { to: EMAIL, subject: `Hola ${NAME}`, html: `<p>${NAME}</p>`, text: NAME };
+
+    log.error({ notificationId: 'n1', ...email, sealedTokens: TOKEN }, 'send failed');
+    log.error({ message: email, row: { sealedTokens: TOKEN } }, 'send failed nested');
+    log.error({ request: { message: email } }, 'send failed deeper');
+
+    const output = sink.lines.join('');
+    expect(output).toContain('n1');
+    assertClean(output);
+  });
+
   it('still logs the internal identifier, which is what a trace is for', () => {
     const sink = capture();
     const log = createLogger(sink);

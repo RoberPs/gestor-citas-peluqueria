@@ -5,8 +5,9 @@ import {
   seedAppointment,
   slotDaysFromNow,
 } from './helpers/appointments';
-import { DAY_GRID, SLOT_LIST, chooseOnlyService, clickAndNavigate } from './helpers/booking';
+import { DAY_GRID, EMAIL_CONSENT_LABEL, SLOT_LIST, chooseOnlyService, clickAndNavigate } from './helpers/booking';
 import { useOwnClientIp } from './helpers/client-ip';
+import { setMode } from './helpers/email';
 
 /**
  * SC-004 and the JavaScript budget (T112).
@@ -121,7 +122,7 @@ test('SC-004 — no step of the booking flow takes more than 2 s on 4G', async (
   const confirm = await timeOf(async () => {
     await page.getByLabel('Nombre').fill('Ana López');
     await page.getByLabel('Teléfono').fill('600112233');
-    await page.getByLabel('Email').fill('ana@example.com');
+    await page.getByLabel('Email', { exact: true }).fill('ana@example.com');
     await page.getByRole('button', { name: 'Confirmar la cita' }).click();
     await page.waitForURL(/\/cita\//);
   });
@@ -174,7 +175,7 @@ test('005 SC-004 — four services chosen, and still no step over 2 s', async ({
   steps['confirm'] = await timeOf(async () => {
     await page.getByLabel('Nombre').fill('Ana López');
     await page.getByLabel('Teléfono').fill('600112233');
-    await page.getByLabel('Email').fill('ana@example.com');
+    await page.getByLabel('Email', { exact: true }).fill('ana@example.com');
     await page.getByRole('button', { name: 'Confirmar la cita' }).click();
     await page.waitForURL(/\/cita\//);
   });
@@ -184,6 +185,40 @@ test('005 SC-004 — four services chosen, and still no step over 2 s', async ({
     expect(ms, `${step} took ${ms} ms`).toBeLessThan(PERCEIVED_LIMIT_MS);
   }
 });
+
+/**
+ * 004, SC-002: the checkbox adds nothing to the wait. The email leaves after
+ * the answer (D-003), so neither a provider that answers nor one that never
+ * does can be seen from the confirmation.
+ */
+for (const mode of ['ok', 'hang'] as const) {
+  test(`004 SC-002 — confirming with the email checkbox stays under 2 s, provider ${mode}`, async ({ page }) => {
+    await setMode(mode);
+    try {
+      await page.goto('/');
+      await chooseOnlyService(page, 'Corte');
+      await clickAndNavigate(page.locator(`${DAY_GRID} button.is-available`).last());
+      await page.locator(`${SLOT_LIST} button`).first().click();
+      await page.getByLabel('Nombre').waitFor();
+
+      await throttle(page);
+      await page.getByLabel('Nombre').fill('Ana López');
+      await page.getByLabel('Teléfono').fill('600112233');
+      await page.getByLabel('Email', { exact: true }).fill('ana.sc002@example.com');
+      await page.getByLabel(EMAIL_CONSENT_LABEL).check();
+
+      const confirm = await timeOf(async () => {
+        await page.getByRole('button', { name: 'Confirmar la cita' }).click();
+        await page.waitForURL(/\/cita\//);
+      });
+      record(`confirm with the email checkbox, provider ${mode}`, confirm);
+
+      expect(confirm, `confirm took ${confirm} ms`).toBeLessThan(PERCEIVED_LIMIT_MS);
+    } finally {
+      await setMode('ok');
+    }
+  });
+}
 
 test('SC-004 — the management screens answer inside 2 s too', async ({ page }) => {
   await throttle(page);

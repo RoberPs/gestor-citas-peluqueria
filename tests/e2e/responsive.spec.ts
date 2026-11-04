@@ -91,13 +91,13 @@ async function chooseHour(page: Page, index: number): Promise<string> {
 async function fillContact(page: Page, contact: { name: string; phone: string; email: string }) {
   await page.getByLabel('Nombre').fill(contact.name);
   await page.getByLabel('Teléfono').fill(contact.phone);
-  await page.getByLabel('Email').fill(contact.email);
+  await page.getByLabel('Email', { exact: true }).fill(contact.email);
 }
 
 async function expectContact(page: Page, contact: { name: string; phone: string; email: string }) {
   await expect(page.getByLabel('Nombre')).toHaveValue(contact.name);
   await expect(page.getByLabel('Teléfono')).toHaveValue(contact.phone);
-  await expect(page.getByLabel('Email')).toHaveValue(contact.email);
+  await expect(page.getByLabel('Email', { exact: true })).toHaveValue(contact.email);
 }
 
 const ANA = { name: 'Ana López', phone: '600 11 22 33', email: 'ana@example.com' };
@@ -229,7 +229,7 @@ test.describe('US1 — reserva en ordenador', () => {
     await expect(error).toBeVisible();
     expect((await box(error)).x).toBeGreaterThan((await box(page.locator(DAYS))).x);
     await expect(page.getByLabel('Nombre')).toHaveValue(ANA.name);
-    await expect(page.getByLabel('Email')).toHaveValue(ANA.email);
+    await expect(page.getByLabel('Email', { exact: true })).toHaveValue(ANA.email);
   });
 
   test('escenario 6 — un día cerrado ofrece el siguiente con huecos', async ({ page }) => {

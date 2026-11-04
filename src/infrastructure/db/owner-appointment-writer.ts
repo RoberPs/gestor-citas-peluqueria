@@ -1,5 +1,5 @@
 import { Temporal } from '@js-temporal/polyfill';
-import { and, asc, eq, gt, inArray, lt, notInArray, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNull, lt, notInArray, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import type { Pool } from 'pg';
 import type { AppliedPlan, OwnerAppointmentWriter } from '@/application/ports';
@@ -8,7 +8,7 @@ import { computeStateToken, conflictSpanOf, detectConflicts, ownAppointmentOf, t
 import { err, ok } from '@/domain/shared/result';
 import { stateHash } from '../security/state-hash';
 import { dateOf, isExclusionViolation, toDomain, withServices } from './appointment-repository';
-import { appointment, appointmentService, schema, unavailablePeriod } from './schema';
+import { appointment, appointmentService, channelConsent, schema, unavailablePeriod } from './schema';
 
 /**
  * The owner's changes, each a plan applied whole or not at all (002, D-023).
@@ -65,7 +65,7 @@ async function inTheWay(tx: Tx, intent: ResolutionIntent) {
   });
 }
 
-async function applyIntent(tx: Tx, intent: ResolutionIntent): Promise<AppliedPlan> {
+async function applyIntent(tx: Tx, intent: ResolutionIntent, at: Temporal.Instant): Promise<AppliedPlan> {
   switch (intent.kind) {
     case 'CREATE_APPOINTMENT': {
       const { contact } = intent;
@@ -108,6 +108,10 @@ async function applyIntent(tx: Tx, intent: ResolutionIntent): Promise<AppliedPla
     }
     case 'EDIT_APPOINTMENT': {
       const { contact } = intent;
+      const [before] = await tx
+        .select({ email: appointment.customerEmailNormalized })
+        .from(appointment)
+        .where(eq(appointment.id, intent.appointmentId));
       // id, start, origin, booking time and link stay as they were (FR-073).
       const edited = await tx
         .update(appointment)
@@ -122,6 +126,23 @@ async function applyIntent(tx: Tx, intent: ResolutionIntent): Promise<AppliedPla
         .where(and(eq(appointment.id, intent.appointmentId), eq(appointment.status, 'CONFIRMED')))
         .returning({ id: appointment.id });
       if (edited.length === 0) throw new StateChanged();
+
+      // 004, FR-008: the client consented for the address they wrote. Another
+      // one, or none, ends the consent in this same transaction, so a pending
+      // confirmation is never sent to an address nobody agreed to. The
+      // canonical form decides: a change of case is the same address.
+      if (before !== undefined && before.email !== contact.normalizedEmail) {
+        await tx
+          .update(channelConsent)
+          .set({ endedAt: dateOf(at), endReason: 'EMAIL_CHANGED' })
+          .where(
+            and(
+              eq(channelConsent.appointmentId, intent.appointmentId),
+              eq(channelConsent.channel, 'EMAIL'),
+              isNull(channelConsent.endedAt),
+            ),
+          );
+      }
 
       // The rows that stay are never rewritten, so a price raised since the
       // booking does not creep in (BR-021). Only the ones leaving go, only
@@ -214,7 +235,7 @@ export function createOwnerAppointmentWriter(getPool: () => Pool): OwnerAppointm
               .where(eq(unavailablePeriod.id, shortening.id));
           }
 
-          return applyIntent(tx, plan.intent);
+          return applyIntent(tx, plan.intent, plan.at);
         });
         return ok(applied);
       } catch (error) {

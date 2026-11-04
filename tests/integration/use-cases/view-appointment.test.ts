@@ -7,6 +7,9 @@ import { createAppointmentRepository } from '@/infrastructure/db/appointment-rep
 import { createSalonConfigRepository } from '@/infrastructure/db/salon-config-repository';
 import { createUnavailablePeriodRepository } from '@/infrastructure/db/unavailable-period-repository';
 import { tokenGenerator } from '@/infrastructure/security/token';
+import { createConsentRepository } from '@/infrastructure/db/consent-repository';
+import { createTokenSealer } from '@/infrastructure/security/token-sealer';
+import { TEST_SEAL_KEY } from '../helpers/fake-email';
 import { closeTestDb, ensureSchema, testPool, truncateAppointments } from '../helpers/test-db';
 import { COLOR, CORTE, seedContractDatabase } from '../../contract/helpers/seed-contract-db';
 
@@ -173,5 +176,63 @@ describe('an appointment of several services (005, Historia 2)', () => {
       CORTE,
       COLOR,
     ]);
+  });
+});
+
+describe('whether the appointment receives emails (004, FR-017)', () => {
+  function withConsents() {
+    const config = createSalonConfigRepository(() => testPool());
+    const appointments = createAppointmentRepository(() => testPool());
+    const periods = createUnavailablePeriodRepository(() => testPool());
+    return {
+      confirmBooking: createConfirmBooking({
+        config,
+        appointments,
+        periods,
+        tokens: tokenGenerator,
+        clock,
+        notifications: {
+          channels: { enabledChannels: () => new Set(['EMAIL']) },
+          sealer: createTokenSealer(TEST_SEAL_KEY),
+        },
+      }),
+      viewAppointment: createViewAppointment({
+        config,
+        appointments,
+        tokens: tokenGenerator,
+        clock,
+        consents: createConsentRepository(() => testPool()),
+      }),
+    };
+  }
+
+  async function book(emailConsent: boolean): Promise<string> {
+    const result = await withConsents().confirmBooking({
+      serviceIds: [CORTE],
+      startsAt: FRIDAY_1130,
+      contact: { name: 'Ana López', phone: '600112233', email: 'ana@example.com' },
+      emailConsent,
+    });
+    if (!result.ok) throw new Error('the fixture booking was rejected');
+    return result.value.token;
+  }
+
+  it('says so while the consent is live', async () => {
+    const detail = await withConsents().viewAppointment(await book(true));
+    expect(detail?.emailNotifications).toEqual({ active: true });
+  });
+
+  it('says not without a consent', async () => {
+    const detail = await withConsents().viewAppointment(await book(false));
+    expect(detail?.emailNotifications).toEqual({ active: false });
+  });
+
+  it('says not once the consent has ended', async () => {
+    const token = await book(true);
+    await testPool().query(
+      "UPDATE channel_consent SET ended_at = now(), end_reason = 'UNSUBSCRIBED'",
+    );
+    const detail = await withConsents().viewAppointment(token);
+    expect(detail?.emailNotifications).toEqual({ active: false });
   });
 });

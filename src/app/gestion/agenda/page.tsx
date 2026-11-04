@@ -75,8 +75,8 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
   if (!result.ok) result = await getAgendaDay({ includeCancelled: withCancelled });
   if (!result.ok) throw new Error('today could not be read');
 
-  const { day, today, salon } = result.value;
-  const dto = agendaDayDto(day, clock.now(), salon.timezone);
+  const { day, today, salon, confirmationCalls } = result.value;
+  const dto = agendaDayDto(day, clock.now(), salon.timezone, confirmationCalls);
   const date = dto.date;
   const previous = day.date.subtract({ days: 1 }).toString();
   const next = day.date.add({ days: 1 }).toString();

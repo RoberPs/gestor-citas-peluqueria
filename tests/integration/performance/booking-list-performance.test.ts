@@ -3,7 +3,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createBookingListReader } from '@/infrastructure/db/booking-list-reader';
 import { parseBookingListQuery, type BookingListQuery } from '@/domain/owner/booking-list';
 import { seedHistory } from '../../../db/seed/history';
-import { closeTestDb, testPool, truncateAppointments } from '../helpers/test-db';
+import { randomBytes } from 'node:crypto';
+import { closeTestDb, insertEmailConfirmation, testPool, truncateAppointments } from '../helpers/test-db';
 import { CONTRACT_NOW, seedContractDatabase } from '../../contract/helpers/seed-contract-db';
 
 /**
@@ -74,6 +75,21 @@ describe('a page of the bookings list (FR-066, SC-013)', () => {
 
   it('is still one query with ten thousand appointments in the history', async () => {
     await seedHistory(process.env['DATABASE_URL_TEST'] ?? '', 10_000, new Date(CONTRACT_NOW.epochMilliseconds));
+
+    expect(await statementsPerPage()).toEqual([1, 1, 1, 1]);
+  });
+});
+
+describe('with confirmations by email (004, D-011)', () => {
+  it('is still one query when the appointments have their notifications', async () => {
+    await seedHistory(process.env['DATABASE_URL_TEST'] ?? '', 200, new Date(CONTRACT_NOW.epochMilliseconds));
+    const { rows } = await testPool().query<{ id: string }>('SELECT id FROM appointment ORDER BY id LIMIT 60');
+    for (const [index, row] of rows.entries()) {
+      await insertEmailConfirmation(row.id, {
+        unsubscribeTokenHash: randomBytes(32),
+        status: index % 3 === 0 ? 'FAILED' : 'SENT',
+      });
+    }
 
     expect(await statementsPerPage()).toEqual([1, 1, 1, 1]);
   });

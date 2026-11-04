@@ -1,4 +1,5 @@
 import type { AgendaDayDto } from '@/app/api/gestion/_lib/serializers';
+import { ConfirmationFailed } from '@/components/owner/confirmation-failed';
 import { ServiceSummary } from '@/components/service-summary';
 import { messages } from '@/messages/es-ES';
 
@@ -77,6 +78,7 @@ function AppointmentCard({
           </a>
         </p>
       )}
+      <ConfirmationFailed appointment={appointment} />
 
       <dl className="summary">
         <ServiceSummary

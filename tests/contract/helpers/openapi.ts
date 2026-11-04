@@ -22,6 +22,10 @@ type Schema = Record<string, unknown>;
 export type Contract = {
   /** The response schema declared for one operation and status code. */
   responseSchema(pathName: string, method: string, status: string): Schema;
+  /** The JSON request body schema of one operation (004: `emailConsent`). */
+  requestSchema(pathName: string, method: string): Schema;
+  /** The contract's own `info.version`. */
+  version(): string;
   operationHeaders(pathName: string, method: string, status: string): Schema;
   /** Every way the payload fails the schema, so one run reports them all. */
   violations(schemaNode: unknown, value: unknown): readonly string[];
@@ -48,11 +52,15 @@ export function contractAt(relativePath: string): Contract {
     return { ...schema, ...resolve(resolved) };
   }
 
-  function responseOf(pathName: string, method: string, status: string): Schema {
+  function operationOf(pathName: string, method: string): Schema {
     const paths = document['paths'] as Schema;
     const operation = (paths[pathName] as Schema)?.[method] as Schema | undefined;
     if (operation === undefined) throw new Error(`No ${method} ${pathName} in ${fileName}`);
-    return resolve((operation['responses'] as Schema)[status]);
+    return operation;
+  }
+
+  function responseOf(pathName: string, method: string, status: string): Schema {
+    return resolve((operationOf(pathName, method)['responses'] as Schema)[status]);
   }
 
   function violations(schemaNode: unknown, value: unknown): readonly string[] {
@@ -65,6 +73,17 @@ export function contractAt(relativePath: string): Contract {
       if (content === undefined) return {};
 
       return resolve((content['application/json'] as Schema)['schema']);
+    },
+
+    requestSchema(pathName, method) {
+      const body = resolve(operationOf(pathName, method)['requestBody']);
+      const content = body['content'] as Schema | undefined;
+      if (content === undefined) throw new Error(`No request body for ${method} ${pathName} in ${fileName}`);
+      return resolve((content['application/json'] as Schema)['schema']);
+    },
+
+    version() {
+      return String((document['info'] as Schema)['version']);
     },
 
     operationHeaders(pathName, method, status) {
@@ -221,6 +240,6 @@ function describe(value: unknown): string {
   return typeof value;
 }
 
-export const { responseSchema, operationHeaders, violations, expectMatchesContract } = contractAt(
+export const { responseSchema, requestSchema, operationHeaders, violations, expectMatchesContract, version } = contractAt(
   '001-client-appointment-booking/contracts/http-api.yaml',
 );

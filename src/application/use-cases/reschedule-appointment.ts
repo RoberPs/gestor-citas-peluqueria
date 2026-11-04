@@ -14,11 +14,12 @@ import { err, ok, type Result } from '@/domain/shared/result';
 import { localDateOf } from '@/domain/shared/time';
 import type {
   AppointmentRepository,
+  ConsentRepository,
   SalonConfigRepository,
   TokenGenerator,
   UnavailablePeriodRepository,
 } from '../ports';
-import type { AppointmentDetail } from './view-appointment';
+import { emailNotificationsOf, type AppointmentDetail } from './view-appointment';
 
 /**
  * Rescheduling from the management link (Historia 6).
@@ -48,6 +49,8 @@ export function createRescheduleAppointment(deps: {
   readonly periods: UnavailablePeriodRepository;
   readonly tokens: TokenGenerator;
   readonly clock: Clock;
+  /** 004: moving the appointment leaves the email consent as it was (FR-009). */
+  readonly consents?: ConsentRepository;
 }) {
   return async function rescheduleAppointment(
     token: string,
@@ -56,7 +59,10 @@ export function createRescheduleAppointment(deps: {
     const appointment = await deps.appointments.findByTokenHash(deps.tokens.hash(token));
     if (appointment === null) return err({ kind: 'NOT_FOUND' });
 
-    const configuration = await deps.config.load();
+    const [configuration, emailNotifications] = await Promise.all([
+      deps.config.load(),
+      emailNotificationsOf(deps.consents, appointment),
+    ]);
     const { policy, salon } = configuration;
     const timezone = salon.timezone;
     const now = deps.clock.now();
@@ -120,6 +126,7 @@ export function createRescheduleAppointment(deps: {
         canCancel: cancellable.ok,
         canReschedule: reschedulable.ok,
         block: cancellable.ok ? null : cancellable.error,
+        emailNotifications,
       };
     }
   };

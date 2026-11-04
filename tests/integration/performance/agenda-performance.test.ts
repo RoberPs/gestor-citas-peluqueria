@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { Temporal } from '@js-temporal/polyfill';
 import type { Pool } from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -10,7 +10,7 @@ import { createSalonConfigRepository } from '@/infrastructure/db/salon-config-re
 import { createUnavailablePeriodRepository } from '@/infrastructure/db/unavailable-period-repository';
 import { tokenGenerator } from '@/infrastructure/security/token';
 import { seedHistory } from '../../../db/seed/history';
-import { closeTestDb, testPool, truncateAppointments } from '../helpers/test-db';
+import { closeTestDb, insertEmailConfirmation, testPool, truncateAppointments } from '../helpers/test-db';
 import {
   COLOR,
   CONTRACT_NOW,
@@ -106,6 +106,20 @@ describe('opening a day of the agenda (SC-010, D-027)', () => {
     // Salon, stretches, services, the day's appointments with their services, its periods.
     expect(empty).toBe(5);
     expect(await statementsToOpenFriday()).toBe(empty);
+  });
+
+  it('costs the same statements when its appointments have confirmations by email (004, D-011)', async () => {
+    await fillFriday();
+    const before = await statementsToOpenFriday();
+    const { rows } = await testPool().query<{ id: string }>('SELECT id FROM appointment');
+    for (const [index, row] of rows.entries()) {
+      await insertEmailConfirmation(row.id, {
+        unsubscribeTokenHash: randomBytes(32),
+        status: index === 0 ? 'FAILED' : 'SENT',
+      });
+    }
+
+    expect(await statementsToOpenFriday()).toBe(before);
   });
 
   it('costs the same statements with ten thousand appointments in the history', async () => {

@@ -109,7 +109,9 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
   const now = container().clock.now();
   const rows =
     result?.ok === true
-      ? result.value.page.rows.map((row) => ownerAppointmentDto(row, now, result.value.salon.timezone))
+      ? result.value.page.rows.map((row) =>
+          ownerAppointmentDto(row, now, result.value.salon.timezone, result.value.confirmationCalls),
+        )
       : [];
   const next = result?.ok === true && result.value.page.next !== null ? encodeCursor(result.value.page.next) : null;
 

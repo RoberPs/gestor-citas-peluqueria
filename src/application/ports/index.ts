@@ -13,6 +13,16 @@ import type {
 import type { NonEmptyServiceList } from '@/domain/catalog/selection';
 import type { Service } from '@/domain/catalog/service';
 import type { NormalizedEmail, NormalizedPhone, ValidatedContact } from '@/domain/contact/contact';
+import type {
+  Channel,
+  ChannelConsent,
+  ConsentEndReason,
+  NotificationId,
+  PendingNotification,
+  SkipReason,
+} from '@/domain/notifications/consent';
+import type { ConfirmationContent } from '@/domain/notifications/confirmation-content';
+import type { ConfirmationDelivery } from '@/domain/notifications/owner-marker';
 import type { LockoutState } from '@/domain/owner/account';
 import type { ResolutionPlan } from '@/domain/owner/conflict';
 import type { BookingListCursor, BookingListQuery } from '@/domain/owner/booking-list';
@@ -25,6 +35,12 @@ import type { Result } from '@/domain/shared/result';
  * for any. That is what lets it stay pure and testable without infrastructure.
  */
 
+/**
+ * An appointment as the owner reads it (004, D-011): with what became of its
+ * confirmation by email, read in the same query.
+ */
+export type AppointmentWithDelivery = Appointment & { readonly confirmationDelivery: ConfirmationDelivery };
+
 export type NewAppointment = {
   readonly id: AppointmentId;
   readonly startsAt: Temporal.Instant;
@@ -34,6 +50,17 @@ export type NewAppointment = {
   readonly contact: ValidatedContact;
   readonly tokenHash: Uint8Array;
   readonly createdAt: Temporal.Instant;
+  /**
+   * 004, D-001: the client asked for the confirmation by email. The consent
+   * and the pending notification are written in the same transaction as the
+   * appointment, or not at all.
+   */
+  readonly emailConfirmation?: {
+    readonly unsubscribeTokenHash: Uint8Array;
+    readonly notificationId: NotificationId;
+    /** The two tokens, sealed (D-002). Never the clear ones. */
+    readonly sealedTokens: Uint8Array;
+  };
 };
 
 export interface AppointmentRepository {
@@ -73,10 +100,11 @@ export interface AppointmentRepository {
     from: Temporal.Instant,
     to: Temporal.Instant,
     options: { readonly includeCancelled: boolean },
-  ): Promise<readonly Appointment[]>;
+  ): Promise<readonly AppointmentWithDelivery[]>;
 
   /**
-   * Inserts the appointment and its services in one transaction (005, D-011).
+   * Inserts the appointment and its services in one transaction (005, D-011),
+   * with its email consent and pending confirmation when it carries them (004).
    * Translates the 23P01 violation of the EXCLUDE constraint into
    * `SLOT_TAKEN`, which is how FR-012 becomes observable without leaking
    * database detail upwards.
@@ -230,8 +258,8 @@ export interface OwnerSessionRepository {
 }
 
 export type BookingListPage = {
-  /** At most `pageSize`, each with all its services, origin and who cancelled. */
-  readonly rows: readonly Appointment[];
+  /** At most `pageSize`, each with all its services, origin, who cancelled and its confirmation (004). */
+  readonly rows: readonly AppointmentWithDelivery[];
   /** The cursor of the next page; `null` when there is none. */
   readonly next: BookingListCursor | null;
 };
@@ -264,4 +292,110 @@ export interface RateLimiter {
    * in a header and the indistinguishability would be gone.
    */
   check(bucket: RateLimitBucket, clientIp: string): Promise<{ readonly allowed: boolean }>;
+}
+
+/** The two tokens an email carries, while its notification is pending (004, D-002). */
+export type NotificationTokens = {
+  readonly management: string;
+  readonly unsubscribe: string;
+};
+
+/** AES-256-GCM with `NOTIFICATION_SEAL_KEY` (004, D-002). */
+export interface TokenSealer {
+  seal(tokens: NotificationTokens): Uint8Array;
+  /** `null` for anything that is not exactly what was sealed with this key. */
+  open(sealed: Uint8Array): NotificationTokens | null;
+}
+
+/** An email ready to leave, written by the infrastructure from the domain's data. */
+export type OutgoingEmail = {
+  readonly channel: 'EMAIL';
+  readonly to: string;
+  /** The display name in front of the configured sender address: the salon's. */
+  readonly fromName: string;
+  readonly subject: string;
+  readonly html: string;
+  readonly text: string;
+  readonly headers: Readonly<Record<string, string>>;
+};
+
+/**
+ * Puts the domain's data of a confirmation into words, with its two links
+ * (004, D-008). The wording and the links are the infrastructure's business.
+ */
+export type ConfirmationEmailRenderer = (
+  content: ConfirmationContent,
+  tokens: NotificationTokens,
+) => Pick<OutgoingEmail, 'subject' | 'html' | 'text' | 'headers'>;
+
+/** The provider, behind a port (004, D-005). */
+export interface Notifier {
+  /**
+   * `TRANSIENT` is worth another try; `PERMANENT` is not (D-006). Neither
+   * carries the provider's words, which may repeat the address.
+   * `idempotencyKey` makes a repeated send harmless (D-004).
+   */
+  send(message: OutgoingEmail, idempotencyKey: string): Promise<Result<void, 'TRANSIENT' | 'PERMANENT'>>;
+}
+
+/** Which channels are switched on (004, D-005). */
+export interface ChannelSettings {
+  enabledChannels(): ReadonlySet<Channel>;
+}
+
+/** What a locked notification is given to: itself and what it needs to decide. */
+export type NotificationWork = {
+  readonly notification: PendingNotification;
+  /** As it is now, with all its services (FR-008). */
+  readonly appointment: Appointment;
+  readonly consent: ChannelConsent | null;
+  /** `null` when they cannot be opened: the email cannot be written. */
+  readonly tokens: NotificationTokens | null;
+};
+
+/**
+ * What `fn` tells the repository to write: a final state, or the next
+ * attempt. `attempted` is whether the provider was called, which is what the
+ * attempt count counts (FR-019).
+ */
+export type NotificationOutcome =
+  | { readonly status: 'SENT'; readonly attempted: true }
+  | { readonly status: 'FAILED'; readonly attempted: boolean }
+  | { readonly status: 'NOT_SENT'; readonly attempted: false; readonly reason: SkipReason }
+  | { readonly status: 'PENDING'; readonly attempted: true; readonly nextAttemptAt: Temporal.Instant };
+
+export interface NotificationRepository {
+  /**
+   * One pending notification, locked with `FOR UPDATE SKIP LOCKED` for the
+   * whole of `fn` (D-003). `fn` is not called when it is not pending or is
+   * locked by someone else; the result is then `null`.
+   */
+  withOne(
+    id: NotificationId,
+    at: Temporal.Instant,
+    fn: (work: NotificationWork) => Promise<NotificationOutcome>,
+  ): Promise<NotificationOutcome | null>;
+
+  /**
+   * Up to `limit` pending notifications whose next attempt has come, one
+   * transaction each, skipping any another process holds.
+   */
+  withDue(
+    now: Temporal.Instant,
+    limit: number,
+    fn: (work: NotificationWork) => Promise<NotificationOutcome>,
+  ): Promise<readonly NotificationOutcome[]>;
+}
+
+export interface ConsentRepository {
+  /** Only for appointments whose personal data is still there (FR-018). */
+  findByUnsubscribeTokenHash(hash: Uint8Array): Promise<ChannelConsent | null>;
+  findForAppointment(appointmentId: AppointmentId, channel: Channel): Promise<ChannelConsent | null>;
+  /** Ends it if it is live; an ended one keeps its first end (FR-016). */
+  end(
+    appointmentId: AppointmentId,
+    channel: Channel,
+    reason: ConsentEndReason,
+    at: Temporal.Instant,
+  ): Promise<void>;
 }

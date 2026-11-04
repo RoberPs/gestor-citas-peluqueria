@@ -67,7 +67,7 @@ export default async function BookingDetailsPage({
     start = null;
   }
 
-  const { listServices, getAvailability, config } = container();
+  const { listServices, getAvailability, config, notificationChannels } = container();
   // The deadline and the timezone are domain parameters, read from the
   // configuration and never restated in the interface (Principio I). It is
   // cached after the first read, so awaiting it first costs nothing.
@@ -219,7 +219,11 @@ export default async function BookingDetailsPage({
 
           <section aria-labelledby="form-heading">
             <h2 id="form-heading">{messages.booking.formTitle}</h2>
-            <BookingForm serviceIds={availability.serviceIds} startsAt={start.toString()} />
+            <BookingForm
+              serviceIds={availability.serviceIds}
+              startsAt={start.toString()}
+              emailConsentOffered={notificationChannels.enabledChannels().has('EMAIL')}
+            />
           </section>
 
           <p>

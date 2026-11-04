@@ -26,3 +26,17 @@ export async function cancelAppointmentAction(formData: FormData): Promise<void>
 
   redirect(`/cita/${token}`);
 }
+
+/**
+ * 004, FR-017: stop the emails of this appointment. Like cancelling, it comes
+ * back to the appointment, which reads the truth again; `emails=baja` only
+ * lets the screen say it was done.
+ */
+export async function stopEmailsAction(formData: FormData): Promise<void> {
+  const token = formData.get('token');
+  if (typeof token !== 'string' || token === '') redirect('/');
+
+  await container().revokeEmailConsent.byManagementToken(token);
+
+  redirect(`/cita/${token}?emails=baja`);
+}

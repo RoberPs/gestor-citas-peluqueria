@@ -3,6 +3,8 @@ import { defineConfig, devices } from '@playwright/test';
 
 const PORT = Number(process.env['E2E_PORT'] ?? 3100);
 const BASE_URL = `http://127.0.0.1:${PORT}`;
+/** Where `global-setup.ts` starts the fake email provider (004, D-013). */
+const EMAIL_PORT = Number(process.env['E2E_EMAIL_PORT'] ?? 4011);
 
 /**
  * E2E suite: one user story per file, plus @axe-core/playwright on every screen.
@@ -80,6 +82,15 @@ export default defineConfig({
       RATE_LIMIT_SECRET: process.env['RATE_LIMIT_SECRET'] ?? 'e2e-rate-limit-secret',
       TRUSTED_PROXY_IPS: '127.0.0.1',
       PUBLIC_BASE_URL: BASE_URL,
+      // 004, D-013: the whole suite runs with the email channel on, as in
+      // production, against the fake provider. The seal key is a fixed test value.
+      NOTIFICATIONS_EMAIL: 'on',
+      NOTIFICATIONS_SMS: 'off',
+      EMAIL_API_BASE_URL: `http://127.0.0.1:${EMAIL_PORT}`,
+      EMAIL_API_KEY: 'fake-email-api-key',
+      EMAIL_FROM: 'citas@example.test',
+      EMAIL_REPLY_TO: '',
+      NOTIFICATION_SEAL_KEY: 'ZTJlLW5vdGlmaWNhdGlvbi1zZWFsLWtleS0zMmJ5dGU=',
     },
   },
 });
