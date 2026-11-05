@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { Temporal } from '@js-temporal/polyfill';
 import { Pool } from 'pg';
 import { holidayDate } from '../../../db/seed/seed';
+import { salonDayFromToday } from './salon-days';
 
 /**
  * Empties the appointments between tests.
@@ -148,19 +149,16 @@ export async function seedAppointment(options: {
 }
 
 /**
- * A slot a fixed number of days from now, at that hour on the salon's clock,
- * skipping the days the seeded salon is closed: Sundays and the seeded holiday.
+ * A slot a fixed number of open days from now, at that hour on the salon's
+ * clock. Sundays and the seeded holiday are not counted (`salonDayFromToday`),
+ * so two different offsets never share a day.
  *
  * Both the day and the hour are the salon's, never the machine's: on a UTC
  * runner, 11:30 machine time is 12:30 in Madrid, and the screen rightly says so.
  */
 export function slotDaysFromNow(days: number, hour = 11, minute = 30): Date {
   const timeZone = salonTimezone();
-  const holiday = holidayDate(timeZone);
-  let date = Temporal.Now.plainDateISO(timeZone).add({ days });
-  while (date.dayOfWeek === 7 || date.toString() === holiday) {
-    date = date.add({ days: 1 });
-  }
+  const date = salonDayFromToday(Temporal.Now.plainDateISO(timeZone), days, holidayDate(timeZone));
   const startsAt = date.toZonedDateTime({
     timeZone,
     plainTime: new Temporal.PlainTime(hour, minute),

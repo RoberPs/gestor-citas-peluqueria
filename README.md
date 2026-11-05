@@ -204,14 +204,16 @@ Probado a mano el 2026-11-04 con el proveedor falso. Con `NOTIFICATIONS_EMAIL=on
 
 ### Estado de los checks
 
-En la rama `004-notifications`, el 2026-11-04, con la 004 sobre el paso 6 de la 002. La
-suite e2e corre entera con el canal de email encendido contra un proveedor falso que
-imita a Brevo (el proveedor por omisión).
+En la rama `004-notifications`, el 2026-11-04, con la 004 sobre el paso 6 de la 002;
+repasados el 2026-11-05 en `fix-e2e-us10-open-days` (los unitarios suman los 22 de
+`salon-days.test.ts`; en los e2e, 357 / 358 con el fallo intermitente de `us13`
+descrito abajo). La suite e2e corre entera con el canal de email encendido contra un
+proveedor falso que imita a Brevo (el proveedor por omisión).
 Playwright tiene tres proyectos, uno por tamaño (ver `playwright.config.ts`).
 
 | Check | Resultado |
 |---|---|
-| `npm test` (unitarios) | 712 / 712 ✅ |
+| `npm test` (unitarios) | 734 / 734 ✅ |
 | `npm run test:integration` | 403 / 403 ✅ |
 | `npm run test:contract` | 200 / 200 ✅ |
 | `npm run test:e2e` | 358 / 358 ✅ |
@@ -222,7 +224,7 @@ Playwright tiene tres proyectos, uno por tamaño (ver `playwright.config.ts`).
 | `npm run check:layers` | ✅ |
 
 El 2026-11-02 se corrigieron tres **tests que dependían de la fecha o de la zona
-horaria de la máquina**, no defectos de la app:
+horaria de la máquina**, y el 2026-11-05 un cuarto; ninguno era un defecto de la app:
 
 1. `availability-horizon.test.ts` fijaba el reloj en 2026-09-15, pero
    `db/seed/history.ts` creaba el histórico con el `now()` real de PostgreSQL. Ahora
@@ -232,6 +234,13 @@ horaria de la máquina**, no defectos de la app:
 3. `slotDaysFromNow` fijaba la hora con la zona horaria de la máquina. En la CI, que
    corre en UTC, la cita quedaba una hora más tarde en Madrid y `us4-view` fallaba.
    Ahora calcula día y hora en `SALON_TIMEZONE`, igual que `us1-availability`.
+4. El 2026-11-05, `slotDaysFromNow` movía el día cerrado al siguiente abierto, así que
+   dos desplazamientos distintos podían caer el mismo día: un jueves, +3 (domingo) y +4
+   eran el mismo lunes. La US10 pone varias reservas a la misma hora en días distintos,
+   la restricción `EXCLUDE` rechazaba la segunda y los escenarios 5 y 6 fallaban de
+   jueves a sábado. Ahora cuenta días abiertos (`tests/e2e/helpers/salon-days.ts`), y
+   `tests/unit/e2e-helpers/salon-days.test.ts` lo comprueba empezando cada día de la
+   semana.
 
 `performance.spec.ts` (SC-004) va justo en el límite: con `TZ=UTC` midió una vez 2017 ms
 frente a 2000 ms y pasó al repetirlo. Si falla de forma intermitente en la CI, es esto.
@@ -244,6 +253,11 @@ El 2026-11-04, en una ejecución completa de `npm run test:integration`, falló 
 (`reschedule-appointment.test.ts`, de la 001): dos reprogramaciones del cliente a la vez
 hacia la misma hora. Pasó aislado y en las dos ejecuciones completas siguientes. Es una
 carrera del propio test, no un solape guardado; si se repite en la CI, es esto.
+
+`us13-unsubscribe` «escenarios 1 y 2» ha fallado dos veces en una ejecución completa
+(la última, el 2026-11-05 en `desktop-1280`): axe ve `scrollable-region-focusable` en la
+pantalla «Te has dado de baja», justo después del botón. Aislado y repetido pasa (42 / 42).
+Está pendiente de averiguar qué región se vuelve desplazable en ese instante.
 
 El 2026-11-03 el helper de axe pasó a esperar al `<title>` antes de analizar: justo
 después de una server action que redirige, React cambia el `<head>` y por un instante
