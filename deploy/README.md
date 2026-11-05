@@ -87,10 +87,11 @@ publicada no se vuelve a publicar: para cambiar algo, se sube `version`.
 
 ## 3 · Ficheros y entornos (VPS)
 
-En el PC:
+En el PC. El `rm` va primero porque, si la carpeta ya existe, `scp -r` no la sustituye:
+mete la nueva dentro, como `~/gestor-citas-deploy/deploy/` (pasó el 2026-11-05):
 
 ```bash
-scp -r deploy vps:~/gestor-citas-deploy
+ssh vps 'rm -rf ~/gestor-citas-deploy'; scp -r deploy vps:~/gestor-citas-deploy
 ```
 
 En el VPS:
