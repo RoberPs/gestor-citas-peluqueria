@@ -172,8 +172,8 @@ verde, y es un punto donde se puede parar.
 - [ ] **7b · Producción de prueba** en `niza.automatizacionro.work`, en el VPS y el
   Cloudflare del chatbot multicliente. Va antes de los pasos 8 y 9. Ver las decisiones
   del 2026-11-04 sobre producción.
-  - [ ] Fusionar la 002 y la 004 en `main` con la CI en verde, una PR por feature. La
-    002 entró con la PR #8 el 2026-11-04.
+  - [x] Fusionar la 002 y la 004 en `main` con la CI en verde, una PR por feature. La
+    002 entró con la PR #8 y la 004 con la PR #9, las dos el 2026-11-04.
   - [x] Adaptador de Brevo detrás del puerto `Notifier`, con TDD, y `EMAIL_PROVIDER`
     para volver a Resend; D-004 revisada, quickstart y `.env.example` de la 004
     actualizados.
