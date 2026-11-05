@@ -177,12 +177,30 @@ verde, y es un punto donde se puede parar.
   - [x] Adaptador de Brevo detrás del puerto `Notifier`, con TDD, y `EMAIL_PROVIDER`
     para volver a Resend; D-004 revisada, quickstart y `.env.example` de la 004
     actualizados.
-  - [ ] Imagen para el VPS compartido: HSTS y CSP en `next.config.ts`, `/health` y
-    `HEALTHCHECK`, imagen base fijada por digest, versión en la etiqueta, contenedor
-    endurecido y publicada en GHCR.
-  - [ ] `deploy/`: compose propio con su PostgreSQL sin puertos y en la red
-    `chatbot_proxy`, bloque para el Caddyfile del chatbot, copias diarias cifradas que
-    baje `descargar-copias.ps1`, crons y script con los datos del salón.
+  - [x] Imagen para el VPS compartido, rama `deploy-shared-vps`, 2026-11-05: HSTS y CSP
+    en `next.config.ts` (sin `preload`: es un subdominio de una zona compartida),
+    `/health` con su test y `HEALTHCHECK`, `node:22-slim` fijada por el digest del
+    chatbot, `.dockerignore` en lista blanca, salida `standalone` sin devDependencies,
+    usuario `node`, sin npm en la imagen y versión obligatoria en la etiqueta. Los
+    comandos (`migrate`, `provision-owner`, `retention-purge`,
+    `dispatch-notifications`, `seed-demo` y el nuevo `load-salon`) se empaquetan con
+    esbuild en `cli/*.mjs` (`npm run build:cli`) y corren con `node`, sin `tsx`.
+  - [ ] Publicar la imagen en GHCR (necesita el token de escritura en el PC).
+  - [x] `deploy/`, 2026-11-05: compose propio (app y PostgreSQL sin puertos, la base sólo
+    en una red interna sin salida), la app como `salon_app`, **no superusuario**
+    (`btree_gist` es extensión de confianza), en `chatbot_proxy` y endurecida; bloque
+    para el Caddyfile del chatbot que reutiliza su fragmento `(instancia)`; copias
+    diarias cifradas con gpg y verificadas que baja `descargar-copias.ps1`; crons con
+    `CRON_TZ=Europe/Madrid`; `vps.sh` (`preparar`, `imagen`, `comprobar`);
+    `prueba-ip.sh`; y `load-salon`, que carga el salón desde un JSON sin tocar los
+    ratos bloqueados. Guía en `deploy/README.md`. Sustituye a `./docker-compose.prod.yml`
+    y `./Caddyfile`. Probado en local con la imagen: migraciones con `salon_app`,
+    todos los comandos en el contenedor de sólo lectura, un Caddy real con el Caddyfile
+    del chatbot (el `X-Forwarded-For` falso no sirve y cada visitante tiene su
+    contador), y una copia restaurada entera.
+  - **Cambio sobre el plan:** en producción no se ejecuta `db:seed`. Es el fixture de los
+    tests y sólo dejaría sus servicios desactivados en la base; `seed-demo` ya carga la
+    configuración completa. La imagen no lo trae.
   - [ ] Puesta en marcha en el VPS: DNS, entornos `0600`, alta de la dueña y pruebas de
     punta a punta.
 - [ ] **8 · 002, US7 + US8 + US9:** editar horario, catálogo y parámetros desde la app.
