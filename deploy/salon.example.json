@@ -1,0 +1,31 @@
+{
+  "salon": {
+    "name": "Peluquería de Caballeros Niza",
+    "address": "Calle Miguel Ángel, 15, 28932 Móstoles",
+    "phone": "619 97 88 55"
+  },
+  "policy": {
+    "minimumLeadTimeHours": 2,
+    "cancellationDeadlineHours": 24
+  },
+  "opening": [
+    { "weekday": 1, "from": "10:00", "to": "14:00" },
+    { "weekday": 1, "from": "17:00", "to": "20:00" },
+    { "weekday": 2, "from": "10:00", "to": "14:00" },
+    { "weekday": 2, "from": "17:00", "to": "20:00" },
+    { "weekday": 3, "from": "10:00", "to": "14:00" },
+    { "weekday": 3, "from": "17:00", "to": "20:00" },
+    { "weekday": 4, "from": "10:00", "to": "14:00" },
+    { "weekday": 4, "from": "17:00", "to": "20:00" },
+    { "weekday": 5, "from": "10:00", "to": "14:00" },
+    { "weekday": 5, "from": "17:00", "to": "20:00" },
+    { "weekday": 6, "from": "10:00", "to": "14:00" }
+  ],
+  "services": [
+    { "id": "00000000-0000-4000-8000-000000000021", "name": "Corte de pelo", "minutes": 30, "priceCents": null },
+    { "id": "00000000-0000-4000-8000-000000000022", "name": "Afeitado clásico", "minutes": 30, "priceCents": null },
+    { "id": "00000000-0000-4000-8000-000000000023", "name": "Diseño y corte de barba", "minutes": 30, "priceCents": null },
+    { "id": "00000000-0000-4000-8000-000000000024", "name": "Diseño y corte de perilla o bigote", "minutes": 30, "priceCents": null }
+  ],
+  "holidays": []
+}

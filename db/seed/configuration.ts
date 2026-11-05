@@ -9,8 +9,9 @@ import { Client } from 'pg';
  * Re-running is safe. Services are upserted by fixed id and never deleted:
  * appointments keep referencing the service they were booked with. Services
  * that are not in the new catalogue are deactivated instead, so they stop
- * being offered. Opening stretches and unavailable periods are replaced
- * wholesale, since nothing references them.
+ * being offered. Opening stretches are replaced wholesale, since nothing
+ * references them; unavailable periods too, unless the caller asks to keep
+ * them, as `scripts/load-salon.ts` does for a salon in use.
  */
 
 export type SalonConfiguration = {
@@ -35,12 +36,28 @@ export type SalonConfiguration = {
    * closures (002, D-019).
    */
   readonly holidays: readonly { readonly id: string; readonly date: string; readonly reason: string }[];
+  /** The two parameters of 0007. Left as they are when absent. */
+  readonly policy?: {
+    readonly minimumLeadTimeMinutes: number;
+    readonly cancellationDeadlineHours: number;
+  };
+};
+
+export type WriteOptions = {
+  /**
+   * `replace`, the default, empties `unavailable_period` and writes the
+   * holidays: a fixture or a demo starts from nothing. `keep` leaves every
+   * period there is, the ones the owner blocked included, and adds or updates
+   * the holidays by id: what a salon in use needs.
+   */
+  readonly unavailablePeriods?: 'replace' | 'keep';
 };
 
 export async function writeConfiguration(
   connectionString: string,
   timezone: string,
   configuration: SalonConfiguration,
+  options: WriteOptions = {},
 ): Promise<void> {
   const client = new Client({ connectionString });
   await client.connect();
@@ -57,6 +74,13 @@ export async function writeConfiguration(
              phone = EXCLUDED.phone, timezone = EXCLUDED.timezone`,
       [salon.id, salon.name, salon.address, salon.phone, timezone],
     );
+
+    if (configuration.policy !== undefined) {
+      await client.query(
+        'UPDATE salon SET minimum_lead_time_minutes = $1, cancellation_deadline_hours = $2',
+        [configuration.policy.minimumLeadTimeMinutes, configuration.policy.cancellationDeadlineHours],
+      );
+    }
 
     await client.query('DELETE FROM opening_interval');
     for (const [index, interval] of configuration.opening.entries()) {
@@ -89,14 +113,18 @@ export async function writeConfiguration(
       configuration.services.map((service) => service.id),
     ]);
 
-    await client.query('DELETE FROM unavailable_period');
+    if ((options.unavailablePeriods ?? 'replace') === 'replace') {
+      await client.query('DELETE FROM unavailable_period');
+    }
     for (const holiday of configuration.holidays) {
       await client.query(
         `INSERT INTO unavailable_period (id, starts_at, ends_at, reason)
          VALUES ($1,
                  $2::date::timestamp AT TIME ZONE $4,
                  ($2::date + 1)::timestamp AT TIME ZONE $4,
-                 $3)`,
+                 $3)
+         ON CONFLICT (id) DO UPDATE
+           SET starts_at = EXCLUDED.starts_at, ends_at = EXCLUDED.ends_at, reason = EXCLUDED.reason`,
         [holiday.id, holiday.date, holiday.reason, timezone],
       );
     }
