@@ -1,0 +1,26 @@
+# The appointment manager's block for the CHATBOT's Caddyfile
+# (chatbotasesor_multicliente/deploy/Caddyfile; on the VPS,
+# /srv/chatbot/deploy/Caddyfile). It goes at the end, after the instances.
+#
+# It reuses that file's `(instancia)` snippet, which already does all that is
+# needed and was tested in the chatbot's phase 5:
+#   - `header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}`
+#     REPLACES the header. Without it anyone could forge their IP and skip the
+#     per-IP limits of booking and of the link (D-007). The app believes the
+#     first hop of X-Forwarded-For because TRUSTED_PROXY_IPS is not empty.
+#   - `reverse_proxy <name>:3000`, `encode`, and dropping `Server`.
+# The security headers (HSTS, CSP…) are the app's own.
+#
+# The domain comes from a variable, like the chatbot's, in /srv/chatbot/caddy.env:
+#   GESTOR_CITAS_DOMINIO=niza.automatizacionro.work
+# One level only: Cloudflare's free certificate does not cover two.
+#
+# When it moves to the client's domain, the old one redirects keeping the path,
+# so the links in emails already sent keep working:
+#   {$GESTOR_CITAS_DOMINIO_ANTERIOR} {
+#   	redir https://{$GESTOR_CITAS_DOMINIO}{uri} permanent
+#   }
+
+{$GESTOR_CITAS_DOMINIO} {
+	import instancia gestor-citas-app
+}

@@ -1,0 +1,101 @@
+# Production on the shared VPS: the app and its own PostgreSQL. The chatbot's
+# Caddy, the only thing listening on 80 and 443, reaches the app over the
+# chatbot's `proxy` network (deploy/README.md). Started with:
+#
+#   sudo docker compose -f /srv/gestor-citas/deploy/docker-compose.prod.yml up -d
+#
+# The image is NOT built here: it is built on the PC, published to GHCR with a
+# fixed version and deployed by digest. GESTOR_IMAGEN and GESTOR_VERSION are
+# read from the `.env` file NEXT TO THIS FILE, which compose loads by itself.
+# It has to be a file: Docker runs under `sudo`, which clears the caller's
+# environment, so an `export GESTOR_VERSION=…` is lost and the `:?` aborts.
+#
+# The environment files live OUTSIDE the repository, in /srv/gestor-citas,
+# owned by `operador` with mode 0600. This file holds no secret.
+#
+# One process, deliberately: the rate limiter lives in process memory (D-007),
+# so a second replica would give each its own counters.
+
+name: gestor-citas
+
+x-logging: &logging
+  # Docker keeps container logs forever by default. Three files of 10 MB.
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: '3'
+
+services:
+  db:
+    image: postgres:16
+    container_name: gestor-citas-db
+    restart: unless-stopped
+    # Only effective on the FIRST start, when the cluster is created: SCRAM for
+    # every connection, the local socket included. The app role is created by
+    # db-init/ on that same first start.
+    environment:
+      POSTGRES_INITDB_ARGS: '--auth-local=scram-sha-256 --auth-host=scram-sha-256'
+    env_file:
+      # `format: raw` (Compose >= 2.30): without it Compose interpolates the
+      # `$…` inside a value. And raw keeps quotes too: values go unquoted.
+      - path: ${GESTOR_ENV_DIR:-/srv/gestor-citas}/db.env # POSTGRES_PASSWORD, APP_DB_PASSWORD
+        format: raw
+    volumes:
+      - db-datos:/var/lib/postgresql/data
+      - ./db-init:/docker-entrypoint-initdb.d:ro
+    # No `ports`, and only on the internal network: nothing but the app can
+    # reach it, not the chatbot's containers nor Caddy.
+    networks:
+      - interno
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 512m
+    logging: *logging
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -q']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  app:
+    image: ${GESTOR_IMAGEN:-gestor-citas-peluqueria}:${GESTOR_VERSION:?define GESTOR_VERSION in the .env next to this file, e.g. 1.0.0}
+    # The name Caddy proxies to (deploy/caddy/gestor-citas.caddy).
+    container_name: gestor-citas-app
+    restart: unless-stopped
+    env_file:
+      - path: ${GESTOR_ENV_DIR:-/srv/gestor-citas}/app.env
+        format: raw
+    # Hardened: read-only root, /tmp and Next's cache in memory, no
+    # capabilities and no privilege escalation. It runs as `node` (UID 1000).
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/.next/cache:uid=1000,gid=1000,mode=0700
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 768m
+    logging: *logging
+    # No `ports`. `proxy` is how Caddy reaches it and how it reaches Brevo;
+    # `interno` is how it reaches its database.
+    networks:
+      - interno
+      - proxy
+    depends_on:
+      db:
+        condition: service_healthy
+
+networks:
+  # `internal`: no way out to the internet from here. The database needs none.
+  interno:
+    internal: true
+  # The chatbot's network (project `chatbot`, network `proxy`). Created by the
+  # chatbot's compose, so it must exist before this one starts.
+  proxy:
+    name: chatbot_proxy
+    external: true
+
+volumes:
+  db-datos:
