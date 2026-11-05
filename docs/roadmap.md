@@ -210,9 +210,18 @@ verde, y es un punto donde se puede parar.
       en verde, reintentos de email por cron, copia y purga con temporizadores de systemd,
       primera copia hecha y bajada al PC, y la tarea «Gestor citas - descargar copias del
       VPS» (diaria, 09:45) probada.
-    - [ ] Cuando se quiera enseñar la demo: registro `A` `niza` en Cloudflare y bloque en el
-      Caddy del chatbot (paso 7), prueba de la IP (paso 8) y, con la clave de Brevo,
-      el email y una reserva real (paso 9).
+    - [x] 2026-11-05, paso 7: registro `A` `niza` con proxy y bloque en el Caddy del chatbot
+      (copias `*.antes-gestor` de su `caddy.env` y su Caddyfile en el VPS). Certificado de
+      Let's Encrypt al primer intento; `/health` responde por HTTPS y el chatbot sigue en pie.
+      En los registros de Caddy, `X-Forwarded-For` llega ya sustituido por `CF-Connecting-IP`.
+    - [ ] Paso 8: la prueba desde otra red (punto de acceso del móvil) queda aplazada; la
+      sustitución de la cabecera y los contadores por visitante se probaron en local con un
+      Caddy real.
+    - [ ] Paso 9: clave de API de Brevo, email encendido y una reserva real con mi email.
+    - [ ] Llevar el bloque de Caddy al repositorio del chatbot.
+  - [ ] **Antes de abrirla a clientes:** el límite por IP cuenta cada dirección IPv6 por
+    separado, y quien tenga un `/64` puede ir cambiando de dirección. Agrupar las IPv6
+    por su `/64` en el limitador, con su test.
 - [ ] **8 · 002, US7 + US8 + US9:** editar horario, catálogo y parámetros desde la app.
 - [ ] **9 · Pulido final:** accesibilidad, rendimiento, revisión de datos personales en
   logs, quickstart y corrección de los defectos menores listados en `README.md`.
