@@ -214,6 +214,12 @@ verde, y es un punto donde se puede parar.
       (copias `*.antes-gestor` de su `caddy.env` y su Caddyfile en el VPS). Certificado de
       Let's Encrypt al primer intento; `/health` responde por HTTPS y el chatbot sigue en pie.
       En los registros de Caddy, `X-Forwarded-For` llega ya sustituido por `CF-Connecting-IP`.
+    - [x] 2026-11-05: probada a mano en el móvil, en `niza.automatizacionro.work`, por el
+      dueño del producto: reserva, enlace (reprogramar y cancelar fuera de las 24 h),
+      agenda, ratos bloqueados, citas a mano (apuntar, mover, editar, cancelar), listado y
+      cuenta. Todo correcto. Por el camino se rehízo la contraseña de la dueña con
+      `provision-owner`, tras dejar `app.env` roto al pegar órdenes en `nano`; la guía
+      genera ahora la contraseña y la escribe con `sed`, sin editor.
     - [ ] Paso 8: la prueba desde otra red (punto de acceso del móvil) queda aplazada; la
       sustitución de la cabecera y los contadores por visitante se probaron en local con un
       Caddy real.
