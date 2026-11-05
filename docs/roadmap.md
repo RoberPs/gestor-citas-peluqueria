@@ -185,7 +185,9 @@ verde, y es un punto donde se puede parar.
     comandos (`migrate`, `provision-owner`, `retention-purge`,
     `dispatch-notifications`, `seed-demo` y el nuevo `load-salon`) se empaquetan con
     esbuild en `cli/*.mjs` (`npm run build:cli`) y corren con `node`, sin `tsx`.
-  - [ ] Publicar la imagen en GHCR (necesita el token de escritura en el PC).
+  - [x] Imagen publicada en GHCR el 2026-11-05, privada:
+    `ghcr.io/roberps/gestor-citas-peluqueria:1.0.0`, digest
+    `sha256:c8a07e72e93f7fda1d6730556d60c4b901af95e3acdedbea8178467c8f43f008`.
   - [x] `deploy/`, 2026-11-05: compose propio (app y PostgreSQL sin puertos, la base sólo
     en una red interna sin salida), la app como `salon_app`, **no superusuario**
     (`btree_gist` es extensión de confianza), en `chatbot_proxy` y endurecida; bloque
@@ -201,8 +203,16 @@ verde, y es un punto donde se puede parar.
   - **Cambio sobre el plan:** en producción no se ejecuta `db:seed`. Es el fixture de los
     tests y sólo dejaría sus servicios desactivados en la base; `seed-demo` ya carga la
     configuración completa. La imagen no lo trae.
-  - [ ] Puesta en marcha en el VPS: DNS, entornos `0600`, alta de la dueña y pruebas de
-    punta a punta.
+  - [ ] Puesta en marcha en el VPS (`deploy/README.md`).
+    - [x] 2026-11-05, pasos 3 a 6, 10 y 11: entornos `0600` y secretos en Bitwarden, imagen
+      comprobada por digest, base con `salon_app` y las 8 migraciones, app `healthy`, datos
+      de la demo, cuenta de la dueña (contraseña retirada del entorno), `vps.sh comprobar`
+      en verde, reintentos de email por cron, copia y purga con temporizadores de systemd,
+      primera copia hecha y bajada al PC, y la tarea «Gestor citas - descargar copias del
+      VPS» (diaria, 09:45) probada.
+    - [ ] Cuando se quiera enseñar la demo: registro `A` `niza` en Cloudflare y bloque en el
+      Caddy del chatbot (paso 7), prueba de la IP (paso 8) y, con la clave de Brevo,
+      el email y una reserva real (paso 9).
 - [ ] **8 · 002, US7 + US8 + US9:** editar horario, catálogo y parámetros desde la app.
 - [ ] **9 · Pulido final:** accesibilidad, rendimiento, revisión de datos personales en
   logs, quickstart y corrección de los defectos menores listados en `README.md`.

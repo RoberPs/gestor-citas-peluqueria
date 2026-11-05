@@ -77,7 +77,9 @@ En preparación en la rama `deploy-shared-vps`: `niza.automatizacionro.work`, en
 y el Cloudflare del chatbot multicliente, con los datos de la demo y sin abrirla a
 clientes. La imagen, el compose, el bloque de Caddy, las copias cifradas y los crons
 están listos y probados en local; la guía paso a paso es [deploy/README.md](deploy/README.md).
-Falta publicar la imagen en GHCR y la puesta en marcha en el VPS.
+Desde el 2026-11-05 la app corre en el VPS con los datos de la demo, sus copias diarias
+se bajan al PC y nadie puede llegar a ella desde fuera: falta el DNS y el bloque en el
+Caddy del chatbot, que se harán cuando se quiera enseñar la demo, y el email con Brevo.
 
 Mientras no exista la US7–US9, el horario, los servicios, los festivos y los dos
 parámetros de reserva se cargan en producción con `load-salon` desde un JSON
