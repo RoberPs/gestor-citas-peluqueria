@@ -1,0 +1,13 @@
+# /etc/systemd/system/gestor-citas-backup.timer — 03:15 salon time, before the
+# purge. A timer and not cron: Ubuntu's cron ignores CRON_TZ, and systemd takes
+# the zone in the calendar itself, whatever zone the server keeps. `Persistent`
+# runs a copy missed while the server was down as soon as it is back.
+[Unit]
+Description=Gestor de citas: copia diaria a las 03:15 hora de Madrid
+
+[Timer]
+OnCalendar=*-*-* 03:15:00 Europe/Madrid
+Persistent=true
+
+[Install]
+WantedBy=timers.target

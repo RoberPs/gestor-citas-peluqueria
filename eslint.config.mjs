@@ -10,6 +10,8 @@ export default tseslint.config(
       'playwright-report/**',
       'test-results/**',
       'next-env.d.ts',
+      // The bundled commands of `npm run build:cli`: generated, not written.
+      'cli/**',
       '*.min.js',
     ],
   },
@@ -36,6 +38,11 @@ export default tseslint.config(
       eqeqeq: ['error', 'always', { null: 'ignore' }],
       'no-console': ['error', { allow: ['error'] }],
     },
+  },
+  {
+    // Build tooling in plain JavaScript, run by Node directly.
+    files: ['scripts/**/*.mjs'],
+    languageOptions: { globals: { process: 'readonly', console: 'readonly' } },
   },
   {
     // Operational scripts and seeds talk to the operator through stdout.

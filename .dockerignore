@@ -1,12 +1,17 @@
-node_modules/
-.next/
-.git/
-coverage/
-playwright-report/
-test-results/
-*.log
-.env
-.env.*
-!.env.example
-Dockerfile*
-.dockerignore
+# An allowlist: the build context is only what `npm ci`, `next build` and
+# `npm run build:cli` read. Everything else stays out, secrets first: `.env`
+# never enters, whatever new file appears next to it.
+*
+
+!package.json
+!package-lock.json
+!next.config.ts
+!tsconfig.json
+!src/
+!public/
+!scripts/
+!db/
+
+# The fake email provider is a development tool and imports from tests/, which
+# is not in the context; `next build` type-checks every .ts it can see.
+scripts/fake-email-provider.ts

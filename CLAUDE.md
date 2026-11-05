@@ -40,6 +40,11 @@ y cancela su cita desde el móvil, sin cuenta de usuario.
   una bandeja de salida en la BD (`notification`): primer intento con `after()` y reintentos durante 1 hora con
   `npm run notifications:dispatch` por cron. Con `NOTIFICATIONS_EMAIL=off` la app se
   comporta como antes de la 004.
+- **Producción** en el VPS del chatbot multicliente, detrás de su Caddy (red
+  `chatbot_proxy`): guía en `deploy/README.md`. Las cabeceras de seguridad (HSTS, CSP)
+  las pone la app (`src/infrastructure/security/security-headers.ts`). La imagen no
+  lleva `tsx`: los comandos se empaquetan con `npm run build:cli` y allí corren como
+  `node cli/<comando>.mjs`. En producción no se ejecuta `db:seed`.
 
 ## Arranque local
 

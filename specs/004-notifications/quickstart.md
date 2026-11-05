@@ -97,20 +97,15 @@ npm run dev
    El id del envío es el de la tabla `notification`, que es también la
    `Idempotency-Key` con la que se mandó: es el único dato que hace falta para
    localizarlo en el proveedor, sin dar el email ni el nombre del cliente.
-3. **Variables**: las de la tabla de arriba, con `NOTIFICATION_SEAL_KEY` nueva, en el
-   entorno desde el que se lanza `docker compose -f docker-compose.prod.yml`, que se
-   las pasa a la app (`EMAIL_API_BASE_URL` no se pone: es la del proveedor). Después,
-   `docker compose -f docker-compose.prod.yml up -d --build` y
-   `docker compose -f docker-compose.prod.yml exec app npm run db:migrate`, que aplica
-   la `0008`.
-4. **Cron**, junto al de la purga:
-
-   ```cron
-   CRON_TZ=Europe/Madrid
-   * * * * * cd /srv/gestor-citas && docker compose -f docker-compose.prod.yml exec -T app npm run notifications:dispatch >> /var/log/salon-notifications.log 2>&1
-   ```
-
-   El log sólo lleva ids, estados y recuentos.
+3. **Variables**: las de la tabla de arriba, con `NOTIFICATION_SEAL_KEY` nueva, en
+   `/srv/gestor-citas/app.env` (`EMAIL_API_BASE_URL` no se pone: es la del proveedor).
+   Cambiar ese fichero exige **recrear** el contenedor: la salida del `up -d` tiene que
+   decir `Recreated`, no `Running`. La `0008` la aplica `node cli/migrate.mjs`. Todo
+   ello, paso a paso, en [`deploy/README.md`](../../deploy/README.md).
+4. **Cron**: la entrada de cada minuto de
+   [`deploy/cron.d/gestor-citas`](../../deploy/cron.d/gestor-citas), que ejecuta
+   `node cli/dispatch-notifications.mjs` dentro del contenedor y manda la salida al
+   diario (`journalctl -t gestor-citas-dispatch`). Sólo lleva ids, estados y recuentos.
 5. **Prueba**: una reserva real con un email propio, y la baja. Con Brevo, mirar en el
    email recibido qué cabecera `List-Unsubscribe` lleva (D-004 revisada).
 6. **No se envía a clientes reales** hasta que la tabla del paso 2 esté completa.

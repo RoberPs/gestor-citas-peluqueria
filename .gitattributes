@@ -1,0 +1,4 @@
+# Everything that runs on the VPS must keep Unix line endings: a CRLF in a
+# script, a cron file or an env file breaks it there in ways hard to read.
+*.sh text eol=lf
+deploy/** text eol=lf

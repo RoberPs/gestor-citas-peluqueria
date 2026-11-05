@@ -172,19 +172,69 @@ verde, y es un punto donde se puede parar.
 - [ ] **7b · Producción de prueba** en `niza.automatizacionro.work`, en el VPS y el
   Cloudflare del chatbot multicliente. Va antes de los pasos 8 y 9. Ver las decisiones
   del 2026-11-04 sobre producción.
-  - [ ] Fusionar la 002 y la 004 en `main` con la CI en verde, una PR por feature. La
-    002 entró con la PR #8 el 2026-11-04.
+  - [x] Fusionar la 002 y la 004 en `main` con la CI en verde, una PR por feature. La
+    002 entró con la PR #8 y la 004 con la PR #9, las dos el 2026-11-04.
   - [x] Adaptador de Brevo detrás del puerto `Notifier`, con TDD, y `EMAIL_PROVIDER`
     para volver a Resend; D-004 revisada, quickstart y `.env.example` de la 004
     actualizados.
-  - [ ] Imagen para el VPS compartido: HSTS y CSP en `next.config.ts`, `/health` y
-    `HEALTHCHECK`, imagen base fijada por digest, versión en la etiqueta, contenedor
-    endurecido y publicada en GHCR.
-  - [ ] `deploy/`: compose propio con su PostgreSQL sin puertos y en la red
-    `chatbot_proxy`, bloque para el Caddyfile del chatbot, copias diarias cifradas que
-    baje `descargar-copias.ps1`, crons y script con los datos del salón.
-  - [ ] Puesta en marcha en el VPS: DNS, entornos `0600`, alta de la dueña y pruebas de
-    punta a punta.
+  - [x] Imagen para el VPS compartido, rama `deploy-shared-vps`, 2026-11-05: HSTS y CSP
+    en `next.config.ts` (sin `preload`: es un subdominio de una zona compartida),
+    `/health` con su test y `HEALTHCHECK`, `node:22-slim` fijada por el digest del
+    chatbot, `.dockerignore` en lista blanca, salida `standalone` sin devDependencies,
+    usuario `node`, sin npm en la imagen y versión obligatoria en la etiqueta. Los
+    comandos (`migrate`, `provision-owner`, `retention-purge`,
+    `dispatch-notifications`, `seed-demo` y el nuevo `load-salon`) se empaquetan con
+    esbuild en `cli/*.mjs` (`npm run build:cli`) y corren con `node`, sin `tsx`.
+  - [x] Imagen publicada en GHCR el 2026-11-05, privada:
+    `ghcr.io/roberps/gestor-citas-peluqueria:1.0.0`, digest
+    `sha256:c8a07e72e93f7fda1d6730556d60c4b901af95e3acdedbea8178467c8f43f008`.
+  - [x] `deploy/`, 2026-11-05: compose propio (app y PostgreSQL sin puertos, la base sólo
+    en una red interna sin salida), la app como `salon_app`, **no superusuario**
+    (`btree_gist` es extensión de confianza), en `chatbot_proxy` y endurecida; bloque
+    para el Caddyfile del chatbot que reutiliza su fragmento `(instancia)`; copias
+    diarias cifradas con gpg y verificadas que baja `descargar-copias.ps1`; reintentos de email por cron y copia y purga con temporizadores de systemd en hora de
+    Madrid (el cron de Ubuntu no entiende `CRON_TZ`, comprobado en el VPS); `vps.sh` (`preparar`, `imagen`, `comprobar`);
+    `prueba-ip.sh`; y `load-salon`, que carga el salón desde un JSON sin tocar los
+    ratos bloqueados. Guía en `deploy/README.md`. Sustituye a `./docker-compose.prod.yml`
+    y `./Caddyfile`. Probado en local con la imagen: migraciones con `salon_app`,
+    todos los comandos en el contenedor de sólo lectura, un Caddy real con el Caddyfile
+    del chatbot (el `X-Forwarded-For` falso no sirve y cada visitante tiene su
+    contador), y una copia restaurada entera.
+  - **Cambio sobre el plan:** en producción no se ejecuta `db:seed`. Es el fixture de los
+    tests y sólo dejaría sus servicios desactivados en la base; `seed-demo` ya carga la
+    configuración completa. La imagen no lo trae.
+  - [ ] Puesta en marcha en el VPS (`deploy/README.md`).
+    - [x] 2026-11-05, pasos 3 a 6, 10 y 11: entornos `0600` y secretos en Bitwarden, imagen
+      comprobada por digest, base con `salon_app` y las 8 migraciones, app `healthy`, datos
+      de la demo, cuenta de la dueña (contraseña retirada del entorno), `vps.sh comprobar`
+      en verde, reintentos de email por cron, copia y purga con temporizadores de systemd,
+      primera copia hecha y bajada al PC, y la tarea «Gestor citas - descargar copias del
+      VPS» (diaria, 09:45) probada.
+    - [x] 2026-11-05, paso 7: registro `A` `niza` con proxy y bloque en el Caddy del chatbot
+      (copias `*.antes-gestor` de su `caddy.env` y su Caddyfile en el VPS). Certificado de
+      Let's Encrypt al primer intento; `/health` responde por HTTPS y el chatbot sigue en pie.
+      En los registros de Caddy, `X-Forwarded-For` llega ya sustituido por `CF-Connecting-IP`.
+    - [x] 2026-11-05: probada a mano en el móvil, en `niza.automatizacionro.work`, por el
+      dueño del producto: reserva, enlace (reprogramar y cancelar fuera de las 24 h),
+      agenda, ratos bloqueados, citas a mano (apuntar, mover, editar, cancelar), listado y
+      cuenta. Todo correcto. Por el camino se rehízo la contraseña de la dueña con
+      `provision-owner`, tras dejar `app.env` roto al pegar órdenes en `nano`; la guía
+      genera ahora la contraseña y la escribe con `sed`, sin editor.
+    - [ ] Paso 8: la prueba desde otra red (punto de acceso del móvil) queda aplazada; la
+      sustitución de la cabecera y los contadores por visitante se probaron en local con un
+      Caddy real.
+    - [ ] Paso 9: clave de API de Brevo, email encendido y una reserva real con mi email.
+    - [ ] Llevar el bloque de Caddy al repositorio del chatbot.
+  - [x] 2026-11-05, PR #10: el e2e de la US10 que dependía del día. `slotDaysFromNow`
+    movía el día cerrado al siguiente abierto y dos desplazamientos podían caer el mismo
+    día (un jueves, +3 y +4 eran el mismo lunes); la restricción `EXCLUDE` rechazaba la
+    segunda reserva y los escenarios 5 y 6 fallaban de jueves a sábado. Ahora cuenta días
+    abiertos, con su test unitario desde cada día de la semana.
+  - [ ] Subir `deploy-shared-vps`, actualizada con `main`, y fusionar su PR con la CI en
+    verde.
+  - [ ] **Antes de abrirla a clientes:** el límite por IP cuenta cada dirección IPv6 por
+    separado, y quien tenga un `/64` puede ir cambiando de dirección. Agrupar las IPv6
+    por su `/64` en el limitador, con su test.
 - [ ] **8 · 002, US7 + US8 + US9:** editar horario, catálogo y parámetros desde la app.
 - [ ] **9 · Pulido final:** accesibilidad, rendimiento, revisión de datos personales en
   logs, quickstart y corrección de los defectos menores listados en `README.md`.

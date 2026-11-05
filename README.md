@@ -44,7 +44,7 @@ siempre `db-test` con su propio seed, así que cambiar la demo nunca los rompe.
 
 ## Estado del producto
 
-Última revisión: **2026-11-04**.
+Última revisión: **2026-11-05**.
 
 ### Resumen
 
@@ -61,19 +61,30 @@ romper la garantía de no-superposición. Falta probarlo a mano con la dueña de
 | Feature | Estado | Tareas | Rama | En `main` |
 |---|---|---|---|---|
 | [001 · Reserva del cliente](specs/001-client-appointment-booking/spec.md) | Implementada | 118 / 118 | `001-client-appointment-booking` | Sí (PR #1) |
-| [002 · Gestión del salón](specs/002-salon-management/spec.md) | En curso: MVP completo (US1 a US6, US10 y US11), hecho el 2026-11-04; faltan US7, US8, US9 y el pulido | 164 / 212 (T139 y T140 las cubrió la 005) | `002-salon-management` | Sólo la documentación de antes de la revisión (PR #4) |
+| [002 · Gestión del salón](specs/002-salon-management/spec.md) | En curso: MVP completo (US1 a US6, US10 y US11), hecho el 2026-11-04; faltan US7, US8, US9 y el pulido | 164 / 212 (T139 y T140 las cubrió la 005) | `002-salon-management` | Sí, el MVP completo (PR #8) |
 | [003 · Versión responsive para tablet y ordenador](specs/003-responsive-desktop/spec.md) | Implementada | 35 / 35 | `003-responsive-desktop` | Sí (PR #3) |
-| [004 · Email de confirmación al reservar](specs/004-notifications/spec.md) | Implementada y probada a mano; falta dar de alta el proveedor real | 85 / 85 | `004-notifications` | No |
+| [004 · Email de confirmación al reservar](specs/004-notifications/spec.md) | Implementada y probada a mano; sale por Brevo, falta su alta en producción | 85 / 85 | `004-notifications` | Sí (PR #9) |
 | [005 · Varios servicios por cita y precio opcional](specs/005-multiple-services/spec.md) | Implementada | 55 / 55 | `005-multiple-services` | Sí (PR #6) |
 
-`main` contiene la 001, la 003 y la 005 completas, la enmienda 1.1.0 de la constitución
-y la primera documentación de la 002 (spec, plan y tareas). La rama
-`002-salon-management` ya tiene la 003 y la 005 incorporadas y su documentación
-revisada con ellas, con la US10 «Listado de reservas» y con las decisiones de la dueña
-del producto del 2026-11-03: la US11 «Editar una cita», la búsqueda por nombre o
-teléfono en el listado y el texto que ve el cliente según quién canceló. El código de cada feature se
-fusiona a `main` al cerrarla, con la CI en verde. La 002 se implementa en su rama a
-partir del paso 3 del [roadmap](docs/roadmap.md).
+`main` contiene la 001, la 003, la 004 y la 005 completas, el MVP completo de la 002 y la
+enmienda 1.1.0 de la constitución. El código de cada feature se fusiona a `main` al
+cerrarla, con la CI en verde. Lo que falta de la 002 (US7 a US9 y el pulido) va después
+del despliegue de prueba (pasos 8 y 9 del [roadmap](docs/roadmap.md)).
+
+### Producción de prueba (paso 7b)
+
+En preparación en la rama `deploy-shared-vps`: `niza.automatizacionro.work`, en el VPS
+y el Cloudflare del chatbot multicliente, con los datos de la demo y sin abrirla a
+clientes. La imagen, el compose, el bloque de Caddy, las copias cifradas y los crons
+están listos y probados en local; la guía paso a paso es [deploy/README.md](deploy/README.md).
+Desde el 2026-11-05 la app corre en el VPS con los datos de la demo, sus copias diarias
+se bajan al PC y nadie puede llegar a ella desde fuera: falta el DNS y el bloque en el
+Caddy del chatbot, que se harán cuando se quiera enseñar la demo, y el email con Brevo.
+
+Mientras no exista la US7–US9, el horario, los servicios, los festivos y los dos
+parámetros de reserva se cargan en producción con `load-salon` desde un JSON
+([deploy/salon.example.json](deploy/salon.example.json)), que conserva los ratos que
+la dueña bloquee desde la agenda.
 
 ### Qué puede hacer hoy la app (001, 003 y 005)
 
@@ -204,17 +215,16 @@ Probado a mano el 2026-11-04 con el proveedor falso. Con `NOTIFICATIONS_EMAIL=on
 
 ### Estado de los checks
 
-En la rama `004-notifications`, el 2026-11-04, con la 004 sobre el paso 6 de la 002;
-repasados el 2026-11-05 en `fix-e2e-us10-open-days` (los unitarios suman los 22 de
-`salon-days.test.ts`; en los e2e, 357 / 358 con el fallo intermitente de `us13`
-descrito abajo). La suite e2e corre entera con el canal de email encendido contra un
+En la rama `deploy-shared-vps`, el 2026-11-05, ya con el arreglo de la US10 (PR #10)
+de `main`: la imagen de producción suma los tests de las cabeceras de seguridad, de
+`/health` y de `load-salon`. La suite e2e corre entera con el canal de email encendido contra un
 proveedor falso que imita a Brevo (el proveedor por omisión).
 Playwright tiene tres proyectos, uno por tamaño (ver `playwright.config.ts`).
 
 | Check | Resultado |
 |---|---|
-| `npm test` (unitarios) | 734 / 734 ✅ |
-| `npm run test:integration` | 403 / 403 ✅ |
+| `npm test` (unitarios) | 740 / 740 ✅ |
+| `npm run test:integration` | 428 / 428 ✅ |
 | `npm run test:contract` | 200 / 200 ✅ |
 | `npm run test:e2e` | 358 / 358 ✅ |
 | · proyecto `mobile-360` (la suite de la 001, la 005, la 002 y la 004) | 160 / 160 ✅ |

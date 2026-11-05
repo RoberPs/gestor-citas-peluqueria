@@ -1,0 +1,11 @@
+# /etc/systemd/system/gestor-citas-purge.timer — 03:30 salon time (D-012),
+# whatever zone the server keeps. Ubuntu's cron ignores CRON_TZ.
+[Unit]
+Description=Gestor de citas: purga diaria a las 03:30 hora de Madrid
+
+[Timer]
+OnCalendar=*-*-* 03:30:00 Europe/Madrid
+Persistent=true
+
+[Install]
+WantedBy=timers.target

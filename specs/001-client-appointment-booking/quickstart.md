@@ -224,52 +224,48 @@ La última forma del comando es la que cubre la exigencia del Principio III sobr
 
 ## Despliegue
 
-```bash
-# Las variables que el compose exige, sin valor por defecto a propósito
-export SALON_DOMAIN=citas.tusalon.es
-export POSTGRES_PASSWORD=...
-export RATE_LIMIT_SECRET=...
-
-docker compose -f docker-compose.prod.yml up -d --build
-docker compose -f docker-compose.prod.yml exec app npm run db:migrate
-docker compose -f docker-compose.prod.yml exec app npm run db:seed
-```
-
-Tres servicios: `proxy` (Caddy), `app` y `db`. Sólo el proxy publica puertos.
+La guía paso a paso, con los comandos, está en [`deploy/README.md`](../../deploy/README.md).
+Desde el 2026-11-05 la app vive en el VPS del chatbot multicliente y comparte su
+Caddy; `deploy/docker-compose.prod.yml` levanta sólo `app` y su `db`, y ninguno
+publica puertos.
 
 ### HTTPS: dónde termina y por qué importa
 
-El Principio V exige que todo el tráfico vaya por HTTPS. **Caddy termina TLS**
-en el borde y obtiene el certificado de `SALON_DOMAIN` automáticamente; la
-aplicación escucha en el puerto 3000 de la red interna del compose y **no
-publica ningún puerto**, así que no es alcanzable en claro desde fuera.
+El Principio V exige que todo el tráfico vaya por HTTPS. Cloudflare termina el
+TLS del visitante y **el Caddy del chatbot** el del origen, con su propio
+certificado de Let's Encrypt (Cloudflare en «Full (strict)»). La aplicación
+escucha en el 3000 de la red `chatbot_proxy` de Docker y no es alcanzable en
+claro desde fuera.
 
-El `Caddyfile` añade las cabeceras que la aplicación no puede ponerse a sí
-misma:
+Ese Caddy no añade cabeceras, así que **las pone la propia aplicación**
+(`src/infrastructure/security/security-headers.ts`, desde `next.config.ts`):
 
 | Cabecera | Para qué |
 |---|---|
-| `Strict-Transport-Security` | Tras la primera visita el navegador se niega a hablar HTTP en claro |
+| `Strict-Transport-Security: max-age=31536000; includeSubDomains` | Tras la primera visita el navegador se niega a hablar HTTP en claro. Sin `preload`: la lista sólo admite dominios raíz, y este es un subdominio de una zona compartida |
 | `X-Content-Type-Options: nosniff` | El navegador no adivina el tipo de una respuesta |
 | `Referrer-Policy: strict-origin-when-cross-origin` | El enlace de gestión es una credencial en una URL: no debe viajar en un `Referer` a terceros |
 | `X-Frame-Options: DENY` y `frame-ancestors 'none'` | Nadie enmarca la pantalla de la cita |
 | `Content-Security-Policy` | Sin recursos de terceros, sin envío de formularios fuera del sitio |
 
 La CSP permite `'unsafe-inline'` en `script-src` porque Next arranca su
-hidratación con un script en línea. Apretarla más exige *nonces* por petición,
-que es un cambio en la aplicación y no en el proxy. Queda dicho para que sea una
-decisión y no un descuido.
+hidratación con un script en línea. Apretarla más exige *nonces* por petición.
+Queda dicho para que sea una decisión y no un descuido. `'unsafe-eval'` sólo
+aparece con `npm run dev`, que lo necesita para recargar.
 
 ### La IP del cliente, sólo desde el proxy
 
-Los límites de FR-038 y FR-039 leen `X-Forwarded-For`, y **sólo se fían de esa
-cabecera si la petición viene del proxy conocido** (`TRUSTED_PROXY_IPS`, que en
-este compose vale `proxy`). Sin esa comprobación cualquiera falsea su IP y el
-límite deja de existir.
+Los límites de FR-038 y FR-039 leen el primer salto de `X-Forwarded-For`, y
+**sólo se fían de él si hay un proxy configurado** (`TRUSTED_PROXY_IPS` no
+vacía; en el VPS vale `caddy`). Lo que lo hace seguro es el Caddy del chatbot,
+que **sustituye** esa cabecera por `CF-Connecting-IP`, y el cortafuegos de
+Hetzner, que sólo deja llegar al 443 desde Cloudflare. La app no publica
+puertos: sólo la alcanzan los contenedores de `chatbot_proxy`.
 
 Lo leen las cinco entradas: los Route Handlers, las dos Server Actions y las dos
 pantallas que resuelven un enlace. Si alguna dejara de hacerlo, el límite «por
-IP» se convertiría en un límite global compartido por todos los clientes.
+IP» se convertiría en un límite global compartido por todos los clientes. Se
+comprueba en el VPS con `deploy/prueba-ip.sh`.
 
 ### Un solo worker por salón
 
@@ -283,41 +279,30 @@ El secreto del HMAC es **fijo durante la vida del proceso**: se rota
 reiniciándolo. Rotarlo en caliente reasignaría las claves y reiniciaría en
 silencio todas las ventanas vivas, que es justo lo que querría quien abusa.
 
-### Cron del borrado por retención
+### Tareas programadas: retención, emails y copias
 
-Una entrada diaria a las **03:30 hora del salón** (D-012). En el `crontab` del
-host:
+Viven en [`deploy/`](../../deploy/README.md) (paso 10 de su guía):
 
-```cron
-# Borrado de datos personales a los 12 meses (FR-035). TZ fija la hora del salón.
-CRON_TZ=Europe/Madrid
-30 3 * * * cd /srv/gestor-citas && docker compose -f docker-compose.prod.yml exec -T app npm run retention:purge >> /var/log/salon-retention.log 2>&1
-```
+- **03:30 hora del salón**, el borrado por retención (D-012):
+  `node cli/retention-purge.mjs` dentro del contenedor, con un temporizador de
+  systemd (`deploy/systemd/gestor-citas-purge.timer`) que lleva la zona en el
+  propio calendario: `OnCalendar=*-*-* 03:30:00 Europe/Madrid`. No es cron porque
+  el de Ubuntu no entiende `CRON_TZ`, y sin la zona la purga se desplazaría una
+  hora dos veces al año.
+- **Cada minuto**, los reintentos de los emails de confirmación (004, D-003):
+  `node cli/dispatch-notifications.mjs`, desde `deploy/cron.d/gestor-citas`.
+- **03:15**, la copia cifrada de la base de datos (`deploy/backup.sh`), con otro
+  temporizador.
 
-`CRON_TZ` no es opcional: sin él la entrada corre en la hora del sistema y la
-purga se desplaza una hora dos veces al año.
+La salida va al diario del sistema (`sudo journalctl -t gestor-citas-purge`), y
+sólo lleva ids, estados y recuentos. La retención es el único proceso en segundo
+plano de la 001: el estado «completada» se deriva del reloj al leer la cita
+(FR-031).
 
-Es el **único** proceso en segundo plano de la feature. El estado «completada»
-no necesita ninguno: se deriva del reloj al leer la cita (FR-031).
-
-### Cron de los emails de confirmación (004)
-
-Con `NOTIFICATIONS_EMAIL=on`, una segunda entrada, **cada minuto**, junto a la de
-la purga: reintenta durante 1 hora los emails de confirmación que no salieron al
-primer intento (004, D-003). El log sólo lleva ids, estados y recuentos.
-
-```cron
-CRON_TZ=Europe/Madrid
-* * * * * cd /srv/gestor-citas && docker compose -f docker-compose.prod.yml exec -T app npm run notifications:dispatch >> /var/log/salon-notifications.log 2>&1
-```
-
-Su puesta en producción completa (dominio, contrato con el proveedor, variables)
-está en `specs/004-notifications/quickstart.md`.
-
-Conviene estrenar la entrada en seco antes de dejarla suelta:
+Conviene estrenar la purga en seco:
 
 ```bash
-docker compose -f docker-compose.prod.yml exec app npm run retention:purge -- --dry-run
+sudo docker compose -f /srv/gestor-citas/deploy/docker-compose.prod.yml exec app node cli/retention-purge.mjs --dry-run
 ```
 
 ## Problemas frecuentes
