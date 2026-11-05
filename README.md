@@ -215,17 +215,16 @@ Probado a mano el 2026-11-04 con el proveedor falso. Con `NOTIFICATIONS_EMAIL=on
 
 ### Estado de los checks
 
-En la rama `004-notifications`, el 2026-11-04, con la 004 sobre el paso 6 de la 002;
-repasados el 2026-11-05 en `fix-e2e-us10-open-days` (los unitarios suman los 22 de
-`salon-days.test.ts`; en los e2e, 357 / 358 con el fallo intermitente de `us13`
-descrito abajo). La suite e2e corre entera con el canal de email encendido contra un
+En la rama `deploy-shared-vps`, el 2026-11-05, ya con el arreglo de la US10 (PR #10)
+de `main`: la imagen de producción suma los tests de las cabeceras de seguridad, de
+`/health` y de `load-salon`. La suite e2e corre entera con el canal de email encendido contra un
 proveedor falso que imita a Brevo (el proveedor por omisión).
 Playwright tiene tres proyectos, uno por tamaño (ver `playwright.config.ts`).
 
 | Check | Resultado |
 |---|---|
-| `npm test` (unitarios) | 734 / 734 ✅ |
-| `npm run test:integration` | 403 / 403 ✅ |
+| `npm test` (unitarios) | 740 / 740 ✅ |
+| `npm run test:integration` | 428 / 428 ✅ |
 | `npm run test:contract` | 200 / 200 ✅ |
 | `npm run test:e2e` | 358 / 358 ✅ |
 | · proyecto `mobile-360` (la suite de la 001, la 005, la 002 y la 004) | 160 / 160 ✅ |

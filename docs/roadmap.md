@@ -225,6 +225,13 @@ verde, y es un punto donde se puede parar.
       Caddy real.
     - [ ] Paso 9: clave de API de Brevo, email encendido y una reserva real con mi email.
     - [ ] Llevar el bloque de Caddy al repositorio del chatbot.
+  - [x] 2026-11-05, PR #10: el e2e de la US10 que dependía del día. `slotDaysFromNow`
+    movía el día cerrado al siguiente abierto y dos desplazamientos podían caer el mismo
+    día (un jueves, +3 y +4 eran el mismo lunes); la restricción `EXCLUDE` rechazaba la
+    segunda reserva y los escenarios 5 y 6 fallaban de jueves a sábado. Ahora cuenta días
+    abiertos, con su test unitario desde cada día de la semana.
+  - [ ] Subir `deploy-shared-vps`, actualizada con `main`, y fusionar su PR con la CI en
+    verde.
   - [ ] **Antes de abrirla a clientes:** el límite por IP cuenta cada dirección IPv6 por
     separado, y quien tenga un `/64` puede ir cambiando de dirección. Agrupar las IPv6
     por su `/64` en el limitador, con su test.
