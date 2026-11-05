@@ -1,0 +1,11 @@
+# /etc/systemd/system/gestor-citas-backup.service — the encrypted copy of the
+# database (backup.sh), started by gestor-citas-backup.timer.
+[Unit]
+Description=Gestor de citas: copia cifrada de la base de datos
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/srv/gestor-citas/deploy/backup.sh
+SyslogIdentifier=gestor-citas-backup

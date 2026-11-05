@@ -1,21 +1,17 @@
 # /etc/cron.d/gestor-citas — root:root 0644, and the file name has no dot, or
-# cron ignores it. Each line says what runs it (deploy/README.md, «Crons»).
+# cron ignores it (deploy/README.md, «Tareas programadas»).
+#
+# Only the job whose time does not depend on a zone lives here. The nightly
+# copy and the purge are systemd timers (deploy/systemd/), because Ubuntu's
+# cron ignores CRON_TZ and would run them in the server's UTC.
 #
 # Output goes to the journal with a tag, never to a file that grows:
-#   journalctl -t gestor-citas-dispatch -t gestor-citas-purge -t gestor-citas-backup
-# The commands print counts and ids, never a name, a phone, an email or a link.
+#   sudo journalctl -t gestor-citas-dispatch
+# It prints counts and ids, never a name, a phone, an email or a link.
 
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-# The hours below are the salon's, whatever zone the server keeps.
-CRON_TZ=Europe/Madrid
 
 # 004, D-003: retries of the confirmation emails, every minute. `flock` keeps a
 # slow run from overlapping the next one.
 * * * * *   root  flock -n /run/gestor-citas-dispatch.lock docker compose -f /srv/gestor-citas/deploy/docker-compose.prod.yml exec -T app node cli/dispatch-notifications.mjs 2>&1 | logger -t gestor-citas-dispatch
-
-# D-012: personal data older than 12 months is anonymised, nightly at 03:30.
-30 3 * * *  root  docker compose -f /srv/gestor-citas/deploy/docker-compose.prod.yml exec -T app node cli/retention-purge.mjs 2>&1 | logger -t gestor-citas-purge
-
-# Encrypted copy of the database, before the purge, at 03:15.
-15 3 * * *  root  /srv/gestor-citas/deploy/backup.sh 2>&1 | logger -t gestor-citas-backup

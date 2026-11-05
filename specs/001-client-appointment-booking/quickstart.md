@@ -279,20 +279,23 @@ El secreto del HMAC es **fijo durante la vida del proceso**: se rota
 reiniciándolo. Rotarlo en caliente reasignaría las claves y reiniciaría en
 silencio todas las ventanas vivas, que es justo lo que querría quien abusa.
 
-### Crons: retención, emails y copias
+### Tareas programadas: retención, emails y copias
 
-Viven en [`deploy/cron.d/gestor-citas`](../../deploy/cron.d/gestor-citas), que se
-instala en `/etc/cron.d/` con `CRON_TZ=Europe/Madrid`:
+Viven en [`deploy/`](../../deploy/README.md) (paso 10 de su guía):
 
 - **03:30 hora del salón**, el borrado por retención (D-012):
-  `node cli/retention-purge.mjs` dentro del contenedor. `CRON_TZ` no es
-  opcional: sin él la purga se desplaza una hora dos veces al año.
+  `node cli/retention-purge.mjs` dentro del contenedor, con un temporizador de
+  systemd (`deploy/systemd/gestor-citas-purge.timer`) que lleva la zona en el
+  propio calendario: `OnCalendar=*-*-* 03:30:00 Europe/Madrid`. No es cron porque
+  el de Ubuntu no entiende `CRON_TZ`, y sin la zona la purga se desplazaría una
+  hora dos veces al año.
 - **Cada minuto**, los reintentos de los emails de confirmación (004, D-003):
-  `node cli/dispatch-notifications.mjs`.
-- **03:15**, la copia cifrada de la base de datos (`deploy/backup.sh`).
+  `node cli/dispatch-notifications.mjs`, desde `deploy/cron.d/gestor-citas`.
+- **03:15**, la copia cifrada de la base de datos (`deploy/backup.sh`), con otro
+  temporizador.
 
-La salida va al diario del sistema (`journalctl -t gestor-citas-purge`), y sólo
-lleva ids, estados y recuentos. La retención es el único proceso en segundo
+La salida va al diario del sistema (`sudo journalctl -t gestor-citas-purge`), y
+sólo lleva ids, estados y recuentos. La retención es el único proceso en segundo
 plano de la 001: el estado «completada» se deriva del reloj al leer la cita
 (FR-031).
 

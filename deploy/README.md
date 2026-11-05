@@ -22,7 +22,8 @@ Visitante ─▶ Cloudflare (Full strict) ─▶ 443 del VPS ─▶ Caddy del ch
 | `db-init/01-app-role.sh` | igual | Primer arranque de la base: rol `salon_app`, **no superusuario**, dueño de `salon` |
 | `vps.sh` | igual | `preparar`, `imagen` y `comprobar`. Repetible y sin imprimir secretos |
 | `backup.sh` | igual | Copia diaria cifrada y verificada |
-| `cron.d/gestor-citas` | `/etc/cron.d/gestor-citas` | Reintentos de email, purga y copia |
+| `cron.d/gestor-citas` | `/etc/cron.d/gestor-citas` | Reintentos de email, cada minuto |
+| `systemd/gestor-citas-*` | `/etc/systemd/system/` | Copia (03:15) y purga (03:30), en hora de Madrid |
 | `caddy/gestor-citas.caddy` | se pega en `/srv/chatbot/deploy/Caddyfile` | El bloque de este proyecto en el Caddy del chatbot |
 | `salon.example.json` | `/srv/gestor-citas/salon.json` | Datos del salón para `load-salon` (hoy, los de la demo) |
 | `prueba-ip.sh` | — (se lanza en el PC) | La app ve la IP real de cada visitante |
@@ -236,18 +237,34 @@ Después, **una reserva real con tu email**, marcando la casilla: llega un únic
 el enlace abre la cita, `/baja/…` pide confirmar. Mira en el original del mensaje qué
 cabecera `List-Unsubscribe` llega (D-004 revisada). Cancela la cita al terminar.
 
-## 10 · Crons
+## 10 · Tareas programadas
+
+Dos mecanismos, porque **el cron de Ubuntu no entiende `CRON_TZ`** (comprobado en el
+VPS el 2026-11-05: `grep -ac CRON_TZ /usr/sbin/cron` da `0`) y la copia y la purga
+tienen que ir en hora de Madrid sin cambiar la zona del servidor, que es la del
+chatbot:
+
+| Qué | Cuándo | Dónde |
+|---|---|---|
+| Reintentos de los emails (004, D-003) | Cada minuto | `cron.d/gestor-citas` → `/etc/cron.d/` |
+| Copia cifrada (`backup.sh`) | 03:15 hora de Madrid | `systemd/gestor-citas-backup.{service,timer}` |
+| Purga por retención (D-012) | 03:30 hora de Madrid | `systemd/gestor-citas-purge.{service,timer}` |
 
 ```bash
 sudo install -o root -g root -m 0644 /srv/gestor-citas/deploy/cron.d/gestor-citas /etc/cron.d/gestor-citas
-man 5 crontab | grep -n CRON_TZ        # que el cron de Ubuntu lo admite
-sudo /srv/gestor-citas/deploy/backup.sh  # la primera copia, a mano
-journalctl -t gestor-citas-dispatch -n 3 # al cabo de un minuto
+sudo install -o root -g root -m 0644 /srv/gestor-citas/deploy/systemd/gestor-citas-* /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now gestor-citas-backup.timer gestor-citas-purge.timer
+systemctl list-timers 'gestor-citas-*'      # NEXT: 02:15 y 02:30 UTC en invierno
+sudo /srv/gestor-citas/deploy/backup.sh     # la primera copia, a mano
+sudo systemctl start gestor-citas-purge.service
+sudo journalctl -t gestor-citas-dispatch -t gestor-citas-purge -t gestor-citas-backup -n 10 --no-pager
 ```
 
-Si `man` no menciona `CRON_TZ`, la purga y la copia correrían en la hora del sistema
-(UTC): una o dos horas más tarde, sin más consecuencia; el reintento de cada minuto
-no depende de la zona.
+`list-timers` muestra la hora en UTC: 02:15 y 02:30 en invierno, 01:15 y 01:30 en
+verano, que son siempre las 03:15 y 03:30 de Madrid. `Persistent=true` lanza al
+volver la copia o la purga que se perdiera con el servidor apagado. El diario sólo se
+lee con `sudo`: `operador` no está en el grupo `adm`.
 
 ## 11 · Copias fuera del VPS
 

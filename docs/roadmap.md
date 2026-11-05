@@ -190,8 +190,8 @@ verde, y es un punto donde se puede parar.
     en una red interna sin salida), la app como `salon_app`, **no superusuario**
     (`btree_gist` es extensión de confianza), en `chatbot_proxy` y endurecida; bloque
     para el Caddyfile del chatbot que reutiliza su fragmento `(instancia)`; copias
-    diarias cifradas con gpg y verificadas que baja `descargar-copias.ps1`; crons con
-    `CRON_TZ=Europe/Madrid`; `vps.sh` (`preparar`, `imagen`, `comprobar`);
+    diarias cifradas con gpg y verificadas que baja `descargar-copias.ps1`; reintentos de email por cron y copia y purga con temporizadores de systemd en hora de
+    Madrid (el cron de Ubuntu no entiende `CRON_TZ`, comprobado en el VPS); `vps.sh` (`preparar`, `imagen`, `comprobar`);
     `prueba-ip.sh`; y `load-salon`, que carga el salón desde un JSON sin tocar los
     ratos bloqueados. Guía en `deploy/README.md`. Sustituye a `./docker-compose.prod.yml`
     y `./Caddyfile`. Probado en local con la imagen: migraciones con `salon_app`,

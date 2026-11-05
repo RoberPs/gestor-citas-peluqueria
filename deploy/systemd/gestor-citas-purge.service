@@ -1,0 +1,11 @@
+# /etc/systemd/system/gestor-citas-purge.service — the retention purge (D-012):
+# personal data older than 12 months is anonymised. It prints counts only.
+[Unit]
+Description=Gestor de citas: borrado de datos personales caducados
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/docker compose -f /srv/gestor-citas/deploy/docker-compose.prod.yml exec -T app node cli/retention-purge.mjs
+SyslogIdentifier=gestor-citas-purge
