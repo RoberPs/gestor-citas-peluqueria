@@ -159,14 +159,23 @@ que 0.
 
 ## 6 · Cuenta de la dueña
 
+Sin abrir ningún editor: el 2026-11-05 se pegaron órdenes dentro de `app.env` con `nano` y
+el fichero dejó de leerse. Una línea cada vez, en la terminal:
+
 ```bash
-openssl rand -base64 18          # la contraseña inicial: a Bitwarden
-nano -w /srv/gestor-citas/app.env  # OWNER_USERNAME=… y OWNER_INITIAL_PASSWORD=…
+sed -i "s/^OWNER_USERNAME=.*/OWNER_USERNAME=<usuario>/" /srv/gestor-citas/app.env
+NUEVA=$(openssl rand -hex 12)     # 24 caracteres, sin nada que se rompa al pegar
+sed -i "s/^OWNER_INITIAL_PASSWORD=.*/OWNER_INITIAL_PASSWORD=$NUEVA/" /srv/gestor-citas/app.env
+echo "$NUEVA"                     # a Bitwarden, con el usuario
 $C up -d app                     # Recreated
 $C exec -T app node cli/provision-owner.mjs
-nano -w /srv/gestor-citas/app.env  # vacía OWNER_INITIAL_PASSWORD=
+sed -i "s/^OWNER_INITIAL_PASSWORD=.*/OWNER_INITIAL_PASSWORD=/" /srv/gestor-citas/app.env
 $C up -d app                     # Recreated otra vez
+unset NUEVA; clear
 ```
+
+Si `app.env` se rompe (`failed to parse env_file`), `awk '{i=index($0,"="); print substr($0,1,i-1), length(substr($0,i+1))}' app.env`
+enseña cada variable con la longitud de su valor, sin el valor.
 
 La app nunca lee esas dos variables; la contraseña sólo tiene que vivir unos minutos
 en el entorno del contenedor. `vps.sh comprobar` falla si sigue ahí. Lo mismo, si un
