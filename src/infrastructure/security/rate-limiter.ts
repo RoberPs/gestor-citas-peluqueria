@@ -1,4 +1,5 @@
 import { createHmac } from 'node:crypto';
+import { isIPv4, isIPv6 } from 'node:net';
 import type { RateLimitBucket, RateLimiter } from '@/application/ports';
 import { env } from '../config/env';
 
@@ -38,6 +39,50 @@ const RULES: Readonly<Record<RateLimitBucket, readonly Rule[]>> = {
     { limit: 15, windowMs: 24 * HOUR },
   ],
 };
+
+/**
+ * What one allowance belongs to.
+ *
+ * An IPv6 subscriber is handed a whole /64 and can hop between its addresses at
+ * will, so counting each address apart would hand them 2^64 allowances. The /64
+ * is the smallest block a network gives out: that is what gets counted. An
+ * IPv4-mapped address counts as the IPv4 address it carries. Anything that is
+ * not an IP is left as it is and keeps an allowance of its own.
+ */
+export function rateLimitSubject(ip: string): string {
+  if (isIPv4(ip)) return ip;
+
+  const address = ip.split('%')[0] ?? ip;
+  if (!isIPv6(address)) return ip;
+
+  const mapped = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i.exec(address)?.[1];
+  if (mapped !== undefined) return mapped;
+
+  const prefix = expandIPv6(address)
+    .slice(0, 4)
+    .map((group) => parseInt(group, 16).toString(16));
+  return `${prefix.join(':')}::/64`;
+}
+
+/** The eight hex groups of a valid IPv6 address, with `::` and an IPv4 tail unfolded. */
+function expandIPv6(address: string): string[] {
+  const toGroups = (part: string): string[] =>
+    part === ''
+      ? []
+      : part.split(':').flatMap((group) => {
+          if (!group.includes('.')) return [group];
+          const [a = 0, b = 0, c = 0, d = 0] = group.split('.').map(Number);
+          return [((a << 8) | b).toString(16), ((c << 8) | d).toString(16)];
+        });
+
+  const [head = '', tail] = address.split('::');
+  const headGroups = toGroups(head);
+  if (tail === undefined) return headGroups;
+
+  const tailGroups = toGroups(tail);
+  const zeros = Array.from({ length: 8 - headGroups.length - tailGroups.length }, () => '0');
+  return [...headGroups, ...zeros, ...tailGroups];
+}
 
 /**
  * Turns an IP into a non-reversible key.
@@ -88,7 +133,7 @@ export function createRateLimiter(config: {
       const now = config.now();
       prune(now);
 
-      const key = `${bucket}:${rateLimitKey(clientIp, config.secret)}`;
+      const key = `${bucket}:${rateLimitKey(rateLimitSubject(clientIp), config.secret)}`;
       const timestamps = hits.get(key) ?? [];
 
       const allowed = RULES[bucket].every(

@@ -79,9 +79,10 @@ Cloudflare del chatbot multicliente, con los datos de la demo y sin abrirla a cl
 [deploy/README.md](deploy/README.md). Probada a mano en el móvil, cliente y dueña; sus
 copias diarias, cifradas, se bajan al PC. El email de confirmación sale por Brevo desde
 `citas@automatizacionro.work`, probado con una reserva real: llega uno, con SPF, DKIM y
-DMARC en verde, y el enlace y la baja de la app funcionan. Antes de abrirla a clientes
-falta agrupar las IPv6 por su `/64` en el limitador, la prueba de la IP desde otra red y
-la tabla del encargado de la 004.
+DMARC en verde, y el enlace y la baja de la app funcionan. El limitador ya cuenta las
+IPv6 por su `/64` (2026-11-06), pero la imagen desplegada, la 1.0.0, es anterior. Antes
+de abrirla a clientes falta llevar ese cambio al VPS con una imagen nueva, la prueba de
+la IP desde otra red y la tabla del encargado de la 004.
 
 Mientras no exista la US7–US9, el horario, los servicios, los festivos y los dos
 parámetros de reserva se cargan en producción con `load-salon` desde un JSON
@@ -225,7 +226,7 @@ Playwright tiene tres proyectos, uno por tamaño (ver `playwright.config.ts`).
 
 | Check | Resultado |
 |---|---|
-| `npm test` (unitarios) | 740 / 740 ✅ |
+| `npm test` (unitarios) | 750 / 750 ✅ |
 | `npm run test:integration` | 428 / 428 ✅ |
 | `npm run test:contract` | 200 / 200 ✅ |
 | `npm run test:e2e` | 360 / 360 ✅ |
