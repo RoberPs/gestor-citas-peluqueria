@@ -245,8 +245,14 @@ verde, y es un punto donde se puede parar.
     ir cambiando de dirección. Ahora el limitador cuenta las IPv6 por su `/64`
     (`rateLimitSubject`, antes del HMAC, para todas las rutas), y una IPv4 dentro de una
     IPv6 (`::ffff:…`) como esa IPv4; con sus tests unitarios. D-007 revisada.
-  - [ ] Llevar el `/64` a producción: imagen nueva (1.0.1) en GHCR y desplegarla en el
-    VPS siguiendo `deploy/README.md`.
+  - [ ] Llevar el `/64` a producción: imagen nueva (1.0.1, que lleva también el arreglo de
+    la PR #14) en GHCR y desplegarla en el VPS siguiendo `deploy/README.md`.
+- [x] 2026-11-06, PR #14 (`fix-e2e-us13-scrollable-region`): el fallo intermitente de axe en
+  `us13-unsubscribe` («escenarios 1 y 2», `scrollable-region-focusable` en `<html>`), que
+  ya salía en la CI. Las pantallas con cabecera desplazaban 45 px (`main` con `100vh`
+  debajo de la cabecera) y el anunciador de rutas de Next deja a veces texto fuera de la
+  página. `body` pasa a ser una columna flexible y la página corta ya no desplaza; test de
+  regresión que fuerza el anuncio. Detalle en `README.md`.
 - [ ] **8 · 002, US7 + US8 + US9:** editar horario, catálogo y parámetros desde la app.
 - [ ] **9 · Pulido final:** accesibilidad, rendimiento, revisión de datos personales en
   logs, quickstart y corrección de los defectos menores listados en `README.md`.

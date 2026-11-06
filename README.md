@@ -229,9 +229,9 @@ Playwright tiene tres proyectos, uno por tamaño (ver `playwright.config.ts`).
 | `npm test` (unitarios) | 750 / 750 ✅ |
 | `npm run test:integration` | 428 / 428 ✅ |
 | `npm run test:contract` | 200 / 200 ✅ |
-| `npm run test:e2e` | 358 / 358 ✅ |
-| · proyecto `mobile-360` (la suite de la 001, la 005, la 002 y la 004) | 160 / 160 ✅ |
-| · proyecto `desktop-1280` (lo mismo sin rendimiento, más `responsive.spec.ts`) | 188 / 188 ✅ |
+| `npm run test:e2e` | 360 / 360 ✅ |
+| · proyecto `mobile-360` (la suite de la 001, la 005, la 002 y la 004) | 161 / 161 ✅ |
+| · proyecto `desktop-1280` (lo mismo sin rendimiento, más `responsive.spec.ts`) | 189 / 189 ✅ |
 | · proyecto `tablet-768` (accesibilidad) | 10 / 10 ✅ |
 | `npm run lint` | ✅ |
 | `npm run check:layers` | ✅ |
@@ -267,10 +267,16 @@ El 2026-11-04, en una ejecución completa de `npm run test:integration`, falló 
 hacia la misma hora. Pasó aislado y en las dos ejecuciones completas siguientes. Es una
 carrera del propio test, no un solape guardado; si se repite en la CI, es esto.
 
-`us13-unsubscribe` «escenarios 1 y 2» ha fallado dos veces en una ejecución completa
-(la última, el 2026-11-05 en `desktop-1280`): axe ve `scrollable-region-focusable` en la
-pantalla «Te has dado de baja», justo después del botón. Aislado y repetido pasa (42 / 42).
-Está pendiente de averiguar qué región se vuelve desplazable en ese instante.
+`us13-unsubscribe` «escenarios 1 y 2» falló cuatro veces en ejecuciones completas, la
+última en la CI de la PR #13: axe veía `scrollable-region-focusable` en `<html>` en la
+pantalla «Te has dado de baja». Resuelto el 2026-11-06. `main` medía `100vh` además de la
+cabecera, así que toda pantalla con cabecera desplazaba 45 px aunque fuera corta; y tras la
+redirección, el anunciador de rutas de Next a veces recibe el `h1` como texto (cuando el
+`<title>` falta un instante), por debajo del final de la página. Una página desplazable sin
+nada que enfocar y con contenido fuera de vista es lo que la regla rechaza. Ahora `body` es
+una columna flexible de la altura de la ventana y `main` la rellena sin pasarse; el test
+«escenario 2 — the done screen does not scroll…» fuerza el anuncio y lo comprueba sin
+depender del momento.
 
 El 2026-11-03 el helper de axe pasó a esperar al `<title>` antes de analizar: justo
 después de una server action que redirige, React cambia el `<head>` y por un instante
