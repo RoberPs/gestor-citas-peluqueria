@@ -243,6 +243,12 @@ verde, y es un punto donde se puede parar.
   - [ ] **Antes de abrirla a clientes:** el límite por IP cuenta cada dirección IPv6 por
     separado, y quien tenga un `/64` puede ir cambiando de dirección. Agrupar las IPv6
     por su `/64` en el limitador, con su test.
+- [x] 2026-11-06, rama `fix-e2e-us13-scrollable-region`: el fallo intermitente de axe en
+  `us13-unsubscribe` («escenarios 1 y 2», `scrollable-region-focusable` en `<html>`), que
+  ya salía en la CI. Las pantallas con cabecera desplazaban 45 px (`main` con `100vh`
+  debajo de la cabecera) y el anunciador de rutas de Next deja a veces texto fuera de la
+  página. `body` pasa a ser una columna flexible y la página corta ya no desplaza; test de
+  regresión que fuerza el anuncio. Detalle en `README.md`.
 - [ ] **8 · 002, US7 + US8 + US9:** editar horario, catálogo y parámetros desde la app.
 - [ ] **9 · Pulido final:** accesibilidad, rendimiento, revisión de datos personales en
   logs, quickstart y corrección de los defectos menores listados en `README.md`.
