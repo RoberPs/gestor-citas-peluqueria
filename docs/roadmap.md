@@ -240,9 +240,13 @@ verde, y es un punto donde se puede parar.
     abiertos, con su test unitario desde cada día de la semana.
   - [x] 2026-11-05, PR #11: `deploy-shared-vps`, actualizada con `main`, fusionada con la
     CI en verde.
-  - [ ] **Antes de abrirla a clientes:** el límite por IP cuenta cada dirección IPv6 por
-    separado, y quien tenga un `/64` puede ir cambiando de dirección. Agrupar las IPv6
-    por su `/64` en el limitador, con su test.
+  - [x] 2026-11-06, rama `rate-limit-ipv6-prefix`: **antes de abrirla a clientes**, el
+    límite por IP contaba cada dirección IPv6 por separado, y quien tenga un `/64` podía
+    ir cambiando de dirección. Ahora el limitador cuenta las IPv6 por su `/64`
+    (`rateLimitSubject`, antes del HMAC, para todas las rutas), y una IPv4 dentro de una
+    IPv6 (`::ffff:…`) como esa IPv4; con sus tests unitarios. D-007 revisada.
+  - [ ] Llevar el `/64` a producción: imagen nueva (1.0.1) en GHCR y desplegarla en el
+    VPS siguiendo `deploy/README.md`.
 - [ ] **8 · 002, US7 + US8 + US9:** editar horario, catálogo y parámetros desde la app.
 - [ ] **9 · Pulido final:** accesibilidad, rendimiento, revisión de datos personales en
   logs, quickstart y corrección de los defectos menores listados en `README.md`.

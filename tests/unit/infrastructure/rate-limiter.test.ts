@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { createRateLimiter, rateLimitKey } from '@/infrastructure/security/rate-limiter';
+import {
+  createRateLimiter,
+  rateLimitKey,
+  rateLimitSubject,
+} from '@/infrastructure/security/rate-limiter';
 
 /**
  * D-007 and FR-040: a sliding window in process memory, keyed by an HMAC of the
@@ -192,6 +196,91 @@ describe('aggregate rejection counter (FR-040)', () => {
     await limiter.check('APPOINTMENT_LOOKUP', OTHER_IP);
 
     // The first IP aged out: nothing about it is kept beyond its own window.
+    expect(limiter.trackedKeyCount()).toBe(1);
+  });
+});
+
+/**
+ * An IPv6 subscriber gets a whole /64 and can hop between its addresses at will;
+ * counting each address apart would hand them 2^64 allowances. The /64 is the
+ * smallest block a network hands out, so it is what the limiter counts.
+ */
+describe('rateLimitSubject: what one allowance belongs to', () => {
+  it('leaves an IPv4 address as it is', () => {
+    expect(rateLimitSubject('203.0.113.7')).toBe('203.0.113.7');
+  });
+
+  it('reduces an IPv6 address to its /64', () => {
+    expect(rateLimitSubject('2001:db8:85a3:42:8a2e:370:7334:1')).toBe('2001:db8:85a3:42::/64');
+  });
+
+  it('gives every address of the same /64 the same subject, however it is written', () => {
+    const subjects = [
+      '2001:db8:85a3:42::1',
+      '2001:DB8:85A3:42:ffff:ffff:ffff:ffff',
+      '2001:0db8:85a3:0042:0000:0000:0000:0002',
+      '2001:db8:85a3:42::abcd%eth0',
+    ].map(rateLimitSubject);
+
+    expect(new Set(subjects)).toEqual(new Set(['2001:db8:85a3:42::/64']));
+  });
+
+  it('compresses zeros inside the prefix the same way every time', () => {
+    expect(rateLimitSubject('2001:db8::1')).toBe('2001:db8:0:0::/64');
+    expect(rateLimitSubject('::1')).toBe('0:0:0:0::/64');
+  });
+
+  it('separates two neighbouring /64', () => {
+    expect(rateLimitSubject('2001:db8:85a3:42::1')).not.toBe(
+      rateLimitSubject('2001:db8:85a3:43::1'),
+    );
+  });
+
+  it('treats an IPv4-mapped IPv6 address as the IPv4 address it carries', () => {
+    expect(rateLimitSubject('::ffff:203.0.113.7')).toBe('203.0.113.7');
+  });
+
+  it('leaves anything that is not an IP as it is, so it still has its own allowance', () => {
+    expect(rateLimitSubject('unknown')).toBe('unknown');
+    expect(rateLimitSubject('not:an:ip')).toBe('not:an:ip');
+  });
+});
+
+describe('IPv6: one allowance per /64', () => {
+  it('stops whoever rotates addresses inside one /64', async () => {
+    const clock = fakeClock();
+    const limiter = createRateLimiter({ secret: SECRET, now: clock.now });
+
+    for (let i = 1; i <= 30; i += 1) {
+      const result = await limiter.check(
+        'APPOINTMENT_LOOKUP',
+        `2001:db8:85a3:42::${i.toString(16)}`,
+      );
+      expect(result.allowed).toBe(true);
+    }
+
+    expect((await limiter.check('APPOINTMENT_LOOKUP', '2001:db8:85a3:42::ffff')).allowed).toBe(
+      false,
+    );
+  });
+
+  it('keeps a neighbouring /64 out of it', async () => {
+    const clock = fakeClock();
+    const limiter = createRateLimiter({ secret: SECRET, now: clock.now });
+
+    for (let i = 0; i < 30; i += 1)
+      await limiter.check('APPOINTMENT_LOOKUP', '2001:db8:85a3:42::1');
+
+    expect((await limiter.check('APPOINTMENT_LOOKUP', '2001:db8:85a3:43::1')).allowed).toBe(true);
+  });
+
+  it('keeps one window for the whole /64', async () => {
+    const clock = fakeClock();
+    const limiter = createRateLimiter({ secret: SECRET, now: clock.now });
+
+    await limiter.check('BOOKING_CONFIRMATION', '2001:db8:85a3:42::1');
+    await limiter.check('BOOKING_CONFIRMATION', '2001:db8:85a3:42::2');
+
     expect(limiter.trackedKeyCount()).toBe(1);
   });
 });
