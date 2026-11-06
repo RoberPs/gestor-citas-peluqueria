@@ -180,6 +180,11 @@ clave. `EMAIL_PROVIDER` vale `brevo` por omisión.
   queda para el adaptador de Resend, que sí envía las cabeceras.
 - Comprobar en la primera prueba real qué cabecera `List-Unsubscribe` llega. Si esto
   molesta en la práctica, se vuelve a Resend.
+- **Primera prueba real, 2026-11-05** (producción de prueba, Gmail): Brevo añade
+  `List-Unsubscribe` y `List-Unsubscribe-Post` y las firma con DKIM; SPF, DKIM y DMARC en
+  `PASS`. Queda confirmado que el botón del gestor de correo da de baja en Brevo. El
+  dominio de su enlace no se miró. El enlace de baja del cuerpo, el de la app, pidió
+  confirmar y dio de baja.
 
 ---
 

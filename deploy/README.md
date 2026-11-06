@@ -239,13 +239,41 @@ EMAIL_FROM=<dirección del dominio verificado en Brevo>
 EMAIL_REPLY_TO=<email del salón>
 ```
 
+Sin editor, como en el paso 6. La clave la lee `read -rs`, que no la enseña ni la deja
+en el historial; pégala y pulsa Intro aunque no se vea nada:
+
+```bash
+cd /srv/gestor-citas
+read -rs CLAVE
+echo ${#CLAVE}                    # 89
+sed -i "s/^EMAIL_API_KEY=.*/EMAIL_API_KEY=$CLAVE/" app.env
+unset CLAVE
+grep -c '^EMAIL_API_KEY=xkeysib-[A-Za-z0-9-]*$' app.env   # 1
+sed -i "s/^EMAIL_FROM=.*/EMAIL_FROM=<remitente>/" app.env
+sed -i "s/^EMAIL_REPLY_TO=.*/EMAIL_REPLY_TO=<respuestas>/" app.env
+sed -i "s/^NOTIFICATIONS_EMAIL=.*/NOTIFICATIONS_EMAIL=on/" app.env
+```
+
+Si el `grep` da `0`, mira el prefijo con
+`sed -n 's/^EMAIL_API_KEY=//p' app.env | head -c 4 | od -c`: `x s m t` es la clave **SMTP**
+(`xsmtpsib-`), que Brevo enseña en la misma pantalla y con la que la API responde 401
+(pasó el 2026-11-05). La de API está en *SMTP y API → Claves de API*.
+
 `$C up -d app` → `Recreated`. Con el canal encendido, la app no arranca si falta la
 clave, el remitente o `NOTIFICATION_SEAL_KEY`; el registro nombra la variable, no el
 valor (`$C logs app`).
 
 Después, **una reserva real con tu email**, marcando la casilla: llega un único email,
 el enlace abre la cita, `/baja/…` pide confirmar. Mira en el original del mensaje qué
-cabecera `List-Unsubscribe` llega (D-004 revisada). Cancela la cita al terminar.
+cabecera `List-Unsubscribe` llega (D-004 revisada). Cancela la cita al terminar. En la
+base, sin datos personales:
+
+```bash
+$C exec -T db sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" psql -U postgres -d salon -c "select status, attempts, created_at from notification order by created_at desc limit 3"'
+```
+
+Tiene que salir `SENT` con `attempts` 1. Hecho el 2026-11-05 con Brevo: SPF, DKIM y DMARC en
+`PASS`, y Brevo añade su `List-Unsubscribe` firmada.
 
 ## 10 · Tareas programadas
 

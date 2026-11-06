@@ -63,7 +63,7 @@ romper la garantía de no-superposición. Falta probarlo a mano con la dueña de
 | [001 · Reserva del cliente](specs/001-client-appointment-booking/spec.md) | Implementada | 118 / 118 | `001-client-appointment-booking` | Sí (PR #1) |
 | [002 · Gestión del salón](specs/002-salon-management/spec.md) | En curso: MVP completo (US1 a US6, US10 y US11), hecho el 2026-11-04; faltan US7, US8, US9 y el pulido | 164 / 212 (T139 y T140 las cubrió la 005) | `002-salon-management` | Sí, el MVP completo (PR #8) |
 | [003 · Versión responsive para tablet y ordenador](specs/003-responsive-desktop/spec.md) | Implementada | 35 / 35 | `003-responsive-desktop` | Sí (PR #3) |
-| [004 · Email de confirmación al reservar](specs/004-notifications/spec.md) | Implementada y probada a mano; sale por Brevo, falta su alta en producción | 85 / 85 | `004-notifications` | Sí (PR #9) |
+| [004 · Email de confirmación al reservar](specs/004-notifications/spec.md) | Implementada y probada a mano; encendida en la producción de prueba con Brevo desde el 2026-11-05 | 85 / 85 | `004-notifications` | Sí (PR #9) |
 | [005 · Varios servicios por cita y precio opcional](specs/005-multiple-services/spec.md) | Implementada | 55 / 55 | `005-multiple-services` | Sí (PR #6) |
 
 `main` contiene la 001, la 003, la 004 y la 005 completas, el MVP completo de la 002 y la
@@ -73,13 +73,15 @@ del despliegue de prueba (pasos 8 y 9 del [roadmap](docs/roadmap.md)).
 
 ### Producción de prueba (paso 7b)
 
-En preparación en la rama `deploy-shared-vps`: `niza.automatizacionro.work`, en el VPS
-y el Cloudflare del chatbot multicliente, con los datos de la demo y sin abrirla a
-clientes. La imagen, el compose, el bloque de Caddy, las copias cifradas y los crons
-están listos y probados en local; la guía paso a paso es [deploy/README.md](deploy/README.md).
-Desde el 2026-11-05 la app corre en el VPS con los datos de la demo, sus copias diarias
-se bajan al PC y nadie puede llegar a ella desde fuera: falta el DNS y el bloque en el
-Caddy del chatbot, que se harán cuando se quiera enseñar la demo, y el email con Brevo.
+En marcha desde el 2026-11-05 en https://niza.automatizacionro.work, en el VPS y el
+Cloudflare del chatbot multicliente, con los datos de la demo y sin abrirla a clientes
+(fusionada en `main` con la PR #11). La guía paso a paso es
+[deploy/README.md](deploy/README.md). Probada a mano en el móvil, cliente y dueña; sus
+copias diarias, cifradas, se bajan al PC. El email de confirmación sale por Brevo desde
+`citas@automatizacionro.work`, probado con una reserva real: llega uno, con SPF, DKIM y
+DMARC en verde, y el enlace y la baja de la app funcionan. Antes de abrirla a clientes
+falta agrupar las IPv6 por su `/64` en el limitador, la prueba de la IP desde otra red y
+la tabla del encargado de la 004.
 
 Mientras no exista la US7–US9, el horario, los servicios, los festivos y los dos
 parámetros de reserva se cargan en producción con `load-salon` desde un JSON

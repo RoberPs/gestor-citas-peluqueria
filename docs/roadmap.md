@@ -223,15 +223,23 @@ verde, y es un punto donde se puede parar.
     - [ ] Paso 8: la prueba desde otra red (punto de acceso del móvil) queda aplazada; la
       sustitución de la cabecera y los contadores por visitante se probaron en local con un
       Caddy real.
-    - [ ] Paso 9: clave de API de Brevo, email encendido y una reserva real con mi email.
-    - [ ] Llevar el bloque de Caddy al repositorio del chatbot.
+    - [x] 2026-11-05, paso 9: clave de API de Brevo propia del proyecto, la IP del VPS
+      autorizada, remitente `citas@automatizacionro.work` y respuestas a mi email. Una
+      reserva real: un único email, SPF, DKIM y DMARC en `PASS`, el enlace abre la cita,
+      la baja pide confirmar, `SENT` al primer intento, y la cita cancelada. Brevo añade
+      `List-Unsubscribe` y `List-Unsubscribe-Post`, firmadas con DKIM (D-004 revisada); el
+      dominio de su enlace no se miró. Por el camino se pegó primero la clave SMTP
+      (`xsmtpsib-`): la guía comprueba ahora el prefijo.
+    - [x] 2026-11-05: el bloque de Caddy, en el repositorio del chatbot (commit `fc3f890`
+      en su `main`, sin subir), con las mismas directivas que el del VPS y
+      `caddy validate` en verde.
   - [x] 2026-11-05, PR #10: el e2e de la US10 que dependía del día. `slotDaysFromNow`
     movía el día cerrado al siguiente abierto y dos desplazamientos podían caer el mismo
     día (un jueves, +3 y +4 eran el mismo lunes); la restricción `EXCLUDE` rechazaba la
     segunda reserva y los escenarios 5 y 6 fallaban de jueves a sábado. Ahora cuenta días
     abiertos, con su test unitario desde cada día de la semana.
-  - [ ] Subir `deploy-shared-vps`, actualizada con `main`, y fusionar su PR con la CI en
-    verde.
+  - [x] 2026-11-05, PR #11: `deploy-shared-vps`, actualizada con `main`, fusionada con la
+    CI en verde.
   - [ ] **Antes de abrirla a clientes:** el límite por IP cuenta cada dirección IPv6 por
     separado, y quien tenga un `/64` puede ir cambiando de dirección. Agrupar las IPv6
     por su `/64` en el limitador, con su test.
