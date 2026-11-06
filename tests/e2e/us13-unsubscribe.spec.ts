@@ -78,6 +78,38 @@ test('escenario 3 — opening it again says it was already done', async ({ page 
   await expect(page.getByRole('button', { name: 'Darme de baja' })).toHaveCount(0);
 });
 
+/**
+ * Regression: «escenarios 1 y 2» failed now and then with axe's
+ * scrollable-region-focusable on `<html>`. A short screen under the header was
+ * still 100vh plus the header tall, so the page always scrolled; and after the
+ * redirect Next's route announcer sometimes gets the new `h1` as text, which
+ * sits below the end of the page. A screen with nothing to focus that scrolls
+ * with content out of view is what the rule rejects. Here the announcement is
+ * forced, as Next does it, so the check does not depend on timing.
+ */
+test('escenario 2 — the done screen does not scroll and stays accessible while Next announces it', async ({
+  page,
+}) => {
+  const { links } = await bookAndReadEmail(page);
+  await page.goto(links.unsubscribe);
+  await page.getByRole('button', { name: 'Darme de baja' }).click();
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Te has dado de baja');
+
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollHeight - document.documentElement.clientHeight,
+  );
+  expect(overflow).toBeLessThanOrEqual(0);
+
+  await page.waitForFunction(
+    () => document.querySelector('next-route-announcer')?.shadowRoot?.firstChild,
+  );
+  await page.evaluate(() => {
+    const announcer = document.querySelector('next-route-announcer')?.shadowRoot?.firstChild;
+    if (announcer) announcer.textContent = 'Te has dado de baja';
+  });
+  await expectNoAccessibilityViolations(page);
+});
+
 test('FR-017 — from the appointment screen, without JavaScript, and the section goes', async ({
   page: jsPage,
   browser,
